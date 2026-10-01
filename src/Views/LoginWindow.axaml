@@ -33,7 +33,7 @@
                         </Border.RenderTransform>
 
                         <StackPanel HorizontalAlignment="Center">
-                            <TextBlock Text="登录 Kilim Minecraft Launcher"
+                            <TextBlock Text="登录Kilim Minecraft Launcher"
                                        FontSize="20"
                                        FontWeight="Bold"
                                        Foreground="#333"
@@ -76,7 +76,6 @@
                                             Padding="0" />
                                 </Grid>
 
-                                <!-- ★ 液态玻璃滑块：RenderTransformOrigin 控中心，Scale 在前 Translate 在后 -->
                                 <lg:LiquidGlassSurface x:Name="LoginModeSlider"
                                                        Width="114"
                                                        Height="36"
@@ -104,7 +103,7 @@
                                     <lg:LiquidGlassSurface.RenderTransform>
                                         <TransformGroup>
                                             <ScaleTransform ScaleX="1" ScaleY="1" />
-                                            <TranslateTransform />
+                                            <TranslateTransform X="120" Y="0" />
                                         </TransformGroup>
                                     </lg:LiquidGlassSurface.RenderTransform>
                                 </lg:LiquidGlassSurface>
@@ -184,7 +183,7 @@
                     Background="#F5F5F5"
                     CornerRadius="0,0,12,12">
                 <DockPanel Margin="15,0,15,0">
-                    <TextBlock DockPanel.Dock="Left" Text="v0.2.1 · Erics" FontSize="11" Foreground="#999" VerticalAlignment="Center" />
+                    <TextBlock DockPanel.Dock="Left" Text="rc-5" FontSize="11" Foreground="#999" VerticalAlignment="Center" />
                     <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center" Spacing="8">
                         <Button x:Name="GitHubButton" Background="Transparent" BorderThickness="0" Cursor="Hand" Padding="0" Width="44" Height="44" ToolTip.Tip="点击即访问仓库">
                             <Image Source="avares://Project.Launch/src/Views/imgs/github.png" Width="36" Height="36" Stretch="Uniform" />

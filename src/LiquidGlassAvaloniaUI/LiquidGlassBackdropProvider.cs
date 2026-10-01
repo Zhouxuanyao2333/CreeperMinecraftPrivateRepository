@@ -770,7 +770,7 @@ namespace LiquidGlassAvaloniaUI
 
         private static ulong ComputeBackdropHash(byte[] bytes, int rowBytes, int width, int height)
         {
-            // Fast, stable “good enough” fingerprint (8x8 samples) to avoid redundant invalidations.
+            // Fast, stable "good enough" fingerprint (8x8 samples) to avoid redundant invalidations.
             const ulong fnvOffset = 14695981039346656037UL;
             const ulong fnvPrime = 1099511628211UL;
 

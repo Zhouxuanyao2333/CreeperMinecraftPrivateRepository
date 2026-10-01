@@ -27,27 +27,27 @@
       <PrivateAssets Condition="'$(Configuration)' != 'Debug'">All</PrivateAssets>
     </PackageReference>
 
+    <!-- 音频库 -->
+    <PackageReference Include="NAudio" Version="2.2.1" />
+
     <!-- 本地引用：LiquidGlassAvaloniaUI -->
     <ProjectReference Include="src\LiquidGlassAvaloniaUI\LiquidGlassAvaloniaUI.csproj" />
   </ItemGroup>
 
   <ItemGroup>
-    <!-- 你的文件 -->
+    <!-- XAML 文件（AvaloniaXaml / AvaloniaResource） -->
     <AvaloniaXaml Update="App.axaml" />
+    <AvaloniaXaml Update="src\Views\MainWindow.axaml" />
     <AvaloniaResource Include="src\Views\Styles.axaml" />
     <AvaloniaResource Include="src\Views\Glass.axaml" />
-    <AvaloniaXaml Update="src\Views\MainWindow.axaml" />
-    <AvaloniaResource Include="src\Views\imgs\blackx.png" />
-    <AvaloniaResource Include="src\Views\imgs\black-.png" />
-    <AvaloniaResource Include="src\Views\imgs\whitex.png" />
-    <AvaloniaResource Include="src\Views\imgs\white-.png" />
-    <AvaloniaResource Include="src\Views\imgs\button-Start1.png" />
-    <AvaloniaResource Include="src\Views\imgs\button-Start2.png" />
-    <AvaloniaResource Include="src\Views\imgs\button-Start3.png" />
-    <AvaloniaResource Include="src\Views\imgs\button-Start4.png" />
-    <AvaloniaResource Include="src\Views\imgs\github.png" />
-    <AvaloniaResource Include="src\Views\imgs\show.png" />
 
+    <!-- ★ 一劳永逸：imgs 整个目录（递归含 skin 子目录），排除 .ico 图标 -->
+    <AvaloniaResource Include="src\Views\imgs\**" Exclude="src\Views\imgs\MainLogo.ico" />
+
+    <!-- ★ 一劳永逸：Sound 整个目录 -->
+    <AvaloniaResource Include="src\Sound\**" />
+
+    <!-- 任务栏图标：单独处理为 Content，复制到输出目录 -->
     <Content Include="src\Views\imgs\MainLogo.ico">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>

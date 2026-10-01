@@ -6,43 +6,88 @@ namespace Project.Launch.Tools
 {
     public static class AccountService
     {
-        private static readonly string LauncherDir = Path.Combine(
-            AppDomain.CurrentDomain.BaseDirectory,
-            "KilimLauncher"
-        );
-        private static readonly string AccountsFile = Path.Combine(LauncherDir, "accounts.json");
+        // ★ P1-5 修复：路径统一走 LauncherPaths，不再自己拼一份
         private static readonly object _lock = new object();
-
-        static AccountService()
-        {
-            if (!Directory.Exists(LauncherDir))
-                Directory.CreateDirectory(LauncherDir);
-        }
 
         public static AccountsRoot LoadAccounts()
         {
             lock (_lock)
             {
-                if (!File.Exists(AccountsFile))
+                if (!File.Exists(LauncherPaths.AccountsFile))
                     return new AccountsRoot();
+
                 try
                 {
-                    string json = File.ReadAllText(AccountsFile);
+                    string json = File.ReadAllText(LauncherPaths.AccountsFile);
                     return JsonSerializer.Deserialize<AccountsRoot>(json) ?? new AccountsRoot();
                 }
-                catch
+                catch (Exception ex)
                 {
+                    LogHelper.Write(LauncherPaths.AppLog,
+                        $"读取账户失败: {ex.Message}",
+                        $"Failed to load accounts: {ex.Message}");
                     return new AccountsRoot();
                 }
             }
         }
 
+        // ★ P0-5 修复：写 tmp + Move 覆盖 + try-catch
         public static void SaveAccounts(AccountsRoot root)
         {
             lock (_lock)
             {
-                string json = JsonSerializer.Serialize(root, new JsonSerializerOptions { WriteIndented = true });
-                File.WriteAllText(AccountsFile, json);
+                SaveAccountsInternal(root);
+            }
+        }
+
+        // ★ P1-1 修复：read-modify-write 收口在单个 lock 内
+        private static void ModifyAccounts(Action<AccountsRoot> mutate)
+        {
+            lock (_lock)
+            {
+                AccountsRoot root;
+                if (!File.Exists(LauncherPaths.AccountsFile))
+                {
+                    root = new AccountsRoot();
+                }
+                else
+                {
+                    try
+                    {
+                        string json = File.ReadAllText(LauncherPaths.AccountsFile);
+                        root = JsonSerializer.Deserialize<AccountsRoot>(json) ?? new AccountsRoot();
+                    }
+                    catch (Exception ex)
+                    {
+                        LogHelper.Write(LauncherPaths.AppLog,
+                            $"读取账户失败（将重置）: {ex.Message}",
+                            $"Failed to load accounts (will reset): {ex.Message}");
+                        root = new AccountsRoot();
+                    }
+                }
+
+                mutate(root);
+                SaveAccountsInternal(root);
+            }
+        }
+
+        private static void SaveAccountsInternal(AccountsRoot root)
+        {
+            try
+            {
+                string json = JsonSerializer.Serialize(root,
+                    new JsonSerializerOptions { WriteIndented = true });
+
+                // 原子写：先写临时文件，再 Move 覆盖
+                string tmpPath = LauncherPaths.AccountsFile + ".tmp";
+                File.WriteAllText(tmpPath, json);
+                File.Move(tmpPath, LauncherPaths.AccountsFile, overwrite: true);
+            }
+            catch (Exception ex)
+            {
+                LogHelper.Write(LauncherPaths.AppLog,
+                    $"保存账户失败: {ex.Message}",
+                    $"Failed to save accounts: {ex.Message}");
             }
         }
 
@@ -56,33 +101,31 @@ namespace Project.Launch.Tools
 
         public static void SetSelectedAccount(string accountId, AccountInfo account)
         {
-            var root = LoadAccounts();
-            root.Accounts[accountId] = account;
-            root.SelectedAccount = accountId;
-            SaveAccounts(root);
+            ModifyAccounts(root =>
+            {
+                root.Accounts[accountId] = account;
+                root.SelectedAccount = accountId;
+            });
         }
 
         public static void RemoveAccount(string accountId)
         {
-            var root = LoadAccounts();
-            if (root.Accounts.Remove(accountId) && root.SelectedAccount == accountId)
-                root.SelectedAccount = string.Empty;
-            SaveAccounts(root);
+            ModifyAccounts(root =>
+            {
+                if (root.Accounts.Remove(accountId) && root.SelectedAccount == accountId)
+                    root.SelectedAccount = string.Empty;
+            });
         }
 
-        // ★ 新增：读取 LoginCheck
         public static bool GetLoginCheck()
         {
             var root = LoadAccounts();
             return root.LoginCheck;
         }
 
-        // ★ 新增：写入 LoginCheck
         public static void SetLoginCheck(bool value)
         {
-            var root = LoadAccounts();
-            root.LoginCheck = value;
-            SaveAccounts(root);
+            ModifyAccounts(root => root.LoginCheck = value);
         }
     }
 }

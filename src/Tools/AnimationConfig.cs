@@ -14,24 +14,32 @@ namespace Project.Launch.Tools
 
         /// <summary>
         /// 滑块移动总时长（毫秒）
+        /// 后期做"动画倍速"功能时，通过缩放这个值来实现
         /// </summary>
         public static TimeSpan SliderMoveDuration { get; set; } = TimeSpan.FromMilliseconds(700);
 
         /// <summary>
         /// 滑块移动过程中放大的峰值倍数（1.0 = 不放大）
         /// </summary>
-        public static double SliderPeakScale { get; set; } = 1.6;
+        public static double SliderPeakScale { get; set; } = 1.2;
 
         /// <summary>
-        /// 缩放曲线的高斯 σ（控制峰值宽度）
-        /// 越小峰越尖，越大峰越宽
+        /// 梯形曲线的"上升段结束"位置（0~1）
+        /// 0 ~ 此值：缩放从 0 涨到峰值
         /// </summary>
-        public static double SliderScaleSigma { get; set; } = 0.18;
+        public static double SliderScaleRiseEnd { get; set; } = 0.25;
+
+        /// <summary>
+        /// 梯形曲线的"平台段结束"位置（0~1）
+        /// 此值 ~ 1：缩放从峰值回落到 0
+        /// 两者之间：保持峰值
+        /// </summary>
+        public static double SliderScaleFallStart { get; set; } = 0.75;
 
         /// <summary>
         /// 滑块移动过程中的最大模糊值（0 = 不模糊，0.6 = 中等模糊）
         /// </summary>
-        public static double SliderBlurPeak { get; set; } = 0.6;
+        public static double SliderBlurPeak { get; set; } = 1.4;
 
         /// <summary>
         /// 滑块宽度（用于缩放中心补偿，必须和 XAML 里的 Width 一致）

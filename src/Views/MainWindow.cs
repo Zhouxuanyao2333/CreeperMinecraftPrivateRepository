@@ -22,11 +22,12 @@ namespace Project.Launch.Views
         private readonly Color _defaultEndColor = Color.Parse("#CCB366FF");
         private readonly HttpClient _httpClient = new HttpClient();
 
+        private InstanceInfo? _currentInstance;
+
         public MainWindow()
         {
             WindowStartupLocation = WindowStartupLocation.CenterScreen;
 
-            // 重置日志文件，写入标题行
             LogHelper.Reset(LauncherPaths.MainWindowLog,
                 "Kilim 启动器日志", "Kilim Launcher Log");
 
@@ -44,7 +45,30 @@ namespace Project.Launch.Views
             if (minimizeButton != null)
                 minimizeButton.Click += (s, e) => this.WindowState = WindowState.Minimized;
 
+            // 主按钮
+            var launchGameButton = this.FindControl<Button>("LaunchGameButton");
+            if (launchGameButton != null)
+                launchGameButton.Click += OnMainButtonClicked;
+
+            // 换实例按钮（^）
+            var expandButton = this.FindControl<Button>("ExpandButton");
+            if (expandButton != null)
+                expandButton.Click += OnExpandClicked;
+
+            // 重新登录按钮
+            var reLoginButton = this.FindControl<Button>("ReLoginButton");
+            if (reLoginButton != null)
+                reLoginButton.Click += OnReLoginClicked;
+
             Log("按钮事件绑定完成", "Button events bound");
+
+            // 载入记忆的实例
+            _currentInstance = InstanceService.GetSelectedInstance();
+            if (_currentInstance != null)
+            {
+                Log($"已加载实例: {_currentInstance.VersionId} @ {_currentInstance.RootPath}",
+                    $"Loaded instance: {_currentInstance.VersionId} @ {_currentInstance.RootPath}");
+            }
 
             // ★ 根据登录状态决定标题栏样式
             if (!App.LoginCheck)
@@ -53,33 +77,212 @@ namespace Project.Launch.Views
                 Log("初始化完成（未登录，显示渐变标题栏）",
                     "Initialization complete (not logged in, gradient title bar)");
 
-                Dispatcher.UIThread.InvokeAsync(async () =>
+                Opened += async (s, e) =>
                 {
-                    await ShowLoginDialog();
+                    try
+                    {
+                        await ShowLoginDialog();
 
-                    // ★ 无论登录成功还是跳过，只要 LoginWindow 关闭，就渐变切到透明标题栏
-                    await SetTransparentTitleBarAsync();
-                    UpdateLoginStatus();
+                        await SetTransparentTitleBarAsync();
+                        UpdateLoginStatus();
 
-                    Log("登录窗口已关闭，切换为透明标题栏",
-                        "Login window closed, switched to transparent title bar");
-                });
+                        Log("登录窗口已关闭，切换为透明标题栏",
+                            "Login window closed, switched to transparent title bar");
+                    }
+                    catch (Exception ex)
+                    {
+                        Log($"弹登录窗异常: {ex.Message}",
+                            $"ShowLoginDialog exception: {ex.Message}");
+                    }
+                };
             }
             else
             {
-                // 已登录启动：直接设透明标题栏（不做动画更干净）
-                Dispatcher.UIThread.InvokeAsync(async () =>
+                Opened += async (s, e) =>
                 {
-                    await SetTransparentTitleBarAsync(animate: false);
-                    UpdateLoginStatus();
+                    try
+                    {
+                        await SetTransparentTitleBarAsync(animate: false);
+                        UpdateLoginStatus();
+                        await RefreshAvatarAsync();
 
-                    Log("初始化完成（已登录，显示透明标题栏）",
-                        "Initialization complete (logged in, transparent title bar)");
-                });
+                        Log("初始化完成（已登录，显示透明标题栏）",
+                            "Initialization complete (logged in, transparent title bar)");
+                    }
+                    catch (Exception ex)
+                    {
+                        Log($"初始化异常: {ex.Message}",
+                            $"Init exception: {ex.Message}");
+                    }
+                };
             }
         }
 
-        // ★ 透明标题栏（带平滑过渡）
+        // ★ 主按钮点击：无实例 → 导入；有实例 → 启动游戏
+        private async void OnMainButtonClicked(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+        {
+            if (_currentInstance == null)
+            {
+                await ImportInstanceAsync();
+            }
+            else
+            {
+                await StartGameAsync();
+            }
+        }
+
+        // ★ 启动游戏
+        private async Task StartGameAsync()
+        {
+            if (_currentInstance == null) return;
+
+            try
+            {
+                string versionsDir = Path.Combine(_currentInstance.RootPath, "versions");
+                string jsonPath = Path.Combine(versionsDir, _currentInstance.VersionId,
+                    _currentInstance.VersionId + ".json");
+                if (!File.Exists(jsonPath))
+                {
+                    Log($"版本 json 不存在: {jsonPath}", $"Version json not found: {jsonPath}");
+                    await ShowToastAsync("版本文件缺失", "Messages");
+                    return;
+                }
+
+                var vj = MinecraftVersionJson.Load(jsonPath);
+                if (vj == null)
+                {
+                    await ShowToastAsync("版本解析失败", "Messages");
+                    return;
+                }
+
+                int requiredJava = vj.JavaVersion?.MajorVersion ?? 8;
+                Log($"版本要求 Java {requiredJava}", $"Version requires Java {requiredJava}");
+
+                var javas = await JavaDetector.DetectAllAsync();
+                Log($"检测到 {javas.Count} 个 Java", $"Detected {javas.Count} Java(s)");
+                foreach (var j in javas)
+                    Log($"  Java: {j.Path} (major={j.MajorVersion})",
+                        $"  Java: {j.Path} (major={j.MajorVersion})");
+
+                var matched = JavaDetector.Match(javas, requiredJava);
+                if (matched == null)
+                {
+                    Log($"未找到合适的 Java（需要 {requiredJava}）",
+                        $"No suitable Java (need {requiredJava})");
+                    await ShowToastAsync($"Java 环境异常：需要 Java {requiredJava}", "Messages");
+                    return;
+                }
+
+                Log($"匹配到 Java: {matched.Path}", $"Matched Java: {matched.Path}");
+
+                _currentInstance.JavaPath = matched.Path;
+                InstanceService.SetSelectedInstance(_currentInstance);
+
+                string playerName = App.PlayerName ?? "Steve";
+                string playerUuid = App.OfflineUuid
+                    ?? OfflineUuidGenerator.GenerateUuidString(playerName).Replace("-", "");
+
+                await ShowToastAsync("正在启动游戏...", "Messages");
+
+                bool ok = await GameLauncher.LaunchAsync(
+                    _currentInstance, vj, matched, playerName, playerUuid);
+
+                if (ok)
+                    await ShowToastAsync("游戏已启动", "Messages");
+                else
+                    await ShowToastAsync("启动失败，查看日志", "Messages");
+            }
+            catch (Exception ex)
+            {
+                Log($"启动游戏异常: {ex.Message}", $"Start game exception: {ex.Message}");
+                await ShowToastAsync("启动失败", "Messages");
+            }
+        }
+
+        // ★ 点"^"按钮 → 更换实例目录（复用导入逻辑）
+        private async void OnExpandClicked(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+        {
+            await ImportInstanceAsync();
+        }
+
+        // ★ 导入 / 更换实例流程
+        private async Task ImportInstanceAsync()
+        {
+            try
+            {
+                var topLevel = TopLevel.GetTopLevel(this);
+                if (topLevel == null) return;
+
+                var folders = await topLevel.StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
+                {
+                    Title = "选择 Minecraft 目录（.minecraft 根目录或隔离实例目录）",
+                    AllowMultiple = false
+                });
+
+                if (folders.Count < 1)
+                {
+                    Log("用户取消导入", "User cancelled import");
+                    return;
+                }
+
+                var folder = folders[0];
+                string path = folder.Path.LocalPath;
+                Log($"用户选择目录: {path}", $"User selected directory: {path}");
+
+                var result = MinecraftDirectoryAnalyzer.Analyze(path);
+                if (!result.IsValid)
+                {
+                    Log("目录无效（未找到 versions/ 或 .minecraft/versions/）",
+                        "Invalid directory (no versions/ or .minecraft/versions/)");
+                    await ShowToastAsync("未找到有效的 Minecraft 目录", "Messages");
+                    return;
+                }
+
+                Log($"分析结果: Layout={result.Layout}, Versions={string.Join(",", result.Versions)}",
+                    $"Analysis: Layout={result.Layout}, Versions={string.Join(",", result.Versions)}");
+
+                string versionId = result.Versions[result.Versions.Count - 1];
+
+                var instance = new InstanceInfo
+                {
+                    Name = versionId,
+                    RootPath = result.RootPath,
+                    Layout = result.Layout,
+                    VersionId = versionId,
+                    ImportedAt = DateTime.UtcNow,
+                    LastUsed = DateTime.UtcNow
+                };
+
+                InstanceService.SetSelectedInstance(instance);
+                _currentInstance = instance;
+
+                Log($"实例导入成功: {versionId}", $"Instance imported: {versionId}");
+
+                UpdateLoginStatus();
+                await ShowToastAsync($"已导入 {versionId}", "Messages");
+            }
+            catch (Exception ex)
+            {
+                Log($"导入实例异常: {ex.Message}", $"Import instance exception: {ex.Message}");
+                await ShowToastAsync("导入失败", "Messages");
+            }
+        }
+
+        // ★ 点"登录"按钮 → 重新弹 LoginWindow
+        private async void OnReLoginClicked(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+        {
+            try
+            {
+                await ShowLoginDialog();
+                UpdateLoginStatus();
+                await RefreshAvatarAsync();
+            }
+            catch (Exception ex)
+            {
+                Log($"重新登录异常: {ex.Message}", $"ReLogin exception: {ex.Message}");
+            }
+        }
+
         private async Task SetTransparentTitleBarAsync(bool animate = true)
         {
             var titleBar = this.FindControl<Border>("TitleBarBorder");
@@ -95,21 +298,16 @@ namespace Project.Launch.Views
                 return;
             }
 
-            // 1. 图标淡出
             if (minImg != null) minImg.Opacity = 0;
             if (closeImg != null) closeImg.Opacity = 0;
 
-            // 2. 背景和文字颜色同时过渡
             if (titleBar != null) titleBar.Background = Brushes.Transparent;
             if (titleText != null) titleText.Foreground = new SolidColorBrush(Colors.Black);
 
-            // 3. 等图标淡出完成
             await Task.Delay(200);
 
-            // 4. 换黑色图标
             SetBlackIcons(minImg, closeImg);
 
-            // 5. 图标淡入
             if (minImg != null) minImg.Opacity = 1;
             if (closeImg != null) closeImg.Opacity = 1;
         }
@@ -134,21 +332,97 @@ namespace Project.Launch.Views
             catch { }
         }
 
+        // 根据登录态 + 实例状态 更新按钮显示
         private void UpdateLoginStatus()
         {
             var statusText = this.FindControl<TextBlock>("SkinStatusText");
+            var launchBtn = this.FindControl<Button>("LaunchGameButton");
+            var launchImg = this.FindControl<Image>("LaunchGameImage");
+            var launchTxt = this.FindControl<TextBlock>("LaunchGameText");
+            var expandBtn = this.FindControl<Button>("ExpandButton");
+            var expandImg = this.FindControl<Image>("ExpandImage");
+            var reLoginBtn = this.FindControl<Button>("ReLoginButton");
+            var reLoginContainer = this.FindControl<Grid>("ReLoginContainer");
+
+            bool loggedIn = App.IsLoggedIn && !string.IsNullOrEmpty(App.PlayerName);
+            bool hasInstance = _currentInstance != null;
+
             if (statusText != null)
+                statusText.Text = loggedIn ? App.PlayerName : "未登录";
+
+            // 按钮图像 / 文字
+            try
             {
-                if (App.IsLoggedIn && !string.IsNullOrEmpty(App.PlayerName))
-                    statusText.Text = App.PlayerName;
-                else
-                    statusText.Text = "未登录";
+                string mainIcon = hasInstance ? "button-Start1.png" : "button-Start3.png";
+                string subIcon = hasInstance ? "button-Start2.png" : "button-Start4.png";
+
+                if (launchImg != null)
+                {
+                    using var stream = AssetLoader.Open(new Uri(
+                        $"avares://Project.Launch/src/Views/imgs/{mainIcon}"));
+                    launchImg.Source = new Bitmap(stream);
+                }
+                if (launchTxt != null)
+                    launchTxt.Text = hasInstance ? "开始游戏" : "导入实例";
+
+                if (expandImg != null)
+                {
+                    using var stream = AssetLoader.Open(new Uri(
+                        $"avares://Project.Launch/src/Views/imgs/{subIcon}"));
+                    expandImg.Source = new Bitmap(stream);
+                }
+            }
+            catch (Exception ex)
+            {
+                Log($"更新按钮图像失败: {ex.Message}", $"Update button icon failed: {ex.Message}");
+            }
+
+            // ★ 显示逻辑（登录优先）：
+            //   未登录            → 登录按钮
+            //   已登录 + 无实例   → 导入实例 + ^
+            //   已登录 + 有实例   → 开始游戏 + ^
+            bool showMainBtn = loggedIn;
+            bool showReLogin = !loggedIn;
+
+            if (launchBtn != null) launchBtn.IsVisible = showMainBtn;
+            if (expandBtn != null) expandBtn.IsVisible = showMainBtn;
+            if (reLoginBtn != null) reLoginBtn.IsVisible = showReLogin;
+            if (reLoginContainer != null) reLoginContainer.IsVisible = showReLogin;
+        }
+
+        // 确保已登录时头像一定显示（用默认 Steve 兜底）
+        private async Task RefreshAvatarAsync()
+        {
+            if (!App.IsLoggedIn) return;
+
+            var faceImg = this.FindControl<Image>("FaceImage");
+            var hatImg = this.FindControl<Image>("HatImage");
+            if (faceImg == null || hatImg == null) return;
+
+            if (faceImg.Source != null && hatImg.Source != null) return;
+
+            try
+            {
+                var uri = new Uri("avares://Project.Launch/src/Views/imgs/skin/Steve.png");
+                using var stream = AssetLoader.Open(uri);
+                var (face, hat) = await CropSkinAsync(stream);
+
+                if (face != null && hat != null)
+                {
+                    faceImg.Source = face;
+                    hatImg.Source = hat;
+                    RenderOptions.SetBitmapInterpolationMode(faceImg, BitmapInterpolationMode.None);
+                    RenderOptions.SetBitmapInterpolationMode(hatImg, BitmapInterpolationMode.None);
+
+                    Log("已加载默认 Steve 头像", "Default Steve avatar loaded");
+                }
+            }
+            catch (Exception ex)
+            {
+                Log($"加载头像失败: {ex.Message}", $"Failed to load avatar: {ex.Message}");
             }
         }
 
-        /// <summary>
-        /// 写日志（中英双语）
-        /// </summary>
         private void Log(string zh, string en)
         {
             LogHelper.Write(LauncherPaths.MainWindowLog, zh, en);
@@ -181,12 +455,44 @@ namespace Project.Launch.Views
                         RenderOptions.SetBitmapInterpolationMode(hatImg, BitmapInterpolationMode.None);
                     }
                 }
+
+                if (!App.IsLoggedIn)
+                {
+                    _ = ShowCancelToastAsync();
+                }
             }
             finally
             {
                 if (overlay != null) overlay.IsVisible = false;
             }
         }
+
+        // 通用 toast
+        private async Task ShowToastAsync(string message, string sound = "Messages")
+        {
+            SoundService.Play(sound);
+
+            var toast = this.FindControl<Border>("CancelToast");
+            var toastText = this.FindControl<TextBlock>("ToastText");
+            if (toast == null) return;
+
+            if (toastText != null)
+                toastText.Text = message;
+
+            toast.IsVisible = true;
+            toast.Opacity = 0;
+
+            await Task.Delay(20);
+            toast.Opacity = 1;
+
+            await Task.Delay(2500);
+
+            toast.Opacity = 0;
+            await Task.Delay(320);
+            toast.IsVisible = false;
+        }
+
+        private Task ShowCancelToastAsync() => ShowToastAsync("用户取消登录", "Messages");
 
         private async Task<(Bitmap? face, Bitmap? hat)> CropSkinAsync(Stream stream)
         {

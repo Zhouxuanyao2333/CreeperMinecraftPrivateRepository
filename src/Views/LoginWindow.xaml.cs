@@ -95,7 +95,12 @@ namespace Project.Launch.Views
             _inputPanel = this.FindControl<Border>("InputPanel");
 
             UpdateModeUI(1);
-            SetDefaultSteveSkin();
+
+            // ★ 修复：默认皮肤加载挪到 Opened 里异步执行，构造函数不再阻塞 UI
+            Opened += async (s, e) =>
+            {
+                await LoadDefaultSteveSkinAsync();
+            };
         }
 
         private void InitializeInputControls()
@@ -138,11 +143,22 @@ namespace Project.Launch.Views
                 }
             }
 
-            if (_offlineBtn != null) _offlineBtn.Click += (s, e) => { _selectedIndex = 0; AnimateSliderTo(0); UpdateModeUI(0); };
-            if (_onlineBtn != null) _onlineBtn.Click += (s, e) => { _selectedIndex = 1; AnimateSliderTo(1); UpdateModeUI(1); };
-            if (_thirdPartyBtn != null) _thirdPartyBtn.Click += (s, e) => { _selectedIndex = 2; AnimateSliderTo(2);  /* UpdateModeUI(2); */};
+            // 三个按钮统一走 SelectMode
+            if (_offlineBtn != null) _offlineBtn.Click += (s, e) => SelectMode(0);
+            if (_onlineBtn != null) _onlineBtn.Click += (s, e) => SelectMode(1);
+            if (_thirdPartyBtn != null) _thirdPartyBtn.Click += (s, e) => SelectMode(2);
 
             UpdateButtonColors(1);
+        }
+
+        // 切换登录方式（已选中则不重复触发动画）
+        private void SelectMode(int index)
+        {
+            if (index == _selectedIndex) return;
+
+            _selectedIndex = index;
+            AnimateSliderTo(index);
+            UpdateModeUI(index);
         }
 
         private void UpdateModeUI(int index)
@@ -172,17 +188,15 @@ namespace Project.Launch.Views
                         _loginStatus.Text = "输入用户名，点击确认登录";
                         break;
                     case 1:
-                        _modeLabel!.IsVisible = true;
-                        _localFileLabel!.IsVisible = true;
-                        _fetchSkinButton!.IsVisible = true;
-                        _selectLocalButton!.IsVisible = true;
-                        _playerNameBox.IsVisible = true;
-                        _playerNameBox.PlaceholderText = "输入正版 ID";
-                        _playerNameBox.Width = 170;
-                        _loginButton.IsVisible = true;
-                        _loginButton.Content = "确认登录";
+                        // ★ 正版登录暂未支持
+                        _modeLabel!.IsVisible = false;
+                        _localFileLabel!.IsVisible = false;
+                        _fetchSkinButton!.IsVisible = false;
+                        _selectLocalButton!.IsVisible = false;
+                        _playerNameBox.IsVisible = false;
+                        _loginButton.IsVisible = false;
                         _loginStatus!.IsVisible = true;
-                        _loginStatus.Text = "输入正版ID，获取皮肤后确认登录";
+                        _loginStatus.Text = "正版登录暂未支持";
                         break;
                     case 2:
                         _modeLabel!.IsVisible = false;
@@ -201,7 +215,8 @@ namespace Project.Launch.Views
             });
         }
 
-        // ★ 滑块动画：位置（对称EaseInOut） + 缩放（高斯钟形） + 中心补偿 + 模糊（三角形曲线）
+        // 滑块动画：位置（对称EaseInOut） + 缩放（梯形曲线） + 中心补偿
+        // 注：模糊效果已移除，色散由 XAML 的 ChromaticAberration="True" 控制
         private void AnimateSliderTo(int index)
         {
             if (_sliderTransform == null || _slider == null) return;
@@ -217,8 +232,8 @@ namespace Project.Launch.Views
 
             TimeSpan duration = AnimationConfig.SliderMoveDuration;
             double peakScale = AnimationConfig.SliderPeakScale;
-            double sigma = AnimationConfig.SliderScaleSigma;
-            double blurPeak = AnimationConfig.SliderBlurPeak;
+            double riseEnd = AnimationConfig.SliderScaleRiseEnd;
+            double fallStart = AnimationConfig.SliderScaleFallStart;
             double halfW = AnimationConfig.SliderWidth / 2.0;
             double halfH = AnimationConfig.SliderHeight / 2.0;
 
@@ -236,23 +251,33 @@ namespace Project.Launch.Views
                     _animationTimer.Stop();
                 }
 
-                // ★ 位置：EaseInOut（对称，两端慢中间快）
+                // 位置：EaseInOut（对称）
                 double eased = progress < 0.5
                     ? 4 * progress * progress * progress
                     : 1 - Math.Pow(-2 * progress + 2, 3) / 2;
 
                 double baseX = _animationStartX + (_animationTargetX - _animationStartX) * eased;
 
-                // ★ 缩放：高斯钟形（对称，中间峰值）
-                double scaleCurve = Math.Exp(-Math.Pow((progress - 0.5) / sigma, 2));
+                // 缩放：梯形曲线（上升 → 平台 → 下降）
+                double scaleCurve;
+                if (progress <= riseEnd)
+                {
+                    double t = progress / riseEnd;
+                    scaleCurve = t * t * (3 - 2 * t);
+                }
+                else if (progress <= fallStart)
+                {
+                    scaleCurve = 1.0;
+                }
+                else
+                {
+                    double t = (progress - fallStart) / (1.0 - fallStart);
+                    scaleCurve = 1.0 - t * t * (3 - 2 * t);
+                }
+
                 double currentScale = 1.0 + (peakScale - 1.0) * scaleCurve;
 
-                // ★ 模糊：三角形曲线（0 → 峰值 → 0，中间线性变化）
-                double blurCurve = 1.0 - Math.Abs(progress * 2.0 - 1.0);
-                double currentBlur = blurPeak * blurCurve;
-                _slider.BlurRadius = currentBlur;
-
-                // 中心补偿（抵消左上角缩放造成的视觉偏移）
+                // 中心补偿
                 double xCompensation = -(currentScale - 1.0) * halfW;
                 double yCompensation = -(currentScale - 1.0) * halfH;
 
@@ -274,7 +299,6 @@ namespace Project.Launch.Views
                         _sliderScale.ScaleX = 1.0;
                         _sliderScale.ScaleY = 1.0;
                     }
-                    _slider.BlurRadius = 0;
                 }
             };
 
@@ -293,6 +317,9 @@ namespace Project.Launch.Views
                     buttons[i]!.Foreground = (i == selectedIndex)
                         ? new SolidColorBrush(Colors.Black)
                         : new SolidColorBrush(Color.Parse("#666666"));
+
+                    // 滑块所在位置的按钮屏蔽交互：点不到、无 hover 高光
+                    buttons[i]!.IsHitTestVisible = (i != selectedIndex);
                 }
             }
         }
@@ -347,7 +374,7 @@ namespace Project.Launch.Views
                 }
                 else
                 {
-                    SetDefaultSteveSkin();
+                    await LoadDefaultSteveSkinAsync();
                     _loginStatus.Text = $"❌ 未找到玩家 {playerName}，使用默认皮肤";
                 }
             }
@@ -434,6 +461,7 @@ namespace Project.Launch.Views
                     AccountService.SetSelectedAccount(accountId, account);
                     AccountService.SetLoginCheck(true);
 
+
                     Close(true);
                 }
                 catch (Exception ex)
@@ -444,14 +472,9 @@ namespace Project.Launch.Views
             }
             else if (_selectedIndex == 1)
             {
-                if (FaceBitmap == null || HatBitmap == null)
-                    SetDefaultSteveSkin();
-                App.LoginCheck = true;
-                App.IsLoggedIn = true;
-                AccountService.SetLoginCheck(true);
-                if (!string.IsNullOrEmpty(PlayerName) && PlayerName != "Steve")
-                    App.PlayerName = PlayerName;
-                Close(true);
+                // ★ 正版登录暂未支持
+                if (_loginStatus != null)
+                    _loginStatus.Text = "❌ 正版登录暂未实现";
             }
             else
             {
@@ -459,25 +482,39 @@ namespace Project.Launch.Views
             }
         }
 
-        private void SetDefaultSteveSkin()
+        // ★ 修复：改为异步方法，从构造函数挪到 Opened 里执行，不阻塞 UI
+        private async Task LoadDefaultSteveSkinAsync()
         {
             try
             {
                 var stevePath = "avares://Project.Launch/src/Views/imgs/skin/Steve.png";
                 var uri = new Uri(stevePath);
-                var stream = AssetLoader.Open(uri);
-                using var bitmap = new Bitmap(stream);
-                var result = CropSkinAsync(stream).GetAwaiter().GetResult();
+                using var stream = AssetLoader.Open(uri);
+
+                var result = await CropSkinAsync(stream);
+
                 if (result.face != null && result.hat != null)
                 {
                     FaceBitmap = result.face;
                     HatBitmap = result.hat;
                     PlayerName = "Steve";
+
+                    LogHelper.Write(LauncherPaths.AppLog,
+                        "默认 Steve 皮肤加载成功",
+                        "Default Steve skin loaded");
+                }
+                else
+                {
+                    LogHelper.Write(LauncherPaths.AppLog,
+                        "默认 Steve 皮肤裁剪失败（尺寸不合法？）",
+                        "Failed to crop default Steve skin (invalid size?)");
                 }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"加载默认皮肤失败: {ex.Message}");
+                LogHelper.Write(LauncherPaths.AppLog,
+                    $"加载默认皮肤失败: {ex.Message}",
+                    $"Failed to load default skin: {ex.Message}");
             }
         }
 
@@ -489,7 +526,7 @@ namespace Project.Launch.Views
                 byte[] imageData;
                 using (var ms = new MemoryStream())
                 {
-                    await stream.CopyToAsync(ms);
+                    await stream.CopyToAsync(ms).ConfigureAwait(false);
                     imageData = ms.ToArray();
                 }
 
@@ -537,7 +574,7 @@ namespace Project.Launch.Views
                     {
                         return (null, null);
                     }
-                });
+                }).ConfigureAwait(false);
             }
             catch
             {
