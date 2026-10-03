@@ -6,9 +6,11 @@ using Avalonia.Media.Imaging;
 using Avalonia.Platform;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
+using LiquidGlassAvaloniaUI;
 using Project.Launch.Tools;
 using System;
 using System.IO;
+using System.Linq;
 using System.Net.Http;
 using System.Text;
 using System.Text.Json;
@@ -23,6 +25,16 @@ namespace Project.Launch.Views
         private readonly HttpClient _httpClient = new HttpClient();
 
         private InstanceInfo? _currentInstance;
+        private Bitmap? _fullSkinBitmap;
+
+        private Button? _homeTab, _launchTab, _downloadTab, _settingsTab, _toolsTab;
+        private LiquidGlassSurface? _tabSlider;
+        private TranslateTransform? _tabSliderTransform;
+        private ScaleTransform? _tabSliderScale;
+        private int _selectedTab = 2;
+        private DispatcherTimer? _tabAnimTimer;
+        private double _tabAnimStartX, _tabAnimTargetX;
+        private DateTime _tabAnimStartTime;
 
         public MainWindow()
         {
@@ -45,24 +57,22 @@ namespace Project.Launch.Views
             if (minimizeButton != null)
                 minimizeButton.Click += (s, e) => this.WindowState = WindowState.Minimized;
 
-            // 主按钮
             var launchGameButton = this.FindControl<Button>("LaunchGameButton");
             if (launchGameButton != null)
                 launchGameButton.Click += OnMainButtonClicked;
 
-            // 换实例按钮（^）
             var expandButton = this.FindControl<Button>("ExpandButton");
             if (expandButton != null)
                 expandButton.Click += OnExpandClicked;
 
-            // 重新登录按钮
             var reLoginButton = this.FindControl<Button>("ReLoginButton");
             if (reLoginButton != null)
                 reLoginButton.Click += OnReLoginClicked;
 
+            InitializeTabSelector();
+
             Log("按钮事件绑定完成", "Button events bound");
 
-            // 载入记忆的实例
             _currentInstance = InstanceService.GetSelectedInstance();
             if (_currentInstance != null)
             {
@@ -70,7 +80,6 @@ namespace Project.Launch.Views
                     $"Loaded instance: {_currentInstance.VersionId} @ {_currentInstance.RootPath}");
             }
 
-            // ★ 根据登录状态决定标题栏样式
             if (!App.LoginCheck)
             {
                 UpdateTitleBarGradient(_defaultStartColor, _defaultEndColor);
@@ -82,7 +91,6 @@ namespace Project.Launch.Views
                     try
                     {
                         await ShowLoginDialog();
-
                         await SetTransparentTitleBarAsync();
                         UpdateLoginStatus();
 
@@ -118,7 +126,182 @@ namespace Project.Launch.Views
             }
         }
 
-        // ★ 主按钮点击：无实例 → 导入；有实例 → 启动游戏
+        private void InitializeTabSelector()
+        {
+            _homeTab = this.FindControl<Button>("HomeTabButton");
+            _launchTab = this.FindControl<Button>("LaunchTabButton");
+            _downloadTab = this.FindControl<Button>("DownloadTabButton");
+            _settingsTab = this.FindControl<Button>("SettingsTabButton");
+            _toolsTab = this.FindControl<Button>("ToolsTabButton");
+
+            _tabSlider = this.FindControl<LiquidGlassSurface>("TabSlider");
+            if (_tabSlider != null)
+            {
+                var group = _tabSlider.RenderTransform as TransformGroup;
+                if (group != null)
+                {
+                    _tabSliderTransform = group.Children.OfType<TranslateTransform>().FirstOrDefault();
+                    _tabSliderScale = group.Children.OfType<ScaleTransform>().FirstOrDefault();
+                }
+
+                if (_tabSliderTransform != null)
+                {
+                    _tabSliderTransform.X = _selectedTab * AnimationConfig.TabStep;
+                    _tabSliderTransform.Y = 0;
+                }
+                if (_tabSliderScale != null)
+                {
+                    _tabSliderScale.ScaleX = 1.0;
+                    _tabSliderScale.ScaleY = 1.0;
+                }
+            }
+
+            if (_downloadTab != null) _downloadTab.Click += (s, e) => SelectTab(0);
+            if (_launchTab != null) _launchTab.Click += (s, e) => SelectTab(1);
+            if (_homeTab != null) _homeTab.Click += (s, e) => SelectTab(2);
+            if (_settingsTab != null) _settingsTab.Click += (s, e) => SelectTab(3);
+            if (_toolsTab != null) _toolsTab.Click += (s, e) => SelectTab(4);
+
+            UpdateTabVisuals(_selectedTab);
+        }
+
+        private void SelectTab(int index)
+        {
+            if (index == _selectedTab) return;
+            int oldIndex = _selectedTab;
+            _selectedTab = index;
+
+            AnimateTabSliderTo(index);
+            UpdateTabVisuals(index);
+            _ = SwitchPanelAsync(oldIndex, index);
+        }
+
+        private void UpdateTabVisuals(int index)
+        {
+            var tabs = new[] { _downloadTab, _launchTab, _homeTab, _settingsTab, _toolsTab };
+            for (int i = 0; i < tabs.Length; i++)
+            {
+                if (tabs[i] != null)
+                {
+                    tabs[i]!.Foreground = (i == index)
+                        ? new SolidColorBrush(Colors.Black)
+                        : new SolidColorBrush(Color.Parse("#666666"));
+                    tabs[i]!.IsHitTestVisible = (i != index);
+                }
+            }
+        }
+
+        private async Task SwitchPanelAsync(int oldIndex, int newIndex)
+        {
+            var panels = new Grid?[]
+            {
+                this.FindControl<Grid>("DownloadPanel"),
+                this.FindControl<Grid>("LaunchPanel"),
+                this.FindControl<Grid>("HomePanel"),
+                this.FindControl<Grid>("SettingsPanel"),
+                this.FindControl<Grid>("ToolsPanel")
+            };
+
+            var oldPanel = (oldIndex >= 0 && oldIndex < panels.Length) ? panels[oldIndex] : null;
+            if (oldPanel != null && oldPanel.IsVisible)
+            {
+                oldPanel.Opacity = 0;
+                await Task.Delay(AnimationConfig.TabPanelFadeDuration);
+                oldPanel.IsVisible = false;
+            }
+
+            var newPanel = (newIndex >= 0 && newIndex < panels.Length) ? panels[newIndex] : null;
+            if (newPanel != null)
+            {
+                newPanel.Opacity = 0;
+                newPanel.IsVisible = true;
+                await Task.Delay(20);
+                newPanel.Opacity = 1;
+            }
+        }
+
+        private void AnimateTabSliderTo(int index)
+        {
+            if (_tabSliderTransform == null || _tabSlider == null) return;
+
+            double targetX = index * AnimationConfig.TabStep;
+            double startX = _tabSliderTransform.X;
+
+            _tabAnimTimer?.Stop();
+
+            _tabAnimStartX = startX;
+            _tabAnimTargetX = targetX;
+            _tabAnimStartTime = DateTime.Now;
+
+            double halfW = AnimationConfig.TabWidth / 2.0;
+            double halfH = AnimationConfig.TabHeight / 2.0;
+
+            _tabAnimTimer = new DispatcherTimer
+            {
+                Interval = TimeSpan.FromMilliseconds(16)
+            };
+            _tabAnimTimer.Tick += (s, e) =>
+            {
+                var elapsed = DateTime.Now - _tabAnimStartTime;
+                double progress = elapsed.TotalMilliseconds / AnimationConfig.TabMoveDuration.TotalMilliseconds;
+                if (progress >= 1.0)
+                {
+                    progress = 1.0;
+                    _tabAnimTimer.Stop();
+                }
+
+                double eased = progress < 0.5
+                    ? 4 * progress * progress * progress
+                    : 1 - Math.Pow(-2 * progress + 2, 3) / 2;
+                double baseX = _tabAnimStartX + (_tabAnimTargetX - _tabAnimStartX) * eased;
+
+                double scaleCurve;
+                if (progress <= AnimationConfig.TabScaleRiseEnd)
+                {
+                    double t = progress / AnimationConfig.TabScaleRiseEnd;
+                    scaleCurve = t * t * (3 - 2 * t);
+                }
+                else if (progress <= AnimationConfig.TabScaleFallStart)
+                {
+                    scaleCurve = 1.0;
+                }
+                else
+                {
+                    double t = (progress - AnimationConfig.TabScaleFallStart) / (1.0 - AnimationConfig.TabScaleFallStart);
+                    scaleCurve = 1.0 - t * t * (3 - 2 * t);
+                }
+                double currentScale = 1.0 + (AnimationConfig.TabPeakScale - 1.0) * scaleCurve;
+
+                double blurCurve = 1.0 - Math.Abs(progress * 2.0 - 1.0);
+                _tabSlider.BlurRadius = AnimationConfig.TabBlurPeak * blurCurve;
+
+                double xComp = -(currentScale - 1.0) * halfW;
+                double yComp = -(currentScale - 1.0) * halfH;
+
+                _tabSliderTransform.X = baseX + xComp;
+                _tabSliderTransform.Y = yComp;
+
+                if (_tabSliderScale != null)
+                {
+                    _tabSliderScale.ScaleX = currentScale;
+                    _tabSliderScale.ScaleY = currentScale;
+                }
+
+                if (progress >= 1.0)
+                {
+                    _tabSliderTransform.X = _tabAnimTargetX;
+                    _tabSliderTransform.Y = 0;
+                    if (_tabSliderScale != null)
+                    {
+                        _tabSliderScale.ScaleX = 1.0;
+                        _tabSliderScale.ScaleY = 1.0;
+                    }
+                    _tabSlider.BlurRadius = 0;
+                }
+            };
+            _tabAnimTimer.Start();
+        }
+
         private async void OnMainButtonClicked(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
         {
             if (_currentInstance == null)
@@ -131,7 +314,6 @@ namespace Project.Launch.Views
             }
         }
 
-        // ★ 启动游戏
         private async Task StartGameAsync()
         {
             if (_currentInstance == null) return;
@@ -199,13 +381,11 @@ namespace Project.Launch.Views
             }
         }
 
-        // ★ 点"^"按钮 → 更换实例目录（复用导入逻辑）
         private async void OnExpandClicked(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
         {
             await ImportInstanceAsync();
         }
 
-        // ★ 导入 / 更换实例流程
         private async Task ImportInstanceAsync()
         {
             try
@@ -268,14 +448,17 @@ namespace Project.Launch.Views
             }
         }
 
-        // ★ 点"登录"按钮 → 重新弹 LoginWindow
         private async void OnReLoginClicked(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
         {
             try
             {
+                UpdateTitleBarGradient(_defaultStartColor, _defaultEndColor);
+
                 await ShowLoginDialog();
                 UpdateLoginStatus();
                 await RefreshAvatarAsync();
+
+                await SetTransparentTitleBarAsync();
             }
             catch (Exception ex)
             {
@@ -332,10 +515,11 @@ namespace Project.Launch.Views
             catch { }
         }
 
-        // 根据登录态 + 实例状态 更新按钮显示
         private void UpdateLoginStatus()
         {
-            var statusText = this.FindControl<TextBlock>("SkinStatusText");
+            var homeNotLoggedIn = this.FindControl<StackPanel>("HomeNotLoggedIn");
+            var homeLoggedIn = this.FindControl<StackPanel>("HomeLoggedIn");
+            var homePlayerName = this.FindControl<TextBlock>("HomePlayerName");
             var launchBtn = this.FindControl<Button>("LaunchGameButton");
             var launchImg = this.FindControl<Image>("LaunchGameImage");
             var launchTxt = this.FindControl<TextBlock>("LaunchGameText");
@@ -344,13 +528,21 @@ namespace Project.Launch.Views
             var reLoginBtn = this.FindControl<Button>("ReLoginButton");
             var reLoginContainer = this.FindControl<Grid>("ReLoginContainer");
 
+            var launchNotLoggedIn = this.FindControl<StackPanel>("LaunchNotLoggedIn");
+            var skinViewer = this.FindControl<Pivot3DControl>("SkinViewer");
+            var launchButtonsPanel = this.FindControl<StackPanel>("LaunchButtonsPanel");
+
             bool loggedIn = App.IsLoggedIn && !string.IsNullOrEmpty(App.PlayerName);
             bool hasInstance = _currentInstance != null;
 
-            if (statusText != null)
-                statusText.Text = loggedIn ? App.PlayerName : "未登录";
+            if (homeNotLoggedIn != null) homeNotLoggedIn.IsVisible = !loggedIn;
+            if (homeLoggedIn != null) homeLoggedIn.IsVisible = loggedIn;
+            if (homePlayerName != null) homePlayerName.Text = App.PlayerName ?? "Steve";
 
-            // 按钮图像 / 文字
+            if (launchNotLoggedIn != null) launchNotLoggedIn.IsVisible = !loggedIn;
+            if (skinViewer != null) skinViewer.IsVisible = loggedIn;
+            if (launchButtonsPanel != null) launchButtonsPanel.IsVisible = loggedIn;
+
             try
             {
                 string mainIcon = hasInstance ? "button-Start1.png" : "button-Start3.png";
@@ -377,10 +569,6 @@ namespace Project.Launch.Views
                 Log($"更新按钮图像失败: {ex.Message}", $"Update button icon failed: {ex.Message}");
             }
 
-            // ★ 显示逻辑（登录优先）：
-            //   未登录            → 登录按钮
-            //   已登录 + 无实例   → 导入实例 + ^
-            //   已登录 + 有实例   → 开始游戏 + ^
             bool showMainBtn = loggedIn;
             bool showReLogin = !loggedIn;
 
@@ -390,13 +578,35 @@ namespace Project.Launch.Views
             if (reLoginContainer != null) reLoginContainer.IsVisible = showReLogin;
         }
 
-        // 确保已登录时头像一定显示（用默认 Steve 兜底）
         private async Task RefreshAvatarAsync()
         {
             if (!App.IsLoggedIn) return;
 
-            var faceImg = this.FindControl<Image>("FaceImage");
-            var hatImg = this.FindControl<Image>("HatImage");
+            // 3D 皮肤
+            try
+            {
+                var uri = new Uri("avares://Project.Launch/src/Views/imgs/skin/Steve.png");
+                using var stream = AssetLoader.Open(uri);
+
+                _fullSkinBitmap?.Dispose();
+                _fullSkinBitmap = new Bitmap(stream);
+
+                var skinViewer = this.FindControl<Pivot3DControl>("SkinViewer");
+                if (skinViewer != null)
+                {
+                    skinViewer.Skin = _fullSkinBitmap;
+                }
+
+                Log("已加载 3D 皮肤", "3D skin loaded");
+            }
+            catch (Exception ex)
+            {
+                Log($"加载 3D 皮肤失败: {ex.Message}", $"Failed to load 3D skin: {ex.Message}");
+            }
+
+            // 主页 2D 头像
+            var faceImg = this.FindControl<Image>("HomeFaceImage");
+            var hatImg = this.FindControl<Image>("HomeHatImage");
             if (faceImg == null || hatImg == null) return;
 
             if (faceImg.Source != null && hatImg.Source != null) return;
@@ -430,8 +640,14 @@ namespace Project.Launch.Views
 
         private async Task ShowLoginDialog()
         {
-            var overlay = this.FindControl<Border>("Overlay");
-            if (overlay != null) overlay.IsVisible = true;
+            var contentArea = this.FindControl<Grid>("ContentArea");
+
+            if (contentArea != null)
+            {
+                contentArea.IsVisible = false;
+            }
+
+            await Task.Delay(150);
 
             try
             {
@@ -442,8 +658,8 @@ namespace Project.Launch.Views
 
                 if (App.IsLoggedIn && loginWindow.FaceBitmap != null && loginWindow.HatBitmap != null)
                 {
-                    var faceImg = this.FindControl<Image>("FaceImage");
-                    var hatImg = this.FindControl<Image>("HatImage");
+                    var faceImg = this.FindControl<Image>("HomeFaceImage");
+                    var hatImg = this.FindControl<Image>("HomeHatImage");
                     if (faceImg != null)
                     {
                         faceImg.Source = loginWindow.FaceBitmap;
@@ -463,11 +679,13 @@ namespace Project.Launch.Views
             }
             finally
             {
-                if (overlay != null) overlay.IsVisible = false;
+                if (contentArea != null)
+                {
+                    contentArea.IsVisible = true;
+                }
             }
         }
 
-        // 通用 toast
         private async Task ShowToastAsync(string message, string sound = "Messages")
         {
             SoundService.Play(sound);

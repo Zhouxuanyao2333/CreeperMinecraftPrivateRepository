@@ -1,13 +1,24 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <TargetFramework>net9.0</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>src\Views\imgs\MainLogo.ico</ApplicationIcon>
+
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+
+    <RuntimeIdentifiers>win-x64</RuntimeIdentifiers>
+    <PublishSingleFile>true</PublishSingleFile>
+    <SelfContained>true</SelfContained>
+    <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
+    <DebugType>none</DebugType>
+    <PublishReadyToRun>false</PublishReadyToRun>
+    <PublishTrimmed>false</PublishTrimmed>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <SatelliteResourceLanguages>zh-Hans;en</SatelliteResourceLanguages>
   </PropertyGroup>
 
-  <!-- ★ 排除子项目目录，避免主项目重复编译它的源文件 -->
   <ItemGroup>
     <Compile Remove="src\LiquidGlassAvaloniaUI\**" />
     <AvaloniaXaml Remove="src\LiquidGlassAvaloniaUI\**" />
@@ -17,7 +28,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- NuGet 包 -->
     <PackageReference Include="Avalonia" Version="12.1.2" />
     <PackageReference Include="Avalonia.Desktop" Version="12.1.2" />
     <PackageReference Include="Avalonia.Themes.Fluent" Version="12.1.2" />
@@ -27,27 +37,22 @@
       <PrivateAssets Condition="'$(Configuration)' != 'Debug'">All</PrivateAssets>
     </PackageReference>
 
-    <!-- 音频库 -->
     <PackageReference Include="NAudio" Version="2.2.1" />
 
-    <!-- 本地引用：LiquidGlassAvaloniaUI -->
+    <PackageReference Include="SkiaSharp" Version="3.119.4" />
+
     <ProjectReference Include="src\LiquidGlassAvaloniaUI\LiquidGlassAvaloniaUI.csproj" />
   </ItemGroup>
 
   <ItemGroup>
-    <!-- XAML 文件（AvaloniaXaml / AvaloniaResource） -->
     <AvaloniaXaml Update="App.axaml" />
     <AvaloniaXaml Update="src\Views\MainWindow.axaml" />
     <AvaloniaResource Include="src\Views\Styles.axaml" />
     <AvaloniaResource Include="src\Views\Glass.axaml" />
 
-    <!-- ★ 一劳永逸：imgs 整个目录（递归含 skin 子目录），排除 .ico 图标 -->
     <AvaloniaResource Include="src\Views\imgs\**" Exclude="src\Views\imgs\MainLogo.ico" />
-
-    <!-- ★ 一劳永逸：Sound 整个目录 -->
     <AvaloniaResource Include="src\Sound\**" />
 
-    <!-- 任务栏图标：单独处理为 Content，复制到输出目录 -->
     <Content Include="src\Views\imgs\MainLogo.ico">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>

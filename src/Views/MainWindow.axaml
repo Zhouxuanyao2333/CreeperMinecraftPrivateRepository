@@ -1,6 +1,8 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:avalonia="clr-namespace:Avalonia.Controls;assembly=Avalonia.Controls"
+        xmlns:lg="using:LiquidGlassAvaloniaUI"
+        xmlns:views="clr-namespace:Project.Launch.Views"
         x:Class="Project.Launch.Views.MainWindow"
         Title="KilimMinecraftLauncherDemo"
         Width="960" Height="560"
@@ -12,18 +14,29 @@
         TransparencyLevelHint="AcrylicBlur"
         avalonia:Win32Properties.WindowCornerPreference="Round">
 
-    <Grid Background="#AAFFFFFF">
-        <Border x:Name="Overlay"
-                Background="#80000000"
-                IsVisible="False"
-                Grid.RowSpan="2"/>
+    <Window.Styles>
+        <Style Selector="Button.TabBtn">
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate>
+                        <ContentPresenter Content="{TemplateBinding Content}"
+                                          HorizontalAlignment="Stretch"
+                                          VerticalAlignment="Stretch"
+                                          HorizontalContentAlignment="Stretch"
+                                          VerticalContentAlignment="Stretch" />
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Styles>
+
+    <Grid Background="#D9E0E0E0">
 
         <Grid.RowDefinitions>
             <RowDefinition Height="35" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <!-- ★ 标题栏 -->
         <Border Grid.Row="0"
                 x:Name="TitleBarBorder"
                 PointerPressed="TitleBar_PointerPressed"
@@ -96,148 +109,163 @@
             </Grid>
         </Border>
 
-        <!-- 主内容区域 -->
-        <Grid Grid.Row="1" Margin="20">
+        <Grid x:Name="ContentArea" Grid.Row="1" Margin="20">
             <Grid.RowDefinitions>
-                <RowDefinition Height="1*" />
+                <RowDefinition Height="*" />
                 <RowDefinition Height="Auto" />
-                <RowDefinition Height="3*" />
             </Grid.RowDefinitions>
 
-            <StackPanel Grid.Row="1"
-                        HorizontalAlignment="Center"
-                        VerticalAlignment="Center"
-                        Spacing="12">
+            <Grid Grid.Row="0">
 
-                <!-- 头像 -->
-                <Grid Width="180" Height="180"
-                      VerticalAlignment="Center"
-                      HorizontalAlignment="Center">
-                    <Image x:Name="FaceImage"
-                           Stretch="Uniform"
-                           Width="120" Height="120"
-                           VerticalAlignment="Center"
-                           HorizontalAlignment="Center"
-                           RenderOptions.BitmapInterpolationMode="None" />
-                    <Image x:Name="HatImage"
-                           Stretch="Uniform"
-                           Width="120" Height="120"
-                           VerticalAlignment="Center"
-                           HorizontalAlignment="Center"
-                           Margin="-3,-3,-3,-3"
-                           RenderOptions.BitmapInterpolationMode="None" />
-                    <Border Width="120" Height="120"
-                            BorderBrush="#DDD"
-                            BorderThickness="2"
-                            CornerRadius="4"
-                            IsHitTestVisible="False"
-                            VerticalAlignment="Center"
-                            HorizontalAlignment="Center" />
+                <Grid x:Name="HomePanel" IsVisible="True" Opacity="1">
+                    <Grid.Transitions>
+                        <Transitions>
+                            <DoubleTransition Property="Opacity" Duration="0:0:0.2" />
+                        </Transitions>
+                    </Grid.Transitions>
+
+                    <StackPanel x:Name="HomeNotLoggedIn"
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center"
+                                Spacing="24"
+                                IsVisible="False">
+                        <TextBlock Text="您似乎未登录任何账号绑定至启动器或实例"
+                                   FontSize="18"
+                                   Foreground="#555"
+                                   HorizontalAlignment="Center" />
+
+                        <Grid x:Name="ReLoginContainer"
+                              Width="292" Height="85"
+                              HorizontalAlignment="Center">
+                            <Button x:Name="ReLoginButton"
+                                    Width="275"
+                                    Height="80"
+                                    Padding="0"
+                                    Background="Transparent"
+                                    BorderThickness="0"
+                                    Cursor="Hand"
+                                    HorizontalAlignment="Center"
+                                    VerticalAlignment="Center">
+                                <Button.Styles>
+                                    <Style Selector="Button">
+                                        <Setter Property="Template">
+                                            <Setter.Value>
+                                                <ControlTemplate>
+                                                    <ContentPresenter Content="{TemplateBinding Content}"
+                                                                      HorizontalAlignment="Stretch"
+                                                                      VerticalAlignment="Stretch"
+                                                                      HorizontalContentAlignment="Stretch"
+                                                                      VerticalContentAlignment="Stretch" />
+                                                </ControlTemplate>
+                                            </Setter.Value>
+                                        </Setter>
+                                    </Style>
+                                </Button.Styles>
+                                <Grid>
+                                    <Image Source="avares://Project.Launch/src/Views/imgs/ReLogin.png"
+                                           Stretch="Fill"
+                                           HorizontalAlignment="Stretch"
+                                           VerticalAlignment="Stretch" />
+                                    <TextBlock Text="登录"
+                                               FontSize="24"
+                                               FontWeight="Bold"
+                                               Foreground="White"
+                                               HorizontalAlignment="Center"
+                                               VerticalAlignment="Center" />
+                                </Grid>
+                            </Button>
+                        </Grid>
+                    </StackPanel>
+
+                    <StackPanel x:Name="HomeLoggedIn"
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center"
+                                Spacing="12"
+                                IsVisible="False">
+                        <Grid Width="160" Height="160"
+                              HorizontalAlignment="Center">
+                            <Image x:Name="HomeFaceImage"
+                                   Stretch="Uniform"
+                                   Width="120" Height="120"
+                                   HorizontalAlignment="Center"
+                                   VerticalAlignment="Center"
+                                   RenderOptions.BitmapInterpolationMode="None" />
+                            <Image x:Name="HomeHatImage"
+                                   Stretch="Uniform"
+                                   Width="120" Height="120"
+                                   HorizontalAlignment="Center"
+                                   VerticalAlignment="Center"
+                                   Margin="-3,-3,-3,-3"
+                                   RenderOptions.BitmapInterpolationMode="None" />
+                            <Border Width="120" Height="120"
+                                    BorderBrush="#DDD"
+                                    BorderThickness="2"
+                                    CornerRadius="4"
+                                    IsHitTestVisible="False"
+                                    HorizontalAlignment="Center"
+                                    VerticalAlignment="Center" />
+                        </Grid>
+                        <TextBlock x:Name="HomePlayerName"
+                                   Text="Steve"
+                                   FontSize="22"
+                                   FontWeight="Bold"
+                                   Foreground="#333"
+                                   HorizontalAlignment="Center" />
+                    </StackPanel>
                 </Grid>
 
-                <!-- 玩家名字 / 未登录 -->
-                <TextBlock x:Name="SkinStatusText"
-                           Text="未登录"
-                           FontSize="24"
-                           FontWeight="Bold"
-                           Foreground="#333"
-                           HorizontalAlignment="Center" />
+                <Grid x:Name="LaunchPanel" IsVisible="False" Opacity="1">
+                    <Grid.Transitions>
+                        <Transitions>
+                            <DoubleTransition Property="Opacity" Duration="0:0:0.2" />
+                        </Transitions>
+                    </Grid.Transitions>
 
-                <!-- 按钮组 -->
-                <StackPanel Orientation="Horizontal"
-                            HorizontalAlignment="Center"
-                            Spacing="10"
-                            Margin="0,10,0,0">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
 
-                    <!-- 主按钮 -->
-                    <Button x:Name="LaunchGameButton"
-                            Width="220"
-                            Height="80"
-                            Padding="0"
-                            Background="Transparent"
-                            BorderThickness="0"
-                            Cursor="Hand"
-                            IsVisible="False">
-                        <Button.Styles>
-                            <Style Selector="Button">
-                                <Setter Property="Template">
-                                    <Setter.Value>
-                                        <ControlTemplate>
-                                            <ContentPresenter Content="{TemplateBinding Content}"
-                                                              HorizontalAlignment="Stretch"
-                                                              VerticalAlignment="Stretch"
-                                                              HorizontalContentAlignment="Stretch"
-                                                              VerticalContentAlignment="Stretch" />
-                                        </ControlTemplate>
-                                    </Setter.Value>
-                                </Setter>
-                            </Style>
-                        </Button.Styles>
-                        <Grid>
-                            <Image x:Name="LaunchGameImage"
-                                   Source="avares://Project.Launch/src/Views/imgs/button-Start3.png"
-                                   Stretch="Fill" />
-                            <TextBlock x:Name="LaunchGameText"
-                                       Text="导入实例"
-                                       FontSize="24"
-                                       FontWeight="Bold"
-                                       Foreground="White"
-                                       HorizontalAlignment="Center"
-                                       VerticalAlignment="Center" />
-                        </Grid>
-                    </Button>
+                    <views:Pivot3DControl x:Name="SkinViewer"
+                                          Grid.Row="0"
+                                          HorizontalAlignment="Stretch"
+                                          VerticalAlignment="Stretch"
+                                          Margin="0,10,0,10"
+                                          IsVisible="False" />
 
-                    <!-- 副按钮 -->
-                    <Button x:Name="ExpandButton"
-                            Width="45"
-                            Height="80"
-                            Padding="0"
-                            Background="Transparent"
-                            BorderThickness="0"
-                            Cursor="Hand"
-                            IsVisible="False">
-                        <Button.Styles>
-                            <Style Selector="Button">
-                                <Setter Property="Template">
-                                    <Setter.Value>
-                                        <ControlTemplate>
-                                            <ContentPresenter Content="{TemplateBinding Content}"
-                                                              HorizontalAlignment="Stretch"
-                                                              VerticalAlignment="Stretch"
-                                                              HorizontalContentAlignment="Stretch"
-                                                              VerticalContentAlignment="Stretch" />
-                                        </ControlTemplate>
-                                    </Setter.Value>
-                                </Setter>
-                            </Style>
-                        </Button.Styles>
-                        <Grid>
-                            <Image x:Name="ExpandImage"
-                                   Source="avares://Project.Launch/src/Views/imgs/button-Start4.png"
-                                   Stretch="Fill" />
-                            <TextBlock Text="^"
-                                       FontSize="30"
-                                       FontWeight="Bold"
-                                       Foreground="White"
-                                       HorizontalAlignment="Center"
-                                       VerticalAlignment="Center" />
-                        </Grid>
-                    </Button>
+                    <StackPanel x:Name="LaunchNotLoggedIn"
+                                Grid.Row="0"
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center"
+                                Spacing="10"
+                                IsVisible="False">
+                        <TextBlock Text="请登录后查看"
+                                   FontSize="20"
+                                   FontWeight="SemiBold"
+                                   Foreground="#555"
+                                   HorizontalAlignment="Center" />
+                        <TextBlock Text="请先在主页完成登录"
+                                   FontSize="13"
+                                   Foreground="#888"
+                                   HorizontalAlignment="Center" />
+                    </StackPanel>
 
-                    <!-- 未登录：重新登录 -->
-                    <Grid x:Name="ReLoginContainer"
-                          Width="292" Height="85"
-                          IsVisible="False">
-                        <Button x:Name="ReLoginButton"
-                                Width="275"
+                    <StackPanel x:Name="LaunchButtonsPanel"
+                                Grid.Row="1"
+                                Orientation="Horizontal"
+                                HorizontalAlignment="Center"
+                                Spacing="10"
+                                Margin="0,8,0,8"
+                                IsVisible="False">
+
+                        <Button x:Name="LaunchGameButton"
+                                Width="220"
                                 Height="80"
                                 Padding="0"
                                 Background="Transparent"
                                 BorderThickness="0"
                                 Cursor="Hand"
-                                IsVisible="False"
-                                HorizontalAlignment="Center"
-                                VerticalAlignment="Center">
+                                IsVisible="False">
                             <Button.Styles>
                                 <Style Selector="Button">
                                     <Setter Property="Template">
@@ -254,11 +282,11 @@
                                 </Style>
                             </Button.Styles>
                             <Grid>
-                                <Image Source="avares://Project.Launch/src/Views/imgs/ReLogin.png"
-                                       Stretch="Fill"
-                                       HorizontalAlignment="Stretch"
-                                       VerticalAlignment="Stretch" />
-                                <TextBlock Text="登录"
+                                <Image x:Name="LaunchGameImage"
+                                       Source="avares://Project.Launch/src/Views/imgs/button-Start3.png"
+                                       Stretch="Fill" />
+                                <TextBlock x:Name="LaunchGameText"
+                                           Text="导入实例"
                                            FontSize="24"
                                            FontWeight="Bold"
                                            Foreground="White"
@@ -266,12 +294,286 @@
                                            VerticalAlignment="Center" />
                             </Grid>
                         </Button>
-                    </Grid>
-                </StackPanel>
-            </StackPanel>
+
+                        <Button x:Name="ExpandButton"
+                                Width="45"
+                                Height="80"
+                                Padding="0"
+                                Background="Transparent"
+                                BorderThickness="0"
+                                Cursor="Hand"
+                                IsVisible="False">
+                            <Button.Styles>
+                                <Style Selector="Button">
+                                    <Setter Property="Template">
+                                        <Setter.Value>
+                                            <ControlTemplate>
+                                                <ContentPresenter Content="{TemplateBinding Content}"
+                                                                  HorizontalAlignment="Stretch"
+                                                                  VerticalAlignment="Stretch"
+                                                                  HorizontalContentAlignment="Stretch"
+                                                                  VerticalContentAlignment="Stretch" />
+                                            </ControlTemplate>
+                                        </Setter.Value>
+                                    </Setter>
+                                </Style>
+                            </Button.Styles>
+                            <Grid>
+                                <Image x:Name="ExpandImage"
+                                       Source="avares://Project.Launch/src/Views/imgs/button-Start4.png"
+                                       Stretch="Fill" />
+                                <TextBlock Text="^"
+                                           FontSize="30"
+                                           FontWeight="Bold"
+                                           Foreground="White"
+                                           HorizontalAlignment="Center"
+                                           VerticalAlignment="Center" />
+                            </Grid>
+                        </Button>
+                    </StackPanel>
+                </Grid>
+
+                <Grid x:Name="DownloadPanel" IsVisible="False" Opacity="1">
+                    <Grid.Transitions>
+                        <Transitions>
+                            <DoubleTransition Property="Opacity" Duration="0:0:0.2" />
+                        </Transitions>
+                    </Grid.Transitions>
+                    <StackPanel HorizontalAlignment="Center"
+                                VerticalAlignment="Center"
+                                Spacing="10">
+                        <TextBlock Text="暂时无下载功能"
+                                   FontSize="22"
+                                   FontWeight="SemiBold"
+                                   Foreground="#555"
+                                   HorizontalAlignment="Center" />
+                        <TextBlock Text="等待后续开发"
+                                   FontSize="14"
+                                   Foreground="#888"
+                                   HorizontalAlignment="Center" />
+                        <TextBlock Text="自觉遵守 Demo 测试保密"
+                                   FontSize="12"
+                                   Foreground="#AAA"
+                                   HorizontalAlignment="Center"
+                                   Margin="0,8,0,0" />
+                    </StackPanel>
+                </Grid>
+
+                <Grid x:Name="SettingsPanel" IsVisible="False" Opacity="1">
+                    <Grid.Transitions>
+                        <Transitions>
+                            <DoubleTransition Property="Opacity" Duration="0:0:0.2" />
+                        </Transitions>
+                    </Grid.Transitions>
+                    <StackPanel HorizontalAlignment="Center"
+                                VerticalAlignment="Center"
+                                Spacing="10">
+                        <TextBlock Text="暂时无设置功能"
+                                   FontSize="22"
+                                   FontWeight="SemiBold"
+                                   Foreground="#555"
+                                   HorizontalAlignment="Center" />
+                        <TextBlock Text="等待后续开发"
+                                   FontSize="14"
+                                   Foreground="#888"
+                                   HorizontalAlignment="Center" />
+                        <TextBlock Text="自觉遵守 Demo 测试保密"
+                                   FontSize="12"
+                                   Foreground="#AAA"
+                                   HorizontalAlignment="Center"
+                                   Margin="0,8,0,0" />
+                    </StackPanel>
+                </Grid>
+
+                <Grid x:Name="ToolsPanel" IsVisible="False" Opacity="1">
+                    <Grid.Transitions>
+                        <Transitions>
+                            <DoubleTransition Property="Opacity" Duration="0:0:0.2" />
+                        </Transitions>
+                    </Grid.Transitions>
+                    <StackPanel HorizontalAlignment="Center"
+                                VerticalAlignment="Center"
+                                Spacing="10">
+                        <TextBlock Text="暂时无工具功能"
+                                   FontSize="22"
+                                   FontWeight="SemiBold"
+                                   Foreground="#555"
+                                   HorizontalAlignment="Center" />
+                        <TextBlock Text="等待后续开发"
+                                   FontSize="14"
+                                   Foreground="#888"
+                                   HorizontalAlignment="Center" />
+                        <TextBlock Text="自觉遵守 Demo 测试保密"
+                                   FontSize="12"
+                                   Foreground="#AAA"
+                                   HorizontalAlignment="Center"
+                                   Margin="0,8,0,0" />
+                    </StackPanel>
+                </Grid>
+            </Grid>
+
+            <Grid x:Name="BottomNavBar"
+                  Grid.Row="1"
+                  Width="520" Height="52"
+                  HorizontalAlignment="Center"
+                  Margin="0,16,0,0">
+
+                <Border Background="#D8D8D8" CornerRadius="26" />
+                <Border Background="#C8C8C8" CornerRadius="25" Margin="1" />
+
+                <Grid ColumnDefinitions="*,*,*,*,*">
+                    <Button x:Name="DownloadTabButton"
+                            Grid.Column="0"
+                            Classes="TabBtn"
+                            Background="Transparent"
+                            BorderThickness="0"
+                            Cursor="Hand"
+                            HorizontalAlignment="Stretch"
+                            HorizontalContentAlignment="Center"
+                            VerticalContentAlignment="Center"
+                            Padding="0">
+                        <StackPanel Orientation="Vertical"
+                                    Spacing="2"
+                                    Background="Transparent"
+                                    HorizontalAlignment="Center"
+                                    VerticalAlignment="Center">
+                            <Image Source="avares://Project.Launch/src/Views/imgs/Download.png"
+                                   Width="22" Height="22" Stretch="Uniform" />
+                            <TextBlock Text="下载"
+                                       FontSize="10"
+                                       Foreground="#444"
+                                       HorizontalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
+                    <Button x:Name="LaunchTabButton"
+                            Grid.Column="1"
+                            Classes="TabBtn"
+                            Background="Transparent"
+                            BorderThickness="0"
+                            Cursor="Hand"
+                            HorizontalAlignment="Stretch"
+                            HorizontalContentAlignment="Center"
+                            VerticalContentAlignment="Center"
+                            Padding="0">
+                        <StackPanel Orientation="Vertical"
+                                    Spacing="2"
+                                    Background="Transparent"
+                                    HorizontalAlignment="Center"
+                                    VerticalAlignment="Center">
+                            <Image Source="avares://Project.Launch/src/Views/imgs/Launch.png"
+                                   Width="22" Height="22" Stretch="Uniform" />
+                            <TextBlock Text="启动"
+                                       FontSize="10"
+                                       Foreground="#444"
+                                       HorizontalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
+                    <Button x:Name="HomeTabButton"
+                            Grid.Column="2"
+                            Classes="TabBtn"
+                            Background="Transparent"
+                            BorderThickness="0"
+                            Cursor="Hand"
+                            HorizontalAlignment="Stretch"
+                            HorizontalContentAlignment="Center"
+                            VerticalContentAlignment="Center"
+                            Padding="0">
+                        <StackPanel Orientation="Vertical"
+                                    Spacing="2"
+                                    Background="Transparent"
+                                    HorizontalAlignment="Center"
+                                    VerticalAlignment="Center">
+                            <Image Source="avares://Project.Launch/src/Views/imgs/Home.png"
+                                   Width="22" Height="22" Stretch="Uniform" />
+                            <TextBlock Text="主页"
+                                       FontSize="10"
+                                       Foreground="#444"
+                                       HorizontalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
+                    <Button x:Name="SettingsTabButton"
+                            Grid.Column="3"
+                            Classes="TabBtn"
+                            Background="Transparent"
+                            BorderThickness="0"
+                            Cursor="Hand"
+                            HorizontalAlignment="Stretch"
+                            HorizontalContentAlignment="Center"
+                            VerticalContentAlignment="Center"
+                            Padding="0">
+                        <StackPanel Orientation="Vertical"
+                                    Spacing="2"
+                                    Background="Transparent"
+                                    HorizontalAlignment="Center"
+                                    VerticalAlignment="Center">
+                            <Image Source="avares://Project.Launch/src/Views/imgs/Setting.png"
+                                   Width="22" Height="22" Stretch="Uniform" />
+                            <TextBlock Text="设置"
+                                       FontSize="10"
+                                       Foreground="#444"
+                                       HorizontalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
+                    <Button x:Name="ToolsTabButton"
+                            Grid.Column="4"
+                            Classes="TabBtn"
+                            Background="Transparent"
+                            BorderThickness="0"
+                            Cursor="Hand"
+                            HorizontalAlignment="Stretch"
+                            HorizontalContentAlignment="Center"
+                            VerticalContentAlignment="Center"
+                            Padding="0">
+                        <StackPanel Orientation="Vertical"
+                                    Spacing="2"
+                                    Background="Transparent"
+                                    HorizontalAlignment="Center"
+                                    VerticalAlignment="Center">
+                            <Image Source="avares://Project.Launch/src/Views/imgs/Tool.png"
+                                   Width="22" Height="22" Stretch="Uniform" />
+                            <TextBlock Text="工具"
+                                       FontSize="10"
+                                       Foreground="#444"
+                                       HorizontalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
+                </Grid>
+
+                <lg:LiquidGlassSurface x:Name="TabSlider"
+                                       Width="96"
+                                       Height="44"
+                                       CornerRadius="22"
+                                       VerticalAlignment="Center"
+                                       HorizontalAlignment="Left"
+                                       Margin="4,0,4,0"
+                                       RenderTransformOrigin="0.5,0.5"
+                                       RefractionHeight="4"
+                                       RefractionAmount="40"
+                                       BlurRadius="0"
+                                       Vibrancy="0.86"
+                                       Brightness="0"
+                                       Contrast="1.0"
+                                       ExposureEv="0"
+                                       GammaPower="1.0"
+                                       BackdropOpacity="1.0"
+                                       ChromaticAberration="True"
+                                       DepthEffect="False"
+                                       HighlightEnabled="False"
+                                       HighlightOpacity="0"
+                                       ShadowEnabled="True"
+                                       ShadowRadius="20"
+                                       ShadowOffset="0,3"
+                                       ShadowColor="#1A000000">
+                    <lg:LiquidGlassSurface.RenderTransform>
+                        <TransformGroup>
+                            <ScaleTransform ScaleX="1" ScaleY="1" />
+                            <TranslateTransform X="208" Y="0" />
+                        </TransformGroup>
+                    </lg:LiquidGlassSurface.RenderTransform>
+                </lg:LiquidGlassSurface>
+            </Grid>
         </Grid>
 
-        <!-- 虚拟弹窗 -->
         <Border x:Name="CancelToast"
                 Grid.Row="1"
                 IsVisible="False"
