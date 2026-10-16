@@ -36,6 +36,17 @@ namespace Project.Launch.Views
         private double _tabAnimStartX, _tabAnimTargetX;
         private DateTime _tabAnimStartTime;
 
+        // 下载页：基岩版 / Java版 选择器
+        private Button? _bedrockEditionBtn, _javaEditionBtn;
+        private StackPanel? _bedrockPanel, _javaPanel;
+        private LiquidGlassSurface? _editionSlider;
+        private TranslateTransform? _editionSliderTransform;
+        private ScaleTransform? _editionSliderScale;
+        private int _selectedEdition = 0;
+        private DispatcherTimer? _editionAnimTimer;
+        private double _editionAnimStartX, _editionAnimTargetX;
+        private DateTime _editionAnimStartTime;
+
         public MainWindow()
         {
             WindowStartupLocation = WindowStartupLocation.CenterScreen;
@@ -70,6 +81,7 @@ namespace Project.Launch.Views
                 reLoginButton.Click += OnReLoginClicked;
 
             InitializeTabSelector();
+            InitializeEditionSelector();
 
             Log("按钮事件绑定完成", "Button events bound");
 
@@ -93,6 +105,7 @@ namespace Project.Launch.Views
                         await ShowLoginDialog();
                         await SetTransparentTitleBarAsync();
                         UpdateLoginStatus();
+                        await RefreshAvatarAsync();
 
                         Log("登录窗口已关闭，切换为透明标题栏",
                             "Login window closed, switched to transparent title bar");
@@ -302,6 +315,158 @@ namespace Project.Launch.Views
             _tabAnimTimer.Start();
         }
 
+        // ============================================================
+        // 下载页：基岩版 / Java版 选择器
+        // ============================================================
+        private void InitializeEditionSelector()
+        {
+            _bedrockEditionBtn = this.FindControl<Button>("BedrockEditionButton");
+            _javaEditionBtn = this.FindControl<Button>("JavaEditionButton");
+            _bedrockPanel = this.FindControl<StackPanel>("BedrockPanel");
+            _javaPanel = this.FindControl<StackPanel>("JavaPanel");
+
+            _editionSlider = this.FindControl<LiquidGlassSurface>("EditionSlider");
+            if (_editionSlider != null)
+            {
+                var group = _editionSlider.RenderTransform as TransformGroup;
+                if (group != null)
+                {
+                    _editionSliderTransform = group.Children.OfType<TranslateTransform>().FirstOrDefault();
+                    _editionSliderScale = group.Children.OfType<ScaleTransform>().FirstOrDefault();
+                }
+
+                if (_editionSliderTransform != null)
+                {
+                    _editionSliderTransform.X = 0;
+                    _editionSliderTransform.Y = 0;
+                }
+                if (_editionSliderScale != null)
+                {
+                    _editionSliderScale.ScaleX = 1.0;
+                    _editionSliderScale.ScaleY = 1.0;
+                }
+            }
+
+            if (_bedrockEditionBtn != null) _bedrockEditionBtn.Click += (s, e) => SelectEdition(0);
+            if (_javaEditionBtn != null) _javaEditionBtn.Click += (s, e) => SelectEdition(1);
+
+            UpdateEditionVisuals(0);
+        }
+
+        private void SelectEdition(int index)
+        {
+            if (index == _selectedEdition) return;
+            _selectedEdition = index;
+            AnimateEditionSliderTo(index);
+            UpdateEditionVisuals(index);
+        }
+
+        private void UpdateEditionVisuals(int index)
+        {
+            var buttons = new[] { _bedrockEditionBtn, _javaEditionBtn };
+            for (int i = 0; i < buttons.Length; i++)
+            {
+                if (buttons[i] != null)
+                {
+                    buttons[i]!.Foreground = (i == index)
+                        ? new SolidColorBrush(Colors.Black)
+                        : new SolidColorBrush(Color.Parse("#666666"));
+                    buttons[i]!.IsHitTestVisible = (i != index);
+                }
+            }
+
+            if (_bedrockPanel != null) _bedrockPanel.IsVisible = (index == 0);
+            if (_javaPanel != null) _javaPanel.IsVisible = (index == 1);
+        }
+
+        private void AnimateEditionSliderTo(int index)
+        {
+            if (_editionSliderTransform == null || _editionSlider == null) return;
+
+            double targetX = index * 120;
+            double startX = _editionSliderTransform.X;
+
+            _editionAnimTimer?.Stop();
+
+            _editionAnimStartX = startX;
+            _editionAnimTargetX = targetX;
+            _editionAnimStartTime = DateTime.Now;
+
+            TimeSpan duration = AnimationConfig.SliderMoveDuration;
+            double peakScale = AnimationConfig.SliderPeakScale;
+            double riseEnd = AnimationConfig.SliderScaleRiseEnd;
+            double fallStart = AnimationConfig.SliderScaleFallStart;
+            double blurPeak = AnimationConfig.SliderBlurPeak;
+            double halfW = AnimationConfig.SliderWidth / 2.0;
+            double halfH = AnimationConfig.SliderHeight / 2.0;
+
+            _editionAnimTimer = new DispatcherTimer
+            {
+                Interval = TimeSpan.FromMilliseconds(16)
+            };
+            _editionAnimTimer.Tick += (s, e) =>
+            {
+                var elapsed = DateTime.Now - _editionAnimStartTime;
+                double progress = elapsed.TotalMilliseconds / duration.TotalMilliseconds;
+                if (progress >= 1.0)
+                {
+                    progress = 1.0;
+                    _editionAnimTimer.Stop();
+                }
+
+                double eased = progress < 0.5
+                    ? 4 * progress * progress * progress
+                    : 1 - Math.Pow(-2 * progress + 2, 3) / 2;
+
+                double baseX = _editionAnimStartX + (_editionAnimTargetX - _editionAnimStartX) * eased;
+
+                double scaleCurve;
+                if (progress <= riseEnd)
+                {
+                    double t = progress / riseEnd;
+                    scaleCurve = t * t * (3 - 2 * t);
+                }
+                else if (progress <= fallStart)
+                {
+                    scaleCurve = 1.0;
+                }
+                else
+                {
+                    double t = (progress - fallStart) / (1.0 - fallStart);
+                    scaleCurve = 1.0 - t * t * (3 - 2 * t);
+                }
+                double currentScale = 1.0 + (peakScale - 1.0) * scaleCurve;
+
+                double blurCurve = 1.0 - Math.Abs(progress * 2.0 - 1.0);
+                _editionSlider.BlurRadius = blurPeak * blurCurve;
+
+                double xComp = -(currentScale - 1.0) * halfW;
+                double yComp = -(currentScale - 1.0) * halfH;
+
+                _editionSliderTransform.X = baseX + xComp;
+                _editionSliderTransform.Y = yComp;
+
+                if (_editionSliderScale != null)
+                {
+                    _editionSliderScale.ScaleX = currentScale;
+                    _editionSliderScale.ScaleY = currentScale;
+                }
+
+                if (progress >= 1.0)
+                {
+                    _editionSliderTransform.X = _editionAnimTargetX;
+                    _editionSliderTransform.Y = 0;
+                    if (_editionSliderScale != null)
+                    {
+                        _editionSliderScale.ScaleX = 1.0;
+                        _editionSliderScale.ScaleY = 1.0;
+                    }
+                    _editionSlider.BlurRadius = 0;
+                }
+            };
+            _editionAnimTimer.Start();
+        }
+
         private async void OnMainButtonClicked(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
         {
             if (_currentInstance == null)
@@ -466,6 +631,92 @@ namespace Project.Launch.Views
             }
         }
 
+        // ★ 主页"切换账户"按钮
+        private async void OnSwitchAccountClicked(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+        {
+            await ShowAccountManagerAsync();
+        }
+
+        // ★ 账户管理窗口
+        private async Task ShowAccountManagerAsync()
+        {
+            // 与登录窗行为一致：主窗切渐变标题栏（浅色文字/图标）+ 隐藏内容区
+            UpdateTitleBarGradient(_defaultStartColor, _defaultEndColor);
+
+            var contentArea = this.FindControl<Grid>("ContentArea");
+            if (contentArea != null) contentArea.IsVisible = false;
+
+            await Task.Delay(150);
+
+            try
+            {
+                var win = new AccountManagerWindow();
+                await win.ShowDialog(this);
+
+                if (win.ShouldOpenLogin)
+                {
+                    await RunLoginWindowAsync();
+                }
+
+                UpdateLoginStatus();
+                await RefreshAvatarAsync();
+            }
+            finally
+            {
+                if (contentArea != null) contentArea.IsVisible = true;
+                // 关闭后恢复透明标题栏（深色文字/图标）
+                await SetTransparentTitleBarAsync();
+            }
+        }
+
+        // ★ 跑 LoginWindow 并处理结果
+        private async Task RunLoginWindowAsync()
+        {
+            var loginWindow = new LoginWindow();
+            await loginWindow.ShowDialog(this);
+
+            UpdateLoginStatus();
+
+            if (App.IsLoggedIn && loginWindow.FaceBitmap != null && loginWindow.HatBitmap != null)
+            {
+                var faceImg = this.FindControl<Image>("HomeFaceImage");
+                var hatImg = this.FindControl<Image>("HomeHatImage");
+                if (faceImg != null)
+                {
+                    faceImg.Source = loginWindow.FaceBitmap;
+                    RenderOptions.SetBitmapInterpolationMode(faceImg, BitmapInterpolationMode.None);
+                }
+                if (hatImg != null)
+                {
+                    hatImg.Source = loginWindow.HatBitmap;
+                    RenderOptions.SetBitmapInterpolationMode(hatImg, BitmapInterpolationMode.None);
+                }
+            }
+
+            if (!App.IsLoggedIn)
+            {
+                _ = ShowCancelToastAsync();
+            }
+        }
+
+        // ★ 登录窗
+        private async Task ShowLoginDialog()
+        {
+            var contentArea = this.FindControl<Grid>("ContentArea");
+            if (contentArea != null) contentArea.IsVisible = false;
+
+            await Task.Delay(150);
+
+            try
+            {
+                await RunLoginWindowAsync();
+            }
+            finally
+            {
+                if (contentArea != null) contentArea.IsVisible = true;
+            }
+        }
+
         private async Task SetTransparentTitleBarAsync(bool animate = true)
         {
             var titleBar = this.FindControl<Border>("TitleBarBorder");
@@ -580,12 +831,21 @@ namespace Project.Launch.Views
 
         private async Task RefreshAvatarAsync()
         {
-            if (!App.IsLoggedIn) return;
+            if (!App.IsLoggedIn)
+            {
+                Log("未登录，跳过皮肤加载", "Not logged in, skip skin loading");
+                return;
+            }
+
+            // ★ 按 UUID 决定 Steve / Alex
+            string skinAssetPath = DefaultSkinSelector.GetSkinAssetPath(App.OfflineUuid);
+            Log($"选中默认皮肤: {skinAssetPath}",
+                $"Selected default skin: {skinAssetPath}");
 
             // 3D 皮肤
             try
             {
-                var uri = new Uri("avares://Project.Launch/src/Views/imgs/skin/Steve.png");
+                var uri = new Uri(skinAssetPath);
                 using var stream = AssetLoader.Open(uri);
 
                 _fullSkinBitmap?.Dispose();
@@ -609,11 +869,9 @@ namespace Project.Launch.Views
             var hatImg = this.FindControl<Image>("HomeHatImage");
             if (faceImg == null || hatImg == null) return;
 
-            if (faceImg.Source != null && hatImg.Source != null) return;
-
             try
             {
-                var uri = new Uri("avares://Project.Launch/src/Views/imgs/skin/Steve.png");
+                var uri = new Uri(skinAssetPath);
                 using var stream = AssetLoader.Open(uri);
                 var (face, hat) = await CropSkinAsync(stream);
 
@@ -624,7 +882,7 @@ namespace Project.Launch.Views
                     RenderOptions.SetBitmapInterpolationMode(faceImg, BitmapInterpolationMode.None);
                     RenderOptions.SetBitmapInterpolationMode(hatImg, BitmapInterpolationMode.None);
 
-                    Log("已加载默认 Steve 头像", "Default Steve avatar loaded");
+                    Log("已加载 2D 头像", "2D avatar loaded");
                 }
             }
             catch (Exception ex)
@@ -636,54 +894,6 @@ namespace Project.Launch.Views
         private void Log(string zh, string en)
         {
             LogHelper.Write(LauncherPaths.MainWindowLog, zh, en);
-        }
-
-        private async Task ShowLoginDialog()
-        {
-            var contentArea = this.FindControl<Grid>("ContentArea");
-
-            if (contentArea != null)
-            {
-                contentArea.IsVisible = false;
-            }
-
-            await Task.Delay(150);
-
-            try
-            {
-                var loginWindow = new LoginWindow();
-                await loginWindow.ShowDialog(this);
-
-                UpdateLoginStatus();
-
-                if (App.IsLoggedIn && loginWindow.FaceBitmap != null && loginWindow.HatBitmap != null)
-                {
-                    var faceImg = this.FindControl<Image>("HomeFaceImage");
-                    var hatImg = this.FindControl<Image>("HomeHatImage");
-                    if (faceImg != null)
-                    {
-                        faceImg.Source = loginWindow.FaceBitmap;
-                        RenderOptions.SetBitmapInterpolationMode(faceImg, BitmapInterpolationMode.None);
-                    }
-                    if (hatImg != null)
-                    {
-                        hatImg.Source = loginWindow.HatBitmap;
-                        RenderOptions.SetBitmapInterpolationMode(hatImg, BitmapInterpolationMode.None);
-                    }
-                }
-
-                if (!App.IsLoggedIn)
-                {
-                    _ = ShowCancelToastAsync();
-                }
-            }
-            finally
-            {
-                if (contentArea != null)
-                {
-                    contentArea.IsVisible = true;
-                }
-            }
         }
 
         private async Task ShowToastAsync(string message, string sound = "Messages")

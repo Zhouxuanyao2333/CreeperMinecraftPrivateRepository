@@ -37,6 +37,7 @@
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
+        <!-- ★ 标题栏 -->
         <Border Grid.Row="0"
                 x:Name="TitleBarBorder"
                 PointerPressed="TitleBar_PointerPressed"
@@ -109,14 +110,17 @@
             </Grid>
         </Border>
 
+        <!-- ★ 主内容区域 -->
         <Grid x:Name="ContentArea" Grid.Row="1" Margin="20">
             <Grid.RowDefinitions>
                 <RowDefinition Height="*" />
                 <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
 
+            <!-- ★ 内容区 -->
             <Grid Grid.Row="0">
 
+                <!-- ★ 主页 -->
                 <Grid x:Name="HomePanel" IsVisible="True" Opacity="1">
                     <Grid.Transitions>
                         <Transitions>
@@ -124,6 +128,7 @@
                         </Transitions>
                     </Grid.Transitions>
 
+                    <!-- 未登录提示 + ReLogin 按钮 -->
                     <StackPanel x:Name="HomeNotLoggedIn"
                                 HorizontalAlignment="Center"
                                 VerticalAlignment="Center"
@@ -177,6 +182,7 @@
                         </Grid>
                     </StackPanel>
 
+                    <!-- 已登录：头像 + ID + 切换账户 -->
                     <StackPanel x:Name="HomeLoggedIn"
                                 HorizontalAlignment="Center"
                                 VerticalAlignment="Center"
@@ -211,9 +217,19 @@
                                    FontWeight="Bold"
                                    Foreground="#333"
                                    HorizontalAlignment="Center" />
+
+                        <Button x:Name="SwitchAccountButton"
+                                Classes="Miret"
+                                Content="切换账户"
+                                Padding="16,7"
+                                FontSize="13"
+                                HorizontalAlignment="Center"
+                                Margin="0,6,0,0"
+                                Click="OnSwitchAccountClicked" />
                     </StackPanel>
                 </Grid>
 
+                <!-- ★ 启动页 -->
                 <Grid x:Name="LaunchPanel" IsVisible="False" Opacity="1">
                     <Grid.Transitions>
                         <Transitions>
@@ -333,32 +349,141 @@
                     </StackPanel>
                 </Grid>
 
+                <!-- ★ 下载 -->
                 <Grid x:Name="DownloadPanel" IsVisible="False" Opacity="1">
                     <Grid.Transitions>
                         <Transitions>
                             <DoubleTransition Property="Opacity" Duration="0:0:0.2" />
                         </Transitions>
                     </Grid.Transitions>
-                    <StackPanel HorizontalAlignment="Center"
-                                VerticalAlignment="Center"
-                                Spacing="10">
-                        <TextBlock Text="暂时无下载功能"
-                                   FontSize="22"
-                                   FontWeight="SemiBold"
-                                   Foreground="#555"
-                                   HorizontalAlignment="Center" />
-                        <TextBlock Text="等待后续开发"
-                                   FontSize="14"
-                                   Foreground="#888"
-                                   HorizontalAlignment="Center" />
-                        <TextBlock Text="自觉遵守 Demo 测试保密"
-                                   FontSize="12"
-                                   Foreground="#AAA"
-                                   HorizontalAlignment="Center"
-                                   Margin="0,8,0,0" />
-                    </StackPanel>
+
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+
+                    <!-- 版本类型选择（安全区左上角） -->
+                    <Grid Grid.Row="0" HorizontalAlignment="Left" Margin="0,0,0,12">
+                        <Border Background="#D8D8D8" CornerRadius="8" Width="240" Height="44" />
+                        <Grid ColumnDefinitions="*,*" Width="240" Height="44">
+                            <Button x:Name="BedrockEditionButton"
+                                    Grid.Column="0"
+                                    Background="Transparent"
+                                    BorderThickness="0"
+                                    Foreground="#666666"
+                                    FontWeight="SemiBold"
+                                    FontSize="14"
+                                    Content="基岩版"
+                                    Cursor="Hand"
+                                    HorizontalAlignment="Stretch"
+                                    HorizontalContentAlignment="Center"
+                                    Padding="0" />
+                            <Button x:Name="JavaEditionButton"
+                                    Grid.Column="1"
+                                    Background="Transparent"
+                                    BorderThickness="0"
+                                    Foreground="#666666"
+                                    FontWeight="SemiBold"
+                                    FontSize="14"
+                                    Content="Java版"
+                                    Cursor="Hand"
+                                    HorizontalAlignment="Stretch"
+                                    HorizontalContentAlignment="Center"
+                                    Padding="0" />
+                        </Grid>
+
+                        <lg:LiquidGlassSurface x:Name="EditionSlider"
+                                               Width="114"
+                                               Height="36"
+                                               CornerRadius="6"
+                                               VerticalAlignment="Center"
+                                               HorizontalAlignment="Left"
+                                               Margin="3,0,3,0"
+                                               RenderTransformOrigin="0.5,0.5"
+                                               RefractionHeight="4"
+                                               RefractionAmount="40"
+                                               BlurRadius="0"
+                                               Vibrancy="0.86"
+                                               Brightness="0"
+                                               Contrast="1.0"
+                                               ExposureEv="0"
+                                               GammaPower="1.0"
+                                               BackdropOpacity="1.0"
+                                               ChromaticAberration="True"
+                                               DepthEffect="False"
+                                               HighlightEnabled="True"
+                                               ShadowEnabled="True"
+                                               ShadowRadius="24"
+                                               ShadowOffset="0,4"
+                                               ShadowColor="#1A000000">
+                            <lg:LiquidGlassSurface.RenderTransform>
+                                <TransformGroup>
+                                    <ScaleTransform ScaleX="1" ScaleY="1" />
+                                    <TranslateTransform X="0" Y="0" />
+                                </TransformGroup>
+                            </lg:LiquidGlassSurface.RenderTransform>
+                        </lg:LiquidGlassSurface>
+                    </Grid>
+
+                    <!-- 安全区（负责显示内容） -->
+                    <Border Grid.Row="1"
+                            Background="White"
+                            CornerRadius="12">
+                        <Border.Effect>
+                            <DropShadowEffect BlurRadius="24"
+                                              OffsetX="0"
+                                              OffsetY="8"
+                                              Color="#1A000000" />
+                        </Border.Effect>
+
+                        <Grid>
+                            <!-- 基岩版面板 -->
+                            <StackPanel x:Name="BedrockPanel"
+                                        HorizontalAlignment="Center"
+                                        VerticalAlignment="Center"
+                                        Spacing="10">
+                                <TextBlock Text="基岩版"
+                                           FontSize="22"
+                                           FontWeight="SemiBold"
+                                           Foreground="#555"
+                                           HorizontalAlignment="Center" />
+                                <TextBlock Text="版本列表（待接入）"
+                                           FontSize="14"
+                                           Foreground="#888"
+                                           HorizontalAlignment="Center" />
+                                <TextBlock Text="自觉遵守 Demo 测试保密"
+                                           FontSize="12"
+                                           Foreground="#AAA"
+                                           HorizontalAlignment="Center"
+                                           Margin="0,8,0,0" />
+                            </StackPanel>
+
+                            <!-- Java版面板 -->
+                            <StackPanel x:Name="JavaPanel"
+                                        HorizontalAlignment="Center"
+                                        VerticalAlignment="Center"
+                                        Spacing="10"
+                                        IsVisible="False">
+                                <TextBlock Text="Java版"
+                                           FontSize="22"
+                                           FontWeight="SemiBold"
+                                           Foreground="#555"
+                                           HorizontalAlignment="Center" />
+                                <TextBlock Text="版本列表（待接入）"
+                                           FontSize="14"
+                                           Foreground="#888"
+                                           HorizontalAlignment="Center" />
+                                <TextBlock Text="自觉遵守 Demo 测试保密"
+                                           FontSize="12"
+                                           Foreground="#AAA"
+                                           HorizontalAlignment="Center"
+                                           Margin="0,8,0,0" />
+                            </StackPanel>
+                        </Grid>
+                    </Border>
                 </Grid>
 
+                <!-- ★ 设置（占位） -->
                 <Grid x:Name="SettingsPanel" IsVisible="False" Opacity="1">
                     <Grid.Transitions>
                         <Transitions>
@@ -385,6 +510,7 @@
                     </StackPanel>
                 </Grid>
 
+                <!-- ★ 工具（占位） -->
                 <Grid x:Name="ToolsPanel" IsVisible="False" Opacity="1">
                     <Grid.Transitions>
                         <Transitions>
@@ -412,6 +538,7 @@
                 </Grid>
             </Grid>
 
+            <!-- ★ 底部导航条 -->
             <Grid x:Name="BottomNavBar"
                   Grid.Row="1"
                   Width="520" Height="52"
@@ -574,6 +701,7 @@
             </Grid>
         </Grid>
 
+        <!-- Toast -->
         <Border x:Name="CancelToast"
                 Grid.Row="1"
                 IsVisible="False"

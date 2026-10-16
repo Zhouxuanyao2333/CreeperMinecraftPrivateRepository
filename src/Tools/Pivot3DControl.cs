@@ -24,7 +24,8 @@ namespace Project.Launch.Views
             set => SetValue(SkinProperty, value);
         }
 
-        private readonly List<SkinFace> _faces;
+        private List<SkinFace> _faces;
+        private SkinModelType _currentModelType = SkinModelType.Classic;
         private SKImage? _skinImage;
         private float _yaw = 0f;
         private float _pitch = 0f;
@@ -39,7 +40,7 @@ namespace Project.Launch.Views
 
         public Pivot3DControl()
         {
-            _faces = MinecraftSkinModel.Build();
+            _faces = MinecraftSkinModel.Build(SkinModelType.Classic);
             Focusable = true;
             ClipToBounds = true;
 
@@ -73,11 +74,97 @@ namespace Project.Launch.Views
         protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
         {
             base.OnPropertyChanged(change);
+
             if (change.Property == SkinProperty)
             {
                 _skinImage?.Dispose();
                 _skinImage = BitmapToSkImage(Skin);
+
+                if (Skin != null)
+                {
+                    var detected = DetectSkinType(Skin);
+                    if (detected != _currentModelType)
+                    {
+                        _currentModelType = detected;
+                        _faces = MinecraftSkinModel.Build(detected);
+
+                        LogHelper.Write(LauncherPaths.AppLog,
+                            $"皮肤检测: {detected}",
+                            $"Skin detected: {detected}");
+                    }
+                }
+
                 InvalidateVisual();
+            }
+        }
+
+        // ============================================================
+        // 检测皮肤类型（Classic / Slim）
+        //
+        // 方案：
+        //   1. 看皮肤宽度决定是普通（64）还是 HD（128）
+        //   2. 按比例缩放检测坐标
+        //   3. 检测该列是否有颜色：
+        //        - 有颜色 → Steve (Classic)
+        //        - 全透明 → Alex (Slim)
+        //
+        // 基准：0-based (54, 20)，长度 12 行（对应 64×64）
+        // ============================================================
+        private static SkinModelType DetectSkinType(Bitmap bitmap)
+        {
+            try
+            {
+                int w = bitmap.PixelSize.Width;
+                int h = bitmap.PixelSize.Height;
+
+                // 老版 64×32 皮肤一律按 Classic
+                if (w < 64 || h < 32) return SkinModelType.Classic;
+
+                // 计算比例：64 → 1，128 → 2，256 → 4
+                int ratio = w / 64;
+
+                // 缩放检测坐标和长度
+                int checkX = 54 * ratio;
+                int checkY = 20 * ratio;
+                int checkH = 12 * ratio;
+
+                // 边界保护
+                if (checkX >= w || checkY + checkH > h)
+                    return SkinModelType.Classic;
+
+                var rect = new PixelRect(checkX, checkY, 1, checkH);
+                byte[] pixels = new byte[checkH * 4];
+                unsafe
+                {
+                    fixed (byte* p = pixels)
+                    {
+                        bitmap.CopyPixels(rect, (IntPtr)p, pixels.Length, 4);
+                    }
+                }
+
+                // 有任一不透明像素 → Classic
+                for (int i = 0; i < checkH; i++)
+                {
+                    if (pixels[i * 4 + 3] != 0)
+                    {
+                        LogHelper.Write(LauncherPaths.AppLog,
+                            $"检测: 尺寸={w}x{h}, ratio={ratio}, 位置=({checkX},{checkY}), 结果=Classic",
+                            $"Detect: size={w}x{h}, ratio={ratio}, pos=({checkX},{checkY}), result=Classic");
+                        return SkinModelType.Classic;
+                    }
+                }
+
+                LogHelper.Write(LauncherPaths.AppLog,
+                    $"检测: 尺寸={w}x{h}, ratio={ratio}, 位置=({checkX},{checkY}), 结果=Slim",
+                    $"Detect: size={w}x{h}, ratio={ratio}, pos=({checkX},{checkY}), result=Slim");
+                return SkinModelType.Slim;
+            }
+            catch (Exception ex)
+            {
+                LogHelper.Write(LauncherPaths.AppLog,
+                    $"检测异常: {ex.Message}",
+                    $"Detect exception: {ex.Message}");
+                return SkinModelType.Classic;
             }
         }
 
@@ -228,7 +315,6 @@ namespace Project.Launch.Views
                         new SKColor(s, s, s, 255),
                     };
 
-                    // 每个面独立创建 Shader -> Skia 无法合批 -> 强制按提交顺序绘制
                     using var shader = SKShader.CreateImage(
                         _skin,
                         SKShaderTileMode.Clamp,

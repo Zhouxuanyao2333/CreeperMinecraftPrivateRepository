@@ -48,7 +48,7 @@ namespace Project.Launch.Tools
                 float cross = (p1.X - p0.X) * (p2.Y - p0.Y) - (p1.Y - p0.Y) * (p2.X - p0.X);
                 if (cross <= 0f) continue;
 
-                float shade = EstimateShade(f);
+                float shade = EstimateShade(f, cosY, sinY, cosP, sinP);
 
                 result.Add(new ProjectedFace
                 {
@@ -96,7 +96,8 @@ namespace Project.Launch.Tools
             return new Vector3(sx, sy, depth);
         }
 
-        private static float EstimateShade(SkinFace f)
+        private static float EstimateShade(
+            SkinFace f, float cosY, float sinY, float cosP, float sinP)
         {
             // 面法线（叉乘两条边）
             float ax = f.V1.X - f.V0.X, ay = f.V1.Y - f.V0.Y, az = f.V1.Z - f.V0.Z;
@@ -107,14 +108,26 @@ namespace Project.Launch.Tools
 
             float len = MathF.Sqrt(nx * nx + ny * ny + nz * nz);
             if (len < 0.0001f) return 1.0f;
-            nx /= len; ny /= len; nz /= len;
 
-            // 光照方向：从相机方向略偏左上
+            // ★ 修复：模型面片缠绕方向给出的法线朝内，取反得到真正朝外的几何法线
+            nx = -nx / len;
+            ny = -ny / len;
+            nz = -nz / len;
+
+            // 光照方向（世界空间 / 相机空间）：从相机方向略偏左上
             float lx = 0.3f, ly = 0.6f, lz = 0.7f;
             float llen = MathF.Sqrt(lx * lx + ly * ly + lz * lz);
             lx /= llen; ly /= llen; lz /= llen;
 
-            float dot = nx * lx + ny * ly + nz * lz;
+            // ★ 修复：把光照方向从相机空间变换回模型空间（逆 Pitch 再逆 Yaw），
+            //   让"光源跟着相机走"——人物转到哪个角度，朝向相机的一面始终被照亮，
+            //   不再出现转到某个角度就死黑一片的情况
+            float ly1 = ly * cosP + lz * sinP;
+            float lz1 = -ly * sinP + lz * cosP;
+            float lxm = lx * cosY - lz1 * sinY;
+            float lzm = lx * sinY + lz1 * cosY;
+
+            float dot = nx * lxm + ny * ly1 + nz * lzm;
 
             // 环境光 0.6 + 漫反射
             return 0.6f + 0.4f * MathF.Max(0f, dot);

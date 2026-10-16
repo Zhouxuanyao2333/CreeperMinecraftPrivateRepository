@@ -82,8 +82,36 @@ namespace LiquidGlassAvaloniaUI
                 state.Snapshot is null
                 || !state.SnapshotScaling.Equals(scaling);
 
+            // ★ 修复：渲染变换（TranslateTransform / ScaleTransform）由合成器直接处理，
+            // Avalonia 的 Visual.RenderTransformChanged 只更新合成视觉的变换，不会重新录制
+            // 绘制树，因此不会触发 SceneInvalidated。若只依赖该事件，快照会一直停在旧位置：
+            // 只有快照覆盖范围内的那部分玻璃还有折射/模糊，越界处被 Clamp 钳制，表现为硬缝。
+            // 这里把"当前所需覆盖区是否仍在上次抓取范围内"提升为一等触发条件。
+            if (!shouldCapture
+                && state.HasLastClipRect
+                && !IsBackdropWithinLastClip(control, topLevel, state))
+            {
+                shouldCapture = true;
+            }
+
             if (shouldCapture)
                 QueueCapture(topLevel, state);
+        }
+
+        /// <summary>
+        /// 控件当前的背景采样区（含折射/模糊膨胀量、并与客户区求交后）是否仍被上次抓取的裁剪区包含。
+        /// 无法测量时返回 true（即不触发重抓），避免隐藏或尚未完成布局的控件造成每帧重抓。
+        /// </summary>
+        private static bool IsBackdropWithinLastClip(Control control, TopLevel topLevel, BackdropState state)
+        {
+            if (!TryCalculateControlBackdropBounds(control, topLevel, out Rect bounds))
+                return true;
+
+            Rect clipped = bounds.Intersect(new Rect(topLevel.ClientSize));
+            if (clipped.Width <= 0 || clipped.Height <= 0)
+                return true;
+
+            return RectContains(state.LastClipRect, clipped);
         }
 
         public static void NotifySubscriberOnlyInvalidation(Control control)
@@ -185,18 +213,32 @@ namespace LiquidGlassAvaloniaUI
             try
             {
                 Vector dpi = new(96 * scaling, 96 * scaling);
-                if (state.ScratchBitmap is null || state.ScratchBitmap.PixelSize != pixelSize || !state.SnapshotScaling.Equals(scaling))
+
+                // ★★★ 根因修复（验证中）★★★
+                // 原实现用手写遍历 (LiquidGlassVisualRenderer) 把视觉树画进一个"裁剪区尺寸"的
+                // RenderTargetBitmap，实测该路径在真实窗口下产出的是【全透明空图】(336x193 全部 alpha=0)，
+                // 于是玻璃采样到空背景 —— 表现为"看不到折射/模糊、却能直接看穿到下面的 UI"。
+                // 这里改用 Avalonia 自带渲染器 RenderTargetBitmap.Render(Visual)：
+                //   · 位图取【整窗客户区】尺寸，原点固定 (0,0)，因此不需要任何手写平移；
+                //   · 玻璃控件自身在 Render() 里因 IsCapturing 为真而不绘制，天然被排除，不会递归。
+                PixelSize fullPx = new(
+                    Math.Max(1, (int)Math.Ceiling(topLevel.ClientSize.Width * scaling)),
+                    Math.Max(1, (int)Math.Ceiling(topLevel.ClientSize.Height * scaling)));
+
+                if (state.ScratchBitmap is null
+                    || state.ScratchBitmap.PixelSize != fullPx
+                    || !state.SnapshotScaling.Equals(scaling))
                 {
                     state.ScratchBitmap?.Dispose();
-                    state.ScratchBitmap = new RenderTargetBitmap(pixelSize, dpi);
+                    state.ScratchBitmap = new RenderTargetBitmap(fullPx, dpi);
                     LiquidGlassDiagnostics.RecordScratchBitmapRecreated();
                 }
 
                 long nowTicks = DateTime.UtcNow.Ticks;
-                HashSet<Visual> excludedRoots = GetExcludedRoots(topLevel, state);
-                RenderVisualWithClip(state.ScratchBitmap, topLevel, clip.DipRect, excludedRoots);
+                state.ScratchBitmap.Render(topLevel);
 
-                PixelPoint originInPixels = clip.PixelRect.Position;
+                pixelSize = fullPx;
+                PixelPoint originInPixels = new(0, 0);
 
                 LiquidGlassBackdropSnapshot? currentSnapshot = System.Threading.Volatile.Read(ref state.Snapshot);
                 bool isSameConfig =

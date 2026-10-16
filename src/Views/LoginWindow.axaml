@@ -33,7 +33,7 @@
                         </Border.RenderTransform>
 
                         <StackPanel HorizontalAlignment="Center">
-                            <TextBlock Text="登录Kilim Minecraft Launcher"
+                            <TextBlock Text="登录 Kilim Minecraft Launcher"
                                        FontSize="20"
                                        FontWeight="Bold"
                                        Foreground="#333"
@@ -127,53 +127,141 @@
                             </Transitions>
                         </Border.Transitions>
 
-                        <StackPanel HorizontalAlignment="Center"
-                                    VerticalAlignment="Top"
-                                    Spacing="8">
-                            <TextBlock x:Name="ModeLabel"
-                                       Text="选择登录方式"
-                                       FontSize="13"
-                                       Foreground="#666"
-                                       HorizontalAlignment="Center" />
-                            <StackPanel Orientation="Horizontal"
+                        <Grid>
+                            <!-- ============ 离线登录面板 ============ -->
+                            <StackPanel x:Name="OfflinePanel"
+                                        HorizontalAlignment="Center"
+                                        VerticalAlignment="Top"
                                         Spacing="8"
-                                        HorizontalAlignment="Center">
+                                        IsVisible="False">
                                 <TextBox x:Name="PlayerNameBox"
                                          Width="200"
                                          Height="32"
-                                         PlaceholderText="输入正版 ID"
+                                         PlaceholderText="输入用户名"
                                          VerticalContentAlignment="Center" />
-                                <Button x:Name="FetchSkinButton"
+                                <Button x:Name="LoginButton"
                                         Classes="Miret"
-                                        Content="获取皮肤"
-                                        Height="32"
-                                        Padding="12,0" />
+                                        Content="确认登录"
+                                        Width="130"
+                                        Height="34"
+                                        HorizontalAlignment="Center"
+                                        Margin="0,5,0,0"
+                                        Click="OnLoginClicked" />
+                                <TextBlock x:Name="LoginStatus"
+                                           FontSize="12"
+                                           Foreground="#888"
+                                           HorizontalAlignment="Center"
+                                           Text="输入用户名，点击确认登录" />
                             </StackPanel>
-                            <TextBlock x:Name="LocalFileLabel"
-                                       Text="或上传本地皮肤文件"
-                                       FontSize="12"
-                                       Foreground="#888"
-                                       HorizontalAlignment="Center" />
-                            <Button x:Name="SelectLocalSkinButton"
-                                    Classes="Miret"
-                                    Content="选择本地皮肤文件"
-                                    Height="32"
-                                    Padding="14,0"
-                                    HorizontalAlignment="Center" />
-                            <Button x:Name="LoginButton"
-                                    Classes="Miret"
-                                    Content="确认登录"
-                                    Width="130"
-                                    Height="34"
-                                    HorizontalAlignment="Center"
-                                    Margin="0,5,0,0"
-                                    Click="OnLoginClicked" />
-                            <TextBlock x:Name="LoginStatus"
-                                       FontSize="12"
-                                       Foreground="#888"
-                                       HorizontalAlignment="Center"
-                                       Text="输入ID或选择文件后登录" />
-                        </StackPanel>
+
+                            <!-- ============ 正版登录面板 ============ -->
+                            <Grid x:Name="MicrosoftPanel"
+                                  HorizontalAlignment="Center"
+                                  VerticalAlignment="Top"
+                                  IsVisible="False">
+                                <!-- 状态 1：初始 -->
+                                <StackPanel x:Name="MsIdlePanel"
+                                            Spacing="12"
+                                            HorizontalAlignment="Center"
+                                            VerticalAlignment="Center">
+                                    <TextBlock Text="使用 Microsoft 账号登录"
+                                               FontSize="14"
+                                               Foreground="#555"
+                                               HorizontalAlignment="Center" />
+                                    <TextBlock Text="登录后可使用正版皮肤、联机"
+                                               FontSize="12"
+                                               Foreground="#888"
+                                               HorizontalAlignment="Center" />
+                                    <Button x:Name="MsLoginButton"
+                                            Classes="Miret"
+                                            Content="开始登录"
+                                            Width="140"
+                                            Height="36"
+                                            HorizontalAlignment="Center"
+                                            Margin="0,10,0,0"
+                                            Click="OnMsLoginClicked" />
+                                </StackPanel>
+
+                                <!-- 状态 2：等待用户授权 -->
+                                <StackPanel x:Name="MsWaitingPanel"
+                                            Spacing="10"
+                                            HorizontalAlignment="Center"
+                                            VerticalAlignment="Center"
+                                            IsVisible="False">
+                                    <TextBlock Text="在浏览器打开以下网址："
+                                               FontSize="13"
+                                               Foreground="#555"
+                                               HorizontalAlignment="Center" />
+                                    <TextBlock x:Name="MsVerificationUri"
+                                               FontSize="12"
+                                               Foreground="#4C8F4C"
+                                               HorizontalAlignment="Center" />
+                                    <TextBlock Text="输入代码："
+                                               FontSize="13"
+                                               Foreground="#555"
+                                               HorizontalAlignment="Center"
+                                               Margin="0,8,0,0" />
+                                    <TextBlock x:Name="MsUserCode"
+                                               FontSize="22"
+                                               FontWeight="Bold"
+                                               FontFamily="Consolas,monospace"
+                                               Foreground="#333"
+                                               HorizontalAlignment="Center" />
+                                    <StackPanel Orientation="Horizontal"
+                                                HorizontalAlignment="Center"
+                                                Spacing="10"
+                                                Margin="0,6,0,0">
+                                        <Button x:Name="MsCopyCodeButton"
+                                                Classes="Miret"
+                                                Content="复制代码"
+                                                Padding="14,6"
+                                                Click="OnMsCopyCodeClicked" />
+                                        <Button x:Name="MsOpenBrowserButton"
+                                                Classes="Miret"
+                                                Content="打开浏览器"
+                                                Padding="14,6"
+                                                Click="OnMsOpenBrowserClicked" />
+                                    </StackPanel>
+                                    <TextBlock x:Name="MsStatus"
+                                               FontSize="12"
+                                               Foreground="#888"
+                                               HorizontalAlignment="Center"
+                                               Margin="0,8,0,0"
+                                               Text="等待授权中..." />
+                                    <Button x:Name="MsCancelButton"
+                                            Classes="Miret"
+                                            Content="取消"
+                                            Padding="14,6"
+                                            HorizontalAlignment="Center"
+                                            Margin="0,4,0,0"
+                                            Click="OnMsCancelClicked" />
+                                </StackPanel>
+
+                                <!-- 状态 3：认证链推进 -->
+                                <StackPanel x:Name="MsProgressPanel"
+                                            Spacing="10"
+                                            HorizontalAlignment="Center"
+                                            VerticalAlignment="Center"
+                                            IsVisible="False">
+                                    <TextBlock x:Name="MsProgressText"
+                                               FontSize="14"
+                                               Foreground="#333"
+                                               HorizontalAlignment="Center" />
+                                </StackPanel>
+                            </Grid>
+
+                            <!-- ============ 第三方登录面板 ============ -->
+                            <StackPanel x:Name="ThirdPartyPanel"
+                                        HorizontalAlignment="Center"
+                                        VerticalAlignment="Top"
+                                        Spacing="8"
+                                        IsVisible="False">
+                                <TextBlock Text="第三方登录暂未支持"
+                                           FontSize="14"
+                                           Foreground="#888"
+                                           HorizontalAlignment="Center" />
+                            </StackPanel>
+                        </Grid>
                     </Border>
                 </StackPanel>
             </Grid>

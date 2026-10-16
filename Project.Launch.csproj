@@ -45,14 +45,21 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- ★ 用 Update（不是 Include），避免和默认 glob 重复 -->
     <AvaloniaXaml Update="App.axaml" />
+    <AvaloniaXaml Update="src\Views\LoginWindow.axaml" />
     <AvaloniaXaml Update="src\Views\MainWindow.axaml" />
+    <AvaloniaXaml Update="src\Views\AccountManagerWindow.axaml" />
+
+    <!-- 样式：作为 AvaloniaResource 读，避免被当独立 XAML 编译 -->
     <AvaloniaResource Include="src\Views\Styles.axaml" />
     <AvaloniaResource Include="src\Views\Glass.axaml" />
 
+    <!-- 图片和音效 -->
     <AvaloniaResource Include="src\Views\imgs\**" Exclude="src\Views\imgs\MainLogo.ico" />
     <AvaloniaResource Include="src\Sound\**" />
 
+    <!-- 任务栏图标 -->
     <Content Include="src\Views\imgs\MainLogo.ico">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Presenters;
@@ -194,6 +195,10 @@ namespace LiquidGlassAvaloniaUI
         private DispatcherTimer? _adaptiveLuminanceTimer;
         private EventHandler? _adaptiveLuminanceTickHandler;
         private double _adaptiveLuminance;
+
+        // ★ 修复：已订阅 Changed 的变换列表（RenderTransform 本身，以及 TransformGroup 下的子变换）
+        private readonly List<Transform> _observedTransforms = new();
+        private Transform? _observedRootTransform;
 
         /// <summary>
         /// Last sampled backdrop luminance (0..1) when <see cref="AdaptiveLuminanceEnabled"/> is true.
@@ -565,6 +570,13 @@ namespace LiquidGlassAvaloniaUI
         {
             base.OnPropertyChanged(change);
 
+            // ★ 修复：RenderTransform 被整体替换时重新订阅，并立即按新位置校验快照覆盖范围
+            if (change.Property == RenderTransformProperty)
+            {
+                ObserveRenderTransform();
+                LiquidGlassBackdropProvider.EnsureSnapshot(this);
+            }
+
             if (IsSubscriberOnlyRenderProperty(change.Property))
                 LiquidGlassBackdropProvider.NotifySubscriberOnlyInvalidation(this);
 
@@ -646,12 +658,69 @@ namespace LiquidGlassAvaloniaUI
         {
             base.OnAttachedToVisualTree(e);
             UpdateAdaptiveLuminanceTimer();
+            ObserveRenderTransform();
         }
 
         protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
         {
+            ReleaseRenderTransform();
             StopAdaptiveLuminanceTimer();
             base.OnDetachedFromVisualTree(e);
+        }
+
+        // ============================================================
+        // ★ 修复：渲染变换感知
+        //
+        // 宿主通过定时器逐帧修改 TranslateTransform.X / ScaleTransform 来移动玻璃控件。
+        // 这类改动由合成器直接处理（Avalonia 的 Visual.RenderTransformChanged 只更新合成
+        // 视觉的变换），不会重新录制绘制树，因此不会触发 SceneInvalidated，背景提供者也就
+        // 无从得知控件已经移动 —— 快照会停在旧位置，导致只有快照覆盖范围内还有折射/模糊。
+        //
+        // 这里直接订阅变换自身的 Changed 事件，把"我移动了"主动告知提供者，使其按新位置重抓。
+        // TransformGroup 是否会把子变换的 Changed 冒泡上来依实现而定，因此这里递归订阅，
+        // 两种实现下都成立（重复通知无副作用：抓取请求会被 CaptureQueued 合并）。
+        // ============================================================
+        private void ObserveRenderTransform()
+        {
+            // Visual.RenderTransform 的静态类型是 ITransform；只有可变变换（Transform 及其派生，
+            // 如 TransformGroup / TranslateTransform / ScaleTransform）才带 Changed 事件。
+            // 若宿主设的是不可变变换，则无法观测，此时只能依赖常规失效路径。
+            Transform? transform = RenderTransform as Transform;
+            if (ReferenceEquals(_observedRootTransform, transform))
+                return;
+
+            ReleaseRenderTransform();
+            _observedRootTransform = transform;
+            SubscribeTransform(transform);
+        }
+
+        private void SubscribeTransform(Transform? transform)
+        {
+            if (transform is null)
+                return;
+
+            transform.Changed += OnObservedTransformChanged;
+            _observedTransforms.Add(transform);
+
+            if (transform is TransformGroup group)
+            {
+                foreach (Transform child in group.Children)
+                    SubscribeTransform(child);
+            }
+        }
+
+        private void ReleaseRenderTransform()
+        {
+            for (int i = 0; i < _observedTransforms.Count; i++)
+                _observedTransforms[i].Changed -= OnObservedTransformChanged;
+
+            _observedTransforms.Clear();
+            _observedRootTransform = null;
+        }
+
+        private void OnObservedTransformChanged(object? sender, EventArgs e)
+        {
+            LiquidGlassBackdropProvider.EnsureSnapshot(this);
         }
 
         private void UpdateAdaptiveLuminanceTimer()
