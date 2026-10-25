@@ -1,24 +1,28 @@
 # Kilim Minecraft Launcher — 完整交接文档（自包含）
 
-> **本文件是自包含的**：包含项目框架说明、用途定位、已知缺陷、下一步需求调研，以及**当前全部源码**。
-> 接手方只需看这一个文件即可理解并继续开发。
->
-> | 项 | 值 |
-> |---|---|
-> | 项目 | Kilim Minecraft Launcher（内部代号 `Project.Launch`） |
-> | 仓库 | https://github.com/Zhouxuanyao2333/KilimMinecraftAllSource （**私有**） |
-> | 分支 / HEAD | `master` / `2c01d3e` |
-> | 文档生成 | 2026-10-16 |
-> | 技术栈 | C# / .NET 10 + Avalonia 12.1.2 + SkiaSharp 3.119.4 + NAudio 2.2.1 |
-> | 平台 | Windows x64 |
-> | 文档规模 | 源码部分由脚本从仓库真实文件生成，**不存在手抄误差** |
+> **本文件是自包含的**：包含项目框架、用途定位、目录重构记录、潜在隐患、已知缺陷、下一步调研，以及**当前全部源码**。
+> 接手方只看这一个文件即可理解项目并继续开发。
+
+| 项 | 值 |
+|---|---|
+| 项目 | Kilim Minecraft Launcher（内部代号 `Project.Launch`） |
+| 仓库 | https://github.com/Zhouxuanyao2333/KilimMinecraftPrivateRepository （**私有**，2026-10 重建） |
+| 代码基线 | `master` 上的 `2d5b01c`（**文档的源码对应该提交**；文档本身随后单独提交） |
+| 文档生成 | 2026-10-25 |
+| 技术栈 | C# / .NET 10 + Avalonia 12.1.2 + SkiaSharp 3.119.4 + NAudio 2.2.1 |
+| 平台 | Windows x64 |
+| 源码目录 | **`MainSrc\`**（2026-10 由 `src\` 改名，见 [1.6](#16--目录重构记录一src--mainsrc)） |
+| 源码规模 | 67 个文件 / 约 11,900 行 / 约 460 KB |
 
 ---
 
 # 目录
 
-- [第零部分：这份文档怎么用（先读这个）](#第零部分这份文档怎么用先读这个)
+- [第零部分：这份文档怎么用](#第零部分这份文档怎么用先读这个)
 - [第一部分：这是什么项目](#第一部分这是什么项目)
+  - [1.6 ⚠️ 目录重构记录一：src → MainSrc](#16--目录重构记录一src--mainsrc)
+  - [1.7 ⚠️ 目录重构记录二：图片资源分目录](#17--目录重构记录二图片资源分目录)
+  - [1.8 ⚠️ 潜在隐患清单](#18--潜在隐患清单改目录前必读)
 - [第二部分：环境、构建与运行](#第二部分环境构建与运行)
 - [第三部分：已实现功能详解](#第三部分已实现功能详解)
 - [第四部分：已知缺陷与待办](#第四部分已知缺陷与待办)
@@ -32,50 +36,44 @@
 
 ## 0.1 文档一定会过期 —— 这是设计前提
 
-**本项目的功能仍在快速迭代，代码每天都在变。这份文档是一张"快照"，不是"事实来源"。**
-
-因此请牢记下面这条规则，它能帮你省掉大量返工：
+**这个项目仍在快速迭代。本文档是一张"快照"，不是"事实来源"。**
 
 > ### ⚠️ 需要改 / 查任何具体实现时，先向用户索要该文件的最新版本
 >
-> - 本文档第六部分的源码对应 `commit 2c01d3e` 的工作区状态
-> - 如果用户在此之后又改过代码，**第六部分对应的小节就已经失效**
-> - **不要根据本文档里的代码去推断"当前实现是怎样的"**，也不要基于它做重构
-> - 正确做法：告诉用户"我需要 `src/Views/MainWindow.cs` 的最新内容"，由用户提供
+> - 本文档第六部分对应 `commit 2d5b01c`
+> - 用户在此之后改过的文件，**第六部分对应小节就已经失效**
+> - **不要根据本文档的代码去推断"当前实现是怎样的"**，也不要基于它做重构
+> - 正确做法：告诉用户"我需要 `MainSrc/Views/MainWindow.cs` 的最新内容"
 
-同理：
+相对稳定的部分（可放心参考）：**第一部分的框架与用途、1.6/1.7 的重构规则、1.8 的隐患清单、第二部分的环境陷阱、第七部分的协作约定**。
 
-- 本文档的**框架说明、用途定位、架构分层、环境陷阱、协作约定**（第一、二、七部分）**相对稳定**，可以放心参考
-- 本文档的**已知缺陷、待办清单**（第四部分）会随着修复而失效
-- **下载功能调研**（第五部分）是产品层面的调研结论，有效期较长，但其中的待决策项需要用户拍板
+会随开发失效的部分：**第三部分的功能细节、第四部分的缺陷清单、第五部分的下载进度**。
 
 ## 0.2 源码内嵌策略（第六部分）
 
 | 类别 | 是否嵌入全文 |
 |---|---|
 | 根目录：`Program.cs`、`App.axaml(.cs)`、`.csproj`、`app.manifest`、`.gitignore`、`README.md` | ✅ 全文 |
-| `src\Views\`：四个窗口的 XAML 与代码 + 两套样式表 | ✅ 全文 |
-| `src\Tools\`：全部 21 个内核文件 | ✅ 全文 |
-| `src\Tools\Auth\`：微软登录 5 个文件 | ✅ 全文 |
-| `src\ViewModel\` | ✅ 全文 |
-| `src\LiquidGlassAvaloniaUI\`：玻璃库 14 个 .cs + 6 个 .sksl + csproj | ✅ 全文 |
-| 图片 / 音效 / 图标（50 个，约 2 MB） | ❌ 仅列清单（6.7 节） |
+| `MainSrc\Views\`：四个窗口 + 两套样式表 | ✅ 全文 |
+| `MainSrc\Tools\`：全部 21 个内核文件 | ✅ 全文 |
+| `MainSrc\Tools\Auth\`：微软登录 5 个文件 | ✅ 全文 |
+| `MainSrc\Tools\Download\`：版本清单 2 个文件 | ✅ 全文 |
+| `MainSrc\ViewModel\`、`MainSrc\Codes\` | ✅ 全文 |
+| `MainSrc\LiquidGlassAvaloniaUI\`：玻璃库 14 个 `.cs` + 6 个 `.sksl` + csproj | ✅ 全文 |
+| 图片 / 音效 / 图标（约 79 个，约 2 MB） | ❌ 仅列清单（[6.8](#68-二进制资源清单不嵌入内容)） |
 
 ## 0.3 推荐阅读顺序
 
-**如果你是完全第一次接触这个项目：**
+**第一次接触本项目：**
 
-1. [1.1 一句话定位](#11-一句话定位) → [1.5 架构分层](#15-架构分层与调用关系) —— 先建立全局印象
-2. [2.2 构建与运行](#22-构建与运行命令) + [2.3 环境陷阱](#23--环境陷阱务必先读) —— **动手前必读，能省大量时间**
-3. [6.3 `GameLauncher.cs`](#6-3-srctools--内核工具层) —— 启动器的核心
-4. [6.2 `MainWindow.axaml` + `.cs`](#6-2-srcviews--界面层) —— 界面结构与交互范式
-5. [3.8 液态玻璃子系统](#38-液态玻璃子系统--含本次根因修复) —— **踩坑最多、最反直觉的一块**
+1. [1.1 一句话定位](#11-一句话定位) → [1.5 架构分层](#15-架构分层与调用关系) —— 建立全局印象
+2. [1.6](#16--目录重构记录一src--mainsrc) / [1.7](#17--目录重构记录二图片资源分目录) / [1.8](#18--潜在隐患清单改目录前必读) —— **目录刚被重构过，这三节能避免你踩坑**
+3. [2.2 构建运行](#22-构建与运行命令) + [2.3 环境陷阱](#23--环境陷阱务必先读) —— 动手前必读
+4. [6.3 `GameLauncher.cs`](#63-mainsrctools--内核工具层) —— 启动器的核心
+5. [6.2 `MainWindow.axaml` + `.cs`](#62-mainsrcviews--界面层) —— 界面结构与交互范式
+6. [3.8 液态玻璃](#38-液态玻璃子系统含历史根因修复) —— **踩坑最多、最反直觉**
 
-**如果你要接着做某个功能：**
-
-- 做下载功能 → 直接读 [第五部分](#第五部分下一步需求--下载功能)，那份调研已经很扎实
-- 改 UI → 先读 [3.6 UI 交互](#36-ui-交互) 的"标题栏两态"与"滑块动画范式"，再读对应窗口源码
-- 碰液态玻璃 → **务必先读 [3.8](#38-液态玻璃子系统--含本次根因修复)**，否则会重复走一遍我们走过的所有弯路
+**要做下载功能** → 直接读 [第五部分](#第五部分下一步需求--下载功能) + [6.5 `Tools\Download`](#65-mainsrctoolsdownload--版本清单下载功能-p1)。
 
 ---
 
@@ -83,34 +81,32 @@
 
 ## 1.1 一句话定位
 
-**Kilim Minecraft Launcher** 是一个用 **C# / .NET 10 + Avalonia 12 从零手写**的 Minecraft 启动器，主打两个卖点：
+**Kilim Minecraft Launcher** 是一个用 **C# / .NET 10 + Avalonia 12 从零手写**的 Minecraft 启动器，主打：
 
 1. **不用 WebView**（原生渲染，无内嵌浏览器开销）
 2. **自研液态玻璃 UI**（SKSL 运行时着色器做折射 / 色散 / 模糊）
 
-## 1.2 用处与产品定位（重要，决定了"什么该做什么不该做"）
+## 1.2 用处与产品定位
 
 ### 当前形态：**导入式启动器**
 
-它**依赖用户机器上已经装好的 Minecraft**：扫描 `.minecraft` 目录 → 识别版本 → 启动。**不从网络下载任何游戏文件。**
+依赖用户机器上**已经装好的 Minecraft**：扫描 `.minecraft` 目录 → 识别版本 → 启动。**不从网络下载游戏文件**（下载功能刚开始做，见第五部分）。
 
 ### 目标形态：Java 版 + 基岩版双线
 
-用户的产品规划是：
-
-- **正版（Java）与基岩版两条线并行，共用一套下载引擎**
+- 正版（Java）与基岩版两条线并行，**共用一套下载引擎**
 - 基岩版**为规避版权只支持"安装包下载"**（不重分发游戏本体），数据源走第三方站 MCAPPX
-- 完整约束见 [第五部分 5.1](#51-用户的产品定位与硬约束重要)
+- 完整约束见 [5.1](#51-用户的产品定位与硬约束重要)
 
-### ⚠️ 最关键的现状判断
+### ⚠️ 现状判断
 
-> **这个项目"外壳完成度约 90%，内核完成度约 40%"。**
+> **外壳完成度约 90%，内核完成度约 45%。**
 >
-> UI / 动画 / 液态玻璃 / 3D 皮肤这些"看得见的部分"打磨得很细（连 120% DPI 补偿、WCAG 亮度选色、梯形缩放脉冲都考虑到了），
-> 但**功能内核缺了最关键的一块：下载与安装**——那是它从"Demo"变成"启动器"的最后一道门槛。
+> UI / 动画 / 液态玻璃 / 3D 皮肤这些"看得见的部分"打磨得很细，
+> 但**功能内核缺了最关键的一块：下载与安装**（现已开始，见 [3.9](#39-版本清单模块--下载功能-p1)）。
 >
-> 另外，从"下载"到"用正版身份启动"这条主干**两头都断着**：入口没有下载器，出口没有接通正版凭据
-> （见 [4.1 P0 级缺陷](#41--p0-级功能失效缺陷)）。
+> 另外，"下载 → 用正版身份启动"这条主干**两头都还没接通**：入口的下载器只做了清单，出口的正版凭据仍未传给游戏进程
+> （见 [4.1 P0](#41--p0-级功能失效缺陷)）。
 
 ## 1.3 技术栈
 
@@ -120,60 +116,73 @@
 | UI | Avalonia 12.1.2 + Fluent 主题 + Inter 字体 |
 | 渲染 | SkiaSharp 3.119.4（3D 皮肤投影 + 液态玻璃着色器） |
 | 音频 | NAudio 2.2.1 |
-| 发布 | 单文件自包含（`PublishSingleFile` + `EnableCompressionInSingleFile`），**未裁剪** |
-| 玻璃库 | `src/LiquidGlassAvaloniaUI`（**独立 csproj**，主项目排除其源码后以 `ProjectReference` 引用） |
+| 发布 | 单文件自包含（`PublishSingleFile` + 压缩），**未裁剪** |
+| 玻璃库 | `MainSrc\LiquidGlassAvaloniaUI`（**独立 csproj**，主项目排除其源码后以 `ProjectReference` 引用） |
 | 测试 | **无测试工程**（全项目只有两个 csproj） |
 | MVVM | **没有**（全部 `FindControl` + 命令式赋值，状态放在 `App` 的静态字段里） |
 
 ## 1.4 项目结构总览
 
 ```
-Project.Launch\
-├── Program.cs                    程序入口（含崩溃日志兜底）
-├── App.axaml / App.axaml.cs      应用级资源、启动时恢复登录态
-├── Project.Launch.csproj         主项目文件（资源注册规则见 2.3 陷阱）
-├── app.manifest                  Windows 清单（透明窗口相关，勿删）
-├── README.md                     一句话 + 署名
+Project.Launch\                       ← 仓库根
+├── Program.cs                        程序入口（含崩溃日志兜底）
+├── App.axaml / App.axaml.cs          应用级资源（★ 含 2 处 avares StyleInclude）、启动时恢复登录态
+├── Project.Launch.csproj             主项目文件（★ 25 处路径，改动目录必须同步）
+├── app.manifest                      Windows 清单（透明窗口相关，勿删）
+├── .gitignore                        ★ 构建/发布产物忽略规则（见 2.5）
+├── README.md
 │
-├── src\
-│   ├── Codes\                    【空目录】原本规划为"内核级主程序代码"，目前只有 read.me
-│   ├── Tools\                    ★ 内核工具层（启动链路 / 检测 / 持久化 / 3D / 音效）
-│   │   ├── Auth\                 微软正版登录全链路（MSA→XBL→XSTS→MC）
-│   │   ├── GameLauncher.cs       ★ 启动器的核心：拼命令行 + 起进程
-│   │   ├── JavaDetector.cs       Java 检测与版本匹配
+├── MainSrc\                          ★ 2026-10 由 src\ 改名（见 1.6）
+│   ├── Codes\                        【空】规划为"内核级主程序代码"，只有 read.md
+│   ├── Tools\                        ★ 内核工具层
+│   │   ├── Auth\                     微软正版登录全链路（MSA→XBL→XSTS→MC）
+│   │   ├── Download\                 ★ 版本清单模块（下载功能 P1）
+│   │   ├── GameLauncher.cs           ★ 启动器核心：拼命令行 + 起进程
+│   │   ├── JavaDetector.cs            Java 检测与版本匹配
 │   │   ├── MinecraftDirectoryAnalyzer.cs  目录布局识别（standard / isolated）
-│   │   ├── InstanceService.cs / InstanceData.cs   实例持久化
-│   │   ├── MinecraftVersionJson.cs  版本 JSON 数据模型
-│   │   ├── AccountService.cs / AccountData.cs     账户持久化
-│   │   ├── OfflineUuidGenerator.cs  离线 UUID（兼容 HMCL / Java）
-│   │   ├── MinecraftSkinModel.cs / Pivot3DControl.cs / Pivot3DRenderer.cs  3D 皮肤投影
+│   │   ├── InstanceService.cs / InstanceData.cs     实例持久化
+│   │   ├── MinecraftVersionJson.cs   版本 JSON 数据模型
+│   │   ├── AccountService.cs / AccountData.cs       账户持久化
+│   │   ├── OfflineUuidGenerator.cs    离线 UUID（兼容 HMCL / Java）
+│   │   ├── MinecraftSkinModel.cs / Pivot3DControl.cs / Pivot3DRenderer.cs   3D 皮肤投影
 │   │   ├── DefaultSkinSelector.cs / SkinCropper.cs  默认皮肤判定 + 头像裁切
-│   │   ├── LauncherPaths.cs      所有路径的唯一来源
-│   │   ├── LogHelper.cs          双语日志
+│   │   ├── LauncherPaths.cs          所有路径的唯一来源
+│   │   ├── LogHelper.cs              双语日志
 │   │   ├── SoundService.cs / SoundConfig.cs  音效
-│   │   └── AnimationConfig.cs / InteractionConfig.cs  动画与交互参数（设置页预留出口）
+│   │   └── AnimationConfig.cs / InteractionConfig.cs  动画/交互参数（设置页预留出口）
 │   │
-│   ├── Views\                    ★ 界面层
-│   │   ├── MainWindow.axaml/.cs      主窗（5 个 Tab + 自绘标题栏 + 底部导航滑块）
-│   │   ├── LoginWindow.axaml/.cs     登录窗（离线 / 正版 / 第三方 三模式）
+│   ├── Views\                        ★ 界面层
+│   │   ├── MainWindow.axaml/.cs       主窗（5 Tab + 自绘标题栏 + 底部导航滑块）
+│   │   ├── LoginWindow.axaml/.cs      登录窗（离线 / 正版 / 第三方 三模式）
 │   │   ├── AccountManagerWindow.axaml/.cs  账户管理窗
-│   │   ├── Styles.axaml              主题色 + Miret 系列按钮样式
-│   │   ├── Glass.axaml               玻璃参数表（**注意：当前实际未被引用**，见 3.8.5）
-│   │   ├── imgs\                     界面图片 + 皮肤贴图
-│   │   └── read.me
+│   │   ├── Styles.axaml               主题色 + Miret 系列按钮样式
+│   │   ├── Glass.axaml                玻璃参数表（⚠️ 当前实际未被引用，见 3.8.5）
+│   │   └── imgs\                      ★ 图片资源（2026-10 重新分目录，见 1.7）
+│   │       ├── Main\images\
+│   │       │   ├── Blocks\            方块图标 ×16（当前未引用）
+│   │       │   ├── Buttons\           按钮/标题栏图标 ×15（**主要引用区**）
+│   │       │   ├── Launcher\          装饰图/背景图 + MainLogo.ico
+│   │       │   ├── Loaders\           加载器图标 ×12（当前未引用，为 P5 预留）
+│   │       │   └── Support\           社交链接图标（仅 github.png 被引用）
+│   │       └── skin\                  皮肤贴图 ×15（**未移动**）
 │   │
-│   ├── ViewModel\                【预留】协调接口层，目前只有一个无人引用的演示文件
+│   ├── ViewModel\                    【预留】协调接口层，只有一个无人引用的演示文件
 │   │
-│   └── LiquidGlassAvaloniaUI\    ★ 液态玻璃库（vendored 第三方，MIT）
-│       ├── LiquidGlassSurface.cs         公开控件（40 个 StyledProperty）
-│       ├── LiquidGlassBackdropProvider.cs ★ 背景抓取引擎（**根因修复在此**）
-│       ├── LiquidGlassDrawOperation.cs   着色器管线
-│       ├── Assets\Shaders\*.sksl         6 个 SKSL 运行时着色器
-│       └── ...
+│   ├── Sound\                        6 个音效 wav + desktop.ini
+│   │
+│   ├── LiquidGlassAvaloniaUI\        ★ 液态玻璃库（vendored 第三方，MIT）
+│   │   ├── LiquidGlassBackdropProvider.cs  ★ 背景抓取引擎（历史根因修复在此）
+│   │   ├── LiquidGlassSurface.cs           公开控件（40 个 StyledProperty）
+│   │   ├── LiquidGlassDrawOperation.cs     着色器管线
+│   │   └── Assets\Shaders\*.sksl           6 个 SKSL 运行时着色器
+│   │
+│   └── BuiltDebugRun\                ★ Debug 输出目录（**已 gitignore，绝不入库**）
 │
-├── Sound\                        6 个音效 wav（在 src\Sound）
-└── 【运行时生成】KilimLauncher\   数据目录，在 exe 同级（见 2.4）
+├── obj\                              ★ 已 gitignore
+└── publish\                          ★ 已 gitignore（历史曾误入库 132 MB 二进制）
 ```
+
+> **运行时数据目录不在这里**：它在 **exe 同级的 `KilimLauncher\`**，即 `MainSrc\BuiltDebugRun\KilimLauncher\`。见 [2.4](#24-运行时数据目录)。
 
 ## 1.5 架构分层与调用关系
 
@@ -186,13 +195,12 @@ Project.Launch\
                                   │  跳登录 → MainWindow；否则 MainWindow + LoginWindow
                                   ▼
         ┌─────────────────── MainWindow（主窗） ───────────────────┐
-        │  5 个 Tab：下载(0) / 启动(1) / 主页(2) / 设置(3) / 工具(4)  │
+        │  5 Tab：下载(0) / 启动(1) / 主页(2) / 设置(3) / 工具(4)    │
         │  默认停在 index=2（主页）                                 │
         └───────┬─────────────────────────────────┬───────────────┘
                 │                                 │
       ┌─────────▼──────────┐          ┌───────────▼─────────────┐
       │  导入实例链路       │          │  启动游戏链路            │
-      │  （首次点击"导入"） │          │  （已有实例时点击"启动"）│
       └─────────┬──────────┘          └───────────┬─────────────┘
                 │                                 │
    MinecraftDirectoryAnalyzer.Analyze(path)        │
@@ -204,8 +212,7 @@ Project.Launch\
                 │                                 │
                 └────────────► MinecraftVersionJson.Load(json)
                                         │
-                               JavaDetector.DetectAllAsync()
-                               JavaDetector.Match(需 major 版本)
+                               JavaDetector.DetectAllAsync() / Match()
                                         │
                                OfflineUuidGenerator（离线 UUID）
                                         │
@@ -213,10 +220,18 @@ Project.Launch\
                                  · 拼 classpath（client.jar + libraries）
                                  · 解压 natives
                                  · 替换占位符（auth_* / assets_* / ...）
+                                 · --language xx_xx（按系统语言）
                                  · Process.Start(java, args)
+                                 · 进程加入 _runningProcesses 跟踪
                                  · stdout/stderr → instances\{id}\game.log
                                         │
                                   java.exe 启动 Minecraft
+
+  下载链路（进行中）：
+    【UI 未接】→ VersionService.GetVersionManifestAsync()
+                   · BMCLAPI 优先 → 官方源兜底
+                   → VersionManifest（Latest + Versions[]）
+                   ⚠️ 目前只在日志里验证过，UI 还没消费它
 
   账户链路（与上并行）：
     LoginWindow ─┬─ 离线：OfflineUuidGenerator → AccountService
@@ -231,13 +246,234 @@ Project.Launch\
     3D 皮肤：Pivot3DControl（ICustomDrawOperation + SkiaSharp DrawVertices）
 ```
 
-**几个必须知道的架构事实：**
+**必须知道的架构事实：**
 
-1. **数据目录不在 `%APPDATA%`**，而是在 **exe 同级的 `KilimLauncher\`**（见 [2.4](#24-运行时数据目录)）。这意味着**装到 `Program Files` 会因无写权限而静默失效**。
-2. **没有 ViewModel、没有绑定**：所有 UI 状态由 `App` 的静态字段（`PlayerName` / `OfflineUuid` / `IsLoggedIn` / `LoginCheck`）+ 各窗口私有字段维护。
-3. **玻璃库是 vendored 的**：它的源码在仓库里，但主项目**不编译它**（`<Compile Remove>`），而是引用它独立编译的 DLL。改它需要单独编译。
-4. **`src\Codes\` 是空目录**：规划为"内核级主程序代码"，实际代码都在 `src\Tools\`。
-5. **`Glass.axaml` 那套"玻璃参数表"当前是空转的**——真正的玻璃参数写在各窗口 XAML 里内联。详见 [3.8.5](#385-已知的空转与死代码)。
+1. **数据目录不在 `%APPDATA%`**，而在 **exe 同级的 `KilimLauncher\`**（见 [2.4](#24-运行时数据目录)）。装到 `Program Files` 会因无写权限而**静默失效**。
+2. **没有 ViewModel、没有绑定**：UI 状态由 `App` 的静态字段（`PlayerName` / `OfflineUuid` / `IsLoggedIn` / `LoginCheck`）+ 各窗口私有字段维护。
+3. **玻璃库是 vendored 的**：源码在仓库里，但主项目**不编译它**（`<Compile Remove>`），而是引用它独立编译的 DLL。改它需要单独编译。
+4. **`MainSrc\Codes\` 是空目录**：规划为"内核级主程序代码"，实际代码都在 `MainSrc\Tools\`。
+5. **`Glass.axaml` 那套"玻璃参数表"当前是空转的**——真正的玻璃参数写在各窗口 XAML 里内联。见 [3.8.5](#385-已知的空转与死代码)。
+6. **所有图片/音效/样式都是 `avares://` 运行时加载**，路径写错**不会编译报错**，只会运行时静默失败。这是本项目最容易踩的坑，见 [1.8](#18--潜在隐患清单改目录前必读)。
+
+## 1.6 ⚠️ 目录重构记录一：src → MainSrc
+
+**2026-10，用户把 `src\` 整体改名为 `MainSrc\`。** 物理改名只是第一步——**代码里有 51 处路径需要同步修正**，否则会出现"能编译、能启动、但图标全不见"的现象。
+
+### 1.6.1 为什么会有 51 处
+
+Avalonia 的资源 URI 格式是：
+
+```
+avares://<程序集名>/<文件相对于项目根的路径，用正斜杠>
+```
+
+也就是说 **`avares://` 里的路径段 = 文件在磁盘上相对于 `.csproj` 的路径**。
+文件夹一改名，**所有 avares URI 都必须跟着改**，否则 `AssetLoader.Open()` 抛异常。
+
+### 1.6.2 实际改动清单（51 处）
+
+| 文件 | 处数 | 形态 |
+|---|---|---|
+| `Project.Launch.csproj` | **25** | 物理路径（反斜杠）：`src\...` → `MainSrc\...` |
+| `MainSrc\Views\MainWindow.axaml` | 11 | avares URI（XAML `Source=`） |
+| `MainSrc\Views\MainWindow.cs` | 8 | avares URI（C# 字符串，含 2 处插值拼接） |
+| `App.axaml` | **2** | avares URI —— **`StyleInclude` 的 `Styles.axaml` / `Glass.axaml`，最容易漏** |
+| `MainSrc\Tools\DefaultSkinSelector.cs` | 2 | avares URI（`skin/Steve.png`、`skin/Alex.png`） |
+| `MainSrc\Views\LoginWindow.axaml` | 1 | avares URI（`github.png`） |
+| `MainSrc\Views\LoginWindow.xaml.cs` | 1 | avares URI（`skin/Steve.png`） |
+| `MainSrc\Tools\SoundConfig.cs` | 1 | avares URI 前缀（`AssetRoot`，音效目录） |
+
+`csproj` 里那 25 处具体是：
+
+```
+<ApplicationIcon>                        程序图标
+<OutputPath>                             Debug 输出目录
+5 组 <Compile/AvaloniaXaml/AvaloniaResource/EmbeddedResource/None Remove>   排除玻璃库源码
+5 组 ... Remove  排除 BuiltDebugRun                                         防止 CS0579
+<ProjectReference Include>               玻璃库项目引用
+5 处 <AvaloniaXaml Update>               登记参与编译的 XAML
+<AvaloniaResource Include="...\imgs\**"> 图片资源
+<AvaloniaResource Include="...\Sound\**"> 音效资源
+<Content Include="...\MainLogo.ico">     任务栏图标
+<Compile Update> ×2                      文件分组
+```
+
+### 1.6.3 修改方式（可复用的流程）
+
+**不要手工逐个文件替换——用脚本按映射表改，改完逐条验证。** 本次用的流程：
+
+1. **全仓扫描**，用精确正则避免误伤（`src` 必须后面跟 `/` 或 `\`，且前面不能是字母）：
+
+   ```powershell
+   # 找 avares 引用
+   Get-ChildItem -Recurse -Include *.cs,*.axaml,*.csproj |
+     Where-Object { $_.FullName -notmatch '\\(bin|obj|BuiltDebugRun|publish)\\' } |
+     Select-String -Pattern '(?<![A-Za-z])src[\\/]|Project\.Launch/src/'
+   ```
+
+2. **按两类形态分别替换**：
+   - `Project.Launch/src/` → `Project.Launch/MainSrc/`（avares URI）
+   - `(?<![A-Za-z])src\` → `MainSrc\`（物理路径，正则）
+
+3. **验证 1：确认零残留**
+   ```powershell
+   # 替换后再扫一遍，必须 0 处
+   ```
+
+4. **验证 2：每条 avares 引用都必须在磁盘上有对应文件**
+   ```powershell
+   # 从代码里抠出 avares://Project.Launch/(...) 的路径段
+   # 转成 src\... → MainSrc\... 的物理路径，逐条 Test-Path
+   ```
+
+5. **验证 3：确认资源真的被打进程序集**（★ 关键，编译成功不代表资源在）
+   ```powershell
+   $dll = 'MainSrc\BuiltDebugRun\Project.Launch.dll'
+   $u = [System.Text.Encoding]::UTF8.GetString([IO.File]::ReadAllBytes((Resolve-Path $dll)))
+   $u.Contains('MainSrc/Views/Styles.axaml')      # 必须 True
+   $u.Contains('Project.Launch/src/Views/')       # 必须 False
+   ```
+   > ⚠️ **注意编码**：.NET 元数据的字符串堆是 **UTF-8**，不是 UTF-16。用 UTF-16 解码会搜不到任何东西。
+
+6. **验证 4：运行时冒烟测试** —— 启动一次，检查 `KilimLauncher\app.log` / `MainWindowLog.txt` 里有没有
+   `更新按钮图像失败` / `Failed to` / `avares` / `Exception`。
+
+### 1.6.4 本次结果
+
+- 51 处全部替换，**0 残留**
+- 21 个唯一 avares 路径**全部能在磁盘上找到**
+- 程序集资源清单已换成 `MainSrc/...`，旧 `Project.Launch/src/...` 已清除
+- 编译 0 错误；运行无崩溃、无资源加载错误
+
+## 1.7 ⚠️ 目录重构记录二：图片资源分目录
+
+用户把原本**扁平堆放**的 `src\Views\imgs\` 重新整理成了分层结构。
+
+### 1.7.1 目录前后对照
+
+**改造前（扁平，很乱）：**
+```
+imgs\
+├── black-.png  blackx.png  white-.png  whitex.png
+├── button-Start1..4.png  Download.png  Home.png  Launch.png
+├── ReLogin.png  Setting.png  Tool.png  warning.png
+├── github.png  show.png  show-64x.png  a7d21-in3zc.png
+├── cyan_glazed_terracotta.png  wildflowers.png  MainLogo.ico
+├── 微信图片_20260803115740_100_82.jpg
+├── hav-Background\   （6 个文件：button-choose1 / button-Start1~4 / github1.jpg）
+└── skin\             （15 个皮肤）
+```
+
+**改造后（分层）：**
+```
+imgs\
+├── Main\images\
+│   ├── Blocks\      16 个方块图标（Anvil / chest / Grass / RedstoneLamp…）
+│   ├── Buttons\     15 个：black- / blackx / white- / whitex /
+│   │                      button-Start1~4 / Download / Home / Launch /
+│   │                      ReLogin / Setting / Tool / warning
+│   ├── Launcher\    a7d21-in3zc.png / cyan_glazed_terracotta.png / Erics.jpg /
+│   │                MainLogo.ico / show-64x.png / show.png / wildflowers.png
+│   ├── Loaders\     12 个加载器图标（Fabric / forge / NeoForge / OptiFine / quilt…）
+│   └── Support\     discord.png / github.png / kookapp.png / mcmod.png
+└── skin\            15 个皮肤（**未移动，路径不变**）
+```
+
+**同时发生的变化：**
+- `hav-Background\` **整个目录已删除**（6 个文件，代码里本来也没引用）
+- `微信图片_20260803115740_100_82.jpg`（548 KB）→ 改名为 `Launcher\Erics.jpg`（体积相同）
+- 新增了 `Blocks\`（16）、`Loaders\`（12）、`Support\` 的 3 个（discord/kookapp/mcmod）—— **这些目前都还没被代码引用**
+
+### 1.7.2 路径映射规则（3 条，必须记住）
+
+```
+imgs/<按钮图标>        →  imgs/Main/images/Buttons/<文件名>
+imgs/github.png        →  imgs/Main/images/Support/github.png
+imgs/MainLogo.ico      →  imgs/Main/images/Launcher/MainLogo.ico
+imgs/skin/*            →  不变
+```
+
+### 1.7.3 实际改动清单（23 处）
+
+| 文件 | 处数 | 说明 |
+|---|---|---|
+| `MainSrc\Views\MainWindow.axaml` | 11 | 标题栏最小化/关闭（白/黑两态 ×2）、ReLogin、button-Start3/4、底部 5 个导航图标、warning |
+| `MainSrc\Views\MainWindow.cs` | 8 | `black-.png`×2、`blackx.png`×2、`white-.png`×2、`whitex.png`×2 —— **含 2 处动态拼接**（见下） |
+| `MainSrc\Views\LoginWindow.axaml` | 1 | `github.png` |
+| `Project.Launch.csproj` | 3 | `<ApplicationIcon>`、`AvaloniaResource` 的 `Exclude`、`<Content Include>` 三处的 `MainLogo.ico` |
+
+**★ 最容易漏的两类引用：**
+
+**① 运行时字符串拼接**（`MainWindow.cs`）—— 占位符在编译期完全无法校验：
+
+```csharp
+string mainIcon = hasInstance ? "button-Start1.png" : "button-Start3.png";
+string subIcon  = hasInstance ? "button-Start2.png" : "button-Start4.png";
+AssetLoader.Open(new Uri($"avares://Project.Launch/MainSrc/Views/imgs/Main/images/Buttons/{mainIcon}"));
+```
+
+改目录时必须把**前缀**改掉，并确认 `button-Start1~4.png` 四个目标文件都在新目录里。
+
+**② 目录级前缀**（`SoundConfig.cs`）—— 只写目录、文件名由调用方拼：
+
+```csharp
+public const string AssetRoot = "avares://Project.Launch/MainSrc/Sound/";
+```
+
+### 1.7.4 本次结果
+
+- 23 处全部替换，**0 处旧式扁平路径残留**
+- 17 个唯一资源路径**全部在磁盘上存在**；`{mainIcon}`/`{subIcon}` 的动态目标（`button-Start1~4.png`）已单独验证
+- 资源全部正确嵌入程序集；运行时无加载错误
+
+### 1.7.5 当前未被引用的资源（安全，别误删）
+
+| 目录 | 文件数 | 说明 |
+|---|---|---|
+| `Main\images\Blocks\` | 16 | 方块图标，应为未来"装饰/主题"预留 |
+| `Main\images\Loaders\` | 12 | 加载器图标，对应 [5.6 路线图 P5](#56-建议路线图)「加载器支持」 |
+| `Main\images\Support\` | 3 | `discord` / `kookapp` / `mcmod`（只有 `github.png` 在用） |
+| `Main\images\Launcher\` | 5 | `a7d21-in3zc` / `show` / `show-64x` / `wildflowers` / `cyan_glazed_terracotta` |
+
+## 1.8 ⚠️ 潜在隐患清单（改目录前必读）
+
+> 这些坑都是本次重构中**实际遇到或实际验证过**的。**动目录、改文件名之前，先读完这一节。**
+
+### 🔴 高危：会导致"静默失效"
+
+| # | 隐患 | 后果 | 怎么防 |
+|---|---|---|---|
+| 1 | **`avares://` 路径与磁盘物理路径强耦合** | 路径写错**不会编译报错**，运行时 `AssetLoader.Open` 抛异常 | 改完必须做 [1.6.3 验证 2/3](#163-修改方式可复用的流程) |
+| 2 | **多数加载点被 `try/catch` 包住，异常被吞掉** | 图标只是"不见了"，`app.log` 里最多一行 `更新按钮图像失败` | 每次改完**人工点一遍界面**：标题栏最小化/关闭（黑/白两态）、底部 5 个导航图标、登录/启动按钮（有/无实例两种图）、登录窗 GitHub 图标、exe 图标 |
+| 3 | **`App.axaml` 的 `StyleInclude` 也是 avares 引用** | 路径错了会**整个主题样式失效**（界面仍能跑，但样式全乱） | 改目录时先搜 `App.axaml` |
+| 4 | **运行时拼接的路径无编译期校验** | `{mainIcon}` / `AssetRoot` 这类前缀错了没人告诉你 | 见 [1.7.3](#173-实际改动清单23-处) 的两类引用 |
+
+### 🟠 中危：会导致构建异常或体积膨胀
+
+| # | 隐患 | 后果 | 怎么防 |
+|---|---|---|---|
+| 5 | **`BuiltDebugRun\` 在 `MainSrc\` 内部**（`<OutputPath>` 指向这里） | 主项目用默认 `**/*.cs` 通配，会把输出目录里生成的 `.cs` 吸进编译 → **`CS0579 程序集特性重复`（8 个错误）** | csproj 里已有 5 组 `<... Remove="MainSrc\BuiltDebugRun\**" />`。**如果以后再改 OutputPath，必须同步改这 5 行** |
+| 6 | **`.gitignore` 与 `<OutputPath>` 是联动的** | OutputPath 改了但 gitignore 没跟 → 构建产物入库。**这正是历史上把 `publish\` 132 MB 二进制提交进去的原因** | 改 OutputPath 时同时检查 `.gitignore` |
+| 7 | **`Exclude` / `<ApplicationIcon>` / `<Content>` 是精确路径，不走通配** | `AvaloniaResource Include="MainSrc\Views\imgs\**"` 会自动覆盖新子目录；但上面三处的 `MainLogo.ico` 路径要手工改 | 改 `imgs` 结构时搜 `MainLogo.ico` |
+| 8 | **旧输出目录里的残留不会被自动清理** | 改名后在 `BuiltDebugRun\` 里可能同时存在 `MainSrc\...` 和旧的 `src\...` 副本，容易误判 | 怀疑产物错乱时先 `dotnet clean` 或手工删输出目录 |
+
+### 🟡 低危：容易困惑
+
+| # | 隐患 | 说明 |
+|---|---|---|
+| 9 | **Git 历史在 2026-10 被重写过一次** | 为清除 132 MB 的 `publish\`，所有 commit SHA 都变了（旧 `c5cd9ee` → 新 `2d5b01c`）。**旧克隆、旧书签、旧链接全部失效**，需要重新克隆 |
+| 10 | **`rc-4.zip`（3.53 MB）与 `Design\`（3.3 MB）仍在历史里** | 合计约占仓库体积 90%。属于历史遗留产物，尚未清理 |
+| 11 | **`read.me` / `read.md` 混用** | `MainSrc\Tools\read.me` 是 `.me`，`Views`/`ViewModel`/`Codes` 下是 `.md`，不统一 |
+| 12 | **`MainSrc\Codes\` 是空目录** | Git 不跟踪空目录，别人克隆后可能看不到它 |
+
+### 🔵 与目录无关、但同样会静默失败的老隐患
+
+| # | 隐患 |
+|---|---|
+| 13 | **`accounts.json` 损坏会被静默清空**（解析失败后写回空 root，**所有账户被抹掉**，只留一行日志） |
+| 14 | **数据目录在 exe 同级** → 装到 `Program Files` 后所有保存**静默失效** |
+| 15 | **`JavaDetector` 的 `WaitForExit(5000)` 是死代码**（两流已 EOF），`java.exe` 挂起会无限卡住 |
+| 16 | **`SkinCropper` 全部异常用裸 `catch` 吞掉，无任何日志** |
 
 ---
 
@@ -248,86 +484,114 @@ Project.Launch\
 | 项 | 要求 |
 |---|---|
 | OS | Windows 10/11 x64 |
-| SDK | **.NET 10 SDK**（实测 `10.0.401`；机器上也装了 `9.0.317`，但主项目要 net10.0） |
-| 显示缩放 | 实测开发机为 **125%**（`RenderScaling=1.25`）。代码里多处涉及 DPI，改动前请确认当前缩放 |
+| SDK | **.NET 10 SDK**（实测 `10.0.401`；机器上也有 `9.0.317`，但主项目要 net10.0） |
+| 显示缩放 | 实测开发机为 **125%**（`RenderScaling = 1.25`）。涉及像素计算时注意 |
 | GPU | 需要支持 Skia 的 GPU 后端；无 GPU 时玻璃会退化 |
 
 ## 2.2 构建与运行命令
 
 ```bash
-# 构建（Debug）
+# 构建（Debug）—— 输出到 MainSrc\BuiltDebugRun\
 dotnet build Project.Launch.csproj -c Debug
 
-# 构建（强制完整重编，排查"改了没生效"时用这个）
+# 强制完整重编（怀疑"改了没生效"时用）
 dotnet build Project.Launch.csproj -c Debug --no-incremental
 
 # 单独编译玻璃库（改过 LiquidGlassAvaloniaUI 之后）
-dotnet build src\LiquidGlassAvaloniaUI\LiquidGlassAvaloniaUI.csproj -c Debug
+dotnet build MainSrc\LiquidGlassAvaloniaUI\LiquidGlassAvaloniaUI.csproj -c Debug
 
 # 运行
-bin\Debug\net10.0\win-x64\Project.Launch.exe
+MainSrc\BuiltDebugRun\Project.Launch.exe
 
 # 发布单文件
 dotnet publish Project.Launch.csproj -c Release
 ```
 
-**可执行文件位置：** `bin\Debug\net10.0\win-x64\Project.Launch.exe`
+**输出位置：** `MainSrc\BuiltDebugRun\Project.Launch.exe`
+（csproj 里为 Debug 配置设置了 `<OutputPath>MainSrc\BuiltDebugRun\</OutputPath>`，并关掉了 TFM/RID 子目录，所以 exe 和 dll 直接铺在根下。）
 
 ## 2.3 ⚠️ 环境陷阱（务必先读）
 
-> 以下第 1~4 条来自前人的交接记录，**本次开发全部复现验证过，依然成立**；第 5~7 条是本次新增。
-
 1. **编译前必须关掉正在运行的启动器**
-   否则 `dotnet build` 在最后复制 `Project.Launch.exe` 时报 `MSB3027 / MSB3021 文件被锁定`。
-   **这不是代码错误，只是文件占用。**
+   否则报 `MSB3027 / MSB3021 文件被锁定`（实测会重试 10 次然后失败，并刷出 80+ 条 `MSB3026` 警告）。
+   **这不是代码错误。**
 
-2. **绝不要在仓库根目录创建临时 csproj**
-   主项目使用默认 `**/*.cs` 通配。临时项目 `obj/` 下生成的 `AssemblyInfo.cs` 会被吸进主项目编译，
-   导致 `CS0579 程序集特性重复`（8 个错误）。调试脚本请放在仓库外（本项目的排查脚本都放在 `%TEMP%`）。
+2. **绝不要在仓库根目录创建临时 csproj / 脚本**
+   主项目用默认 `**/*.cs` 通配，临时项目 `obj/` 下生成的 `AssemblyInfo.cs` 会被吸进主项目编译，
+   导致 `CS0579 程序集特性重复`（8 个错误）。排查脚本一律放 `%TEMP%`。
 
 3. **`Border` 是 `Decorator`，只能有一个 Child**
-   多个子元素必须套一层 `Grid`，否则报
-   `AVLN3000: Unable to find a setter that allows multiple assignments to the property Child`。
+   多个子元素必须套 `Grid`，否则报 `AVLN3000`。
 
-4. **新增窗口需要在 csproj 的 `<AvaloniaXaml Update="...">` 里登记**，否则不参与 XAML 编译。
+4. **新增窗口必须在 csproj 的 `<AvaloniaXaml Update="...">` 里登记**，否则不参与 XAML 编译。
 
-5. **⚠️ 增量构建会静默"假装成功"（本次踩到的真实坑）**
-   如果你只改了**玻璃库**的 `.cs`，然后直接 `dotnet build Project.Launch.csproj`，
-   MSBuild 有时**不会重新编译玻璃库**，只复制旧 DLL —— 构建报告"成功"，但你的改动**根本没进产物**。
-   **验证方法**（务必养成习惯）：
+5. **⚠️ 增量构建会静默"假装成功"**
+   只改了玻璃库的 `.cs`、然后 `dotnet build Project.Launch.csproj` 时，
+   MSBuild **有时不会重新编译玻璃库**，构建报告"成功"，但改动**没进产物**。
+   **验证方法：**
    ```powershell
-   # 比较时间戳，或直接在 DLL 元数据里搜你的新方法名
-   (Get-Item 'bin\Debug\net10.0\win-x64\LiquidGlassAvaloniaUI.dll').LastWriteTime
-   $t = [System.Text.Encoding]::UTF8.GetString([IO.File]::ReadAllBytes((Resolve-Path 'bin\Debug\net10.0\win-x64\LiquidGlassAvaloniaUI.dll')))
-   $t.Contains('你的新方法名')      # 注意：.NET 元数据字符串堆是 UTF-8，不是 UTF-16
+   (Get-Item 'MainSrc\BuiltDebugRun\LiquidGlassAvaloniaUI.dll').LastWriteTime
+   # 或在 DLL 元数据里搜你的新方法名（记得用 UTF-8 解码）
+   $t = [System.Text.Encoding]::UTF8.GetString([IO.File]::ReadAllBytes((Resolve-Path 'MainSrc\BuiltDebugRun\LiquidGlassAvaloniaUI.dll')))
+   $t.Contains('你的新方法名')
    ```
-   排查不确定时直接用 `--no-incremental`。
+   不确定时直接 `--no-incremental`。**记住：构建成功 ≠ 改动生效。**
 
-6. **PowerShell 脚本执行的坑（如果你也用脚本排查）**
-   - 本机执行策略**禁止直接运行 `.ps1` 文件**，需要 `Invoke-Expression ([IO.File]::ReadAllText($p,[Text.Encoding]::UTF8))`
-   - `Get-Content` 默认**不是 UTF-8**，读含中文的脚本会出现乱码 → 必须显式 `-Encoding UTF8`，或直接用 `[IO.File]::ReadAllText(..., UTF8)`
-   - 中文引号 `"` `"` 出现在 PowerShell 双引号字符串里会导致**语法错误** → 用单引号字符串
+6. **PowerShell 排查脚本的几个坑（本机实测）**
+   - 执行策略**禁止直接运行 `.ps1`** → 用 `Invoke-Expression ([IO.File]::ReadAllText($p,[Text.Encoding]::UTF8))`
+   - `Get-Content` 默认**不是 UTF-8**，读含中文的脚本会乱码 → 显式 `-Encoding UTF8`
+   - 中文引号 `"` `"` 出现在 PowerShell 双引号字符串里会**语法错误** → 用单引号
+   - `Select-String -SimpleMatch` **不会**按 `|` 拆分多模式（会被当成一个整字面量）→ 多模式时别加 `-SimpleMatch`
+   - `git check-ignore -q` 结果看**退出码**（0=已忽略），不看输出
 
-7. **数据目录写在 exe 同级**（见 2.4）：`Program Files` 下会静默失效，所有保存操作都 `try/catch` 吞掉异常。
+7. **文件锁排查**：进程可能跑在 `MainSrc\BuiltDebugRun\` 而不是 `bin\Debug\`，
+   用 `Get-Process Project.Launch | Select Path` 确认。
 
 ## 2.4 运行时数据目录
 
-所有运行时数据在 **`<exe 所在目录>\KilimLauncher\`**：
+所有运行时数据在 **`<exe 所在目录>\KilimLauncher\`**（当前即 `MainSrc\BuiltDebugRun\KilimLauncher\`）：
 
 | 文件 / 目录 | 内容 | 由谁写 |
 |---|---|---|
-| `accounts.json` | 账户字典 + `SelectedAccount` + `LoginCheck`（**token 明文存储**） | `AccountService` |
+| `accounts.json` | 账户字典 + `SelectedAccount` + `LoginCheck`（**token 明文**） | `AccountService` |
 | `instances.json` | 已导入实例列表 + `SelectedInstanceId` | `InstanceService` |
 | `app.log` | 追加式日志，**永不轮转** | `LogHelper` |
 | `MainWindowLog.txt` | 每次启动主窗时截断重写 | `LogHelper.Reset` |
 | `startup.log` | 程序入口日志（追加） | `Program.Main` |
-| `crash.log` | 崩溃时的完整 `ex.ToString()` | `Program.Main` catch |
-| `instances\<id>\natives\` | 解压出的 natives（**从不清理**） | `GameLauncher` |
-| `instances\<id>\game.log` | 游戏 stdout+stderr（每次启动截断） | `GameLauncher` |
+| `crash.log` | 崩溃时完整 `ex.ToString()` | `Program.Main` catch |
+| `instances\<id>\natives\` | 解压的 natives（**从不清理**） | `GameLauncher` |
+| `instances\<id>\game.log` | 游戏 stdout+stderr（每次截断） | `GameLauncher` |
 | `current_skin.png` | 当前皮肤缓存（历史遗留） | — |
 
-**只读的、属于用户自己的：** `<RootPath>\versions\<id>\<id>.{json,jar}`、`<RootPath>\libraries\`、`<RootPath>\assets\`。
+> ⚠️ **换输出目录 = 换了一套全新数据目录**。把 Debug 输出改到 `MainSrc\BuiltDebugRun\` 后，
+> 原来的 `accounts.json` / `instances.json` 不会自动搬过去 —— 这也是为什么日志里会出现"未找到账户"。
+> 需要的话手工把旧目录的 `KilimLauncher\` 复制过来。
 
+**只读、属于用户的：** `<RootPath>\versions\<id>\<id>.{json,jar}`、`<RootPath>\libraries\`、`<RootPath>\assets\`。
+
+## 2.5 Git 仓库与忽略规则
+
+| 项 | 值 |
+|---|---|
+| 仓库 | `Zhouxuanyao2333/KilimMinecraftPrivateRepository`（私有） |
+| 分支 | `master`（跟踪 `origin/master`） |
+| 提交 / 标签 | 截至基线 `2d5b01c` 为 9 条提交；8 个标签（rc-0.1 / 0.12 / 0.13 / 3 / 4 / 4.2 / 5 / 6） |
+| `.git` 体积 | 约 6.7 MB |
+| 作者 | `Erics <Zhouxuanyao2333@outlook.com>` |
+
+**`.gitignore` 关键条目（务必理解它们的联动关系）：**
+
+```gitignore
+bin/            # 任意层级的传统输出目录
+obj/            # 任意层级的中间目录
+BuiltDebugRun/  # ★ 与 csproj 的 <OutputPath> 对应
+publish/        # ★ 发布产物（历史曾误入库 132 MB）
+KilimLauncher/  # 运行时数据目录
+*.log
+```
+
+> **联动警告**：`<OutputPath>` 与 `.gitignore` 必须同步。历史上正是因为 `publish\` 没被忽略，
+> 132 MB 的 exe/dll/pdb 被提交进仓库 —— 后来不得不**重写全部 Git 历史**才清掉。
 
 ---
 
@@ -339,106 +603,95 @@ dotnet publish Project.Launch.csproj -c Release
 
 `LoginWindow` → `OfflineUuidGenerator`：
 
-- 输入用户名 → `MD5("OfflinePlayer:" + username)`
+- `MD5("OfflinePlayer:" + username)`
 - 设 `hash[6] = (hash[6] & 0x0F) | 0x30`（version 3）、`hash[8] = (hash[8] & 0x3F) | 0x80`（IETF variant）
-- **手动按大端序拼 hex 字符串，不经过 .NET `Guid` 类**（走 `Guid` 会字节序错位，导致与 Java 服务器不兼容；`Guid Generate()` 已标 `[Obsolete]`）
-- 账户 ID 格式 `offline_{username}`，`Uuid` 存**去掉横线**的 32 位 hex
-- 唯一校验是 `IsNullOrWhiteSpace`（无长度 / 字符集 / 冲突校验）
+- **手动按大端序拼 hex，不经过 .NET `Guid`**（走 `Guid` 会字节序错位，与 Java 服务器不兼容；`Guid Generate()` 已标 `[Obsolete]`）
+- 账户 ID `offline_{username}`，`Uuid` 存**去横线**的 32 位 hex
+- 唯一校验是 `IsNullOrWhiteSpace`（无长度/字符集/冲突校验）
 
-### 微软正版登录（7 阶段全链路已实现，但**目前走不通**）
+### 微软正版登录（7 阶段已实现，但**目前走不通**）
 
 | 阶段 | 文件 | 端点 / 要点 |
 |---|---|---|
-| 1 申请设备代码 | `DeviceCodeAuthService` | `https://login.microsoftonline.com/consumers/oauth2/v2.0/devicecode`；scope `XboxLive.signin XboxLive.offline_access` |
+| 1 申请设备代码 | `DeviceCodeAuthService` | `login.microsoftonline.com/consumers/oauth2/v2.0/devicecode`；scope `XboxLive.signin XboxLive.offline_access` |
 | 3 轮询授权 | `DeviceCodeAuthService.PollForTokenAsync` | `.../token`，`grant_type=urn:ietf:params:oauth:grant-type:device_code`；sleep-then-poll（符合 RFC 8628）；处理 `authorization_pending` / `slow_down`(+5s) / `access_denied` / `expired_token` |
-| 4 XBL | `XboxAuthService` | `https://user.auth.xboxlive.com/user/authenticate`；**`RpsTicket = "d=" + token`，前缀必须有** |
-| 5 XSTS | `XboxAuthService` | `https://xsts.auth.xboxlive.com/xsts/authorize`；`SandboxId=RETAIL`，`RelyingParty=rp://api.minecraftservices.com/`；**含 XErr 错误码中文映射**（2148916233/235/236/237/238） |
-| 6a MC 认证 | `MinecraftAuthService` | `https://api.minecraftservices.com/authentication/login_with_xbox`；`identityToken = "XBL3.0 x={uhs};{xsts}"` |
+| 4 XBL | `XboxAuthService` | `user.auth.xboxlive.com/user/authenticate`；**`RpsTicket = "d=" + token`，前缀必须有** |
+| 5 XSTS | `XboxAuthService` | `xsts.auth.xboxlive.com/xsts/authorize`；`SandboxId=RETAIL`、`RelyingParty=rp://api.minecraftservices.com/`；**含 XErr 中文映射**（2148916233/235/236/237/238） |
+| 6a MC 认证 | `MinecraftAuthService` | `api.minecraftservices.com/authentication/login_with_xbox`；`identityToken = "XBL3.0 x={uhs};{xsts}"` |
 | 6b 拉 profile | `MinecraftAuthService` | `GET /minecraft/profile`；**404 → 抛"此微软账号没有购买 Minecraft"** |
-| 7 装配账户 | `MicrosoftAuthFlow` | 统一编排，通过 `Progress` / `DeviceCodeReady` 事件回调 UI |
+| 7 装配账户 | `MicrosoftAuthFlow` | 编排全流程，通过 `Progress` / `DeviceCodeReady` 事件回调 UI |
 
-> ### ⚠️ 当前阻塞（两条）
+> ### ⚠️ 当前阻塞（两条，均未修）
+> 1. **`DeviceCodeAuthService.ClientId` 是占位测试 ID**（`7dddbcf7-…`），被 Mojang 拒绝。用户已申请自有 AppID，**等审批后替换该常量**即可打通。
+> 2. **`MicrosoftRefreshToken` 存了但从未被兑换**（全仓无 `grant_type=refresh_token`），`TokenExpireAt` 也从不读取 → **24 小时后必须重新走完整设备码登录**。
 >
-> 1. **`DeviceCodeAuthService.ClientId = "7dddbcf7-5d7d-46cf-96fc-292d6f392cd0"` 是占位测试 ID，被 Mojang 拒绝。**
->    用户已申请自有 AppID，**等审批下来后替换该常量**即可打通。
-> 2. **`MicrosoftRefreshToken` 存了但没有任何地方用它换新 token**（全仓无 `grant_type=refresh_token`），
->    `TokenExpireAt` 也从不读取 → **24 小时后必须重新走完整设备代码登录**。
->
-> 另外：登录成功后拿到的 `MinecraftAccessToken` 等凭据，在启动游戏时**完全没被使用**（见 [4.1](#41--p0-级功能失效缺陷)）。
+> 另外：登录拿到的 `MinecraftAccessToken` 在启动游戏时**完全没被使用**（见 [4.1](#41--p0-级功能失效缺陷)）。
 
 ### 账户持久化（`AccountService` + `accounts.json`）
 
-- **原子写**：写 `accounts.json.tmp` → `File.Move(overwrite: true)`
-- 所有 read-modify-write 收口在 `ModifyAccounts` 的单个 `lock` 内
+- **原子写**：写 `.tmp` → `File.Move(overwrite: true)`
+- read-modify-write 收口在 `ModifyAccounts` 的单个 `lock` 内
 - `LoginCheck` 控制启动时是否跳过登录窗
-- **token 明文存储**（无 DPAPI 加密）
-- ⚠️ **`accounts.json` 损坏会被静默清空**：`ModifyAccounts` 捕获解析异常后写回一个空 root，**所有账户被抹掉**（只留一行日志）
-- ⚠️ `AccountManagerWindow.OnSelectAccount` 用的是**未加锁的** `LoadAccounts(); ...; SaveAccounts()` 组合，与 `ModifyAccounts` 可能交错
-
-### 账户管理窗（`AccountManagerWindow`）
-
-- 列表按 `LastUsed` 倒序、点击切换、删除（带自绘确认弹窗）
-- 列表项**纯代码构造 UI**（无 DataTemplate），含 40×40 头像 / 用户名 / 类型标签（正版绿·离线灰）/ UUID 前 8 位 / 删除按钮
-- `ShouldOpenLogin` 属性通知主窗是否要拉起登录窗
-- 删除当前选中账户会**登出**（清 `App.IsLoggedIn` / `PlayerName` / `OfflineUuid`）
+- **token 明文存储**（无 DPAPI）
+- ⚠️ **`accounts.json` 损坏会被静默清空**（解析失败后写回空 root，**所有账户被抹掉**）
+- ⚠️ `AccountManagerWindow.OnSelectAccount` 用的是**未加锁的** `LoadAccounts(); ...; SaveAccounts()` 组合
 
 ## 3.2 游戏启动 ✅ 可用（导入式）
 
-`GameLauncher.LaunchAsync` 是**真正能跑的启动器实现**：
+`GameLauncher.LaunchAsync`：
 
-- 兼容**新版** `arguments.jvm` / `arguments.game` 数组 **和** **旧版** `minecraftArguments` 字符串
-- **全量占位符替换**：`${classpath}` `${auth_player_name}` `${auth_uuid}` `${assets_index_name}` `${game_directory}` `${natives_directory}` `${classpath_separator}` `${library_directory}` 等
-- **rules 规则判定**：库与参数都做 OS 过滤（**仅判定 Windows**，`arch` / `features` 被忽略）
-- **natives 自动解压**：跳过 `META-INF/`，处理 `${arch}` 的 64/32 位，**扁平化**到同一目录（子目录丢失、同名覆盖）
-- 两种目录布局分流：`standard`（`.minecraft` 根）/ `isolated`（`.minecraft` 子目录）
-- 进程输出重定向到 `instances/{id}/game.log`
-- 用 `psi.ArgumentList` 传参（**引号处理正确**，含空格的路径没问题）
+- 兼容**新版** `arguments.jvm`/`arguments.game` 数组 **和** **旧版** `minecraftArguments` 字符串
+- **全量占位符替换**（`${classpath}` `${auth_player_name}` `${auth_uuid}` `${assets_index_name}` `${game_directory}` `${natives_directory}` …）
+- **rules 规则判定**：库与参数都做 OS 过滤（**仅判定 Windows**；`arch` / `features` 被忽略）
+- **natives 自动解压**：跳过 `META-INF/`，处理 `${arch}` 64/32，**扁平化**（子目录丢失、同名覆盖）
+- 两种目录布局分流：`standard` / `isolated`
+- **★ 新增：`--language` 参数** —— `GetMinecraftLanguage()` 读系统 UI 语言，映射成 Minecraft 语言码
+  （`zh-CN`/`zh-SG`/`zh-Hans*` → `zh_cn`；`zh-TW`/`zh-HK`/`zh-Hant*` → `zh_tw`；其它把 `-` 换成 `_` 并小写；异常兜底 `en_us`）
+- **★ 新增：进程跟踪** —— 进程加入 `List<Process> _runningProcesses`（启动加入、退出移除，`lock` 保护）
+- 用 `psi.ArgumentList` 传参（**引号处理正确**，含空格路径没问题）
+- 输出重定向到 `instances/{id}/game.log`
 
-### ⚠️ 已知缺陷（正版相关 + 其他）
+### ⚠️ 仍存在的缺陷
 
-| 缺陷 | 位置 | 后果 |
-|---|---|---|
-| `${auth_access_token}` 硬编码 `"0"`、`${user_type}` 硬编码 `"legacy"`、`${auth_session}` 硬编码 `"0"` | `ReplacePlaceholders` | **正版账号实际以离线身份进服，进不了正版服务器** |
-| 无 `-Xmx/-Xms` 内存设置 | 同上 | 只能用版本 JSON 自带的内存参数，**无每实例内存设置** |
-| 分辨率写死 925×530 | 同上 | 无法自定义窗口 |
-| 缺库**静默跳过**，无完整性校验 | classpath 拼接 | 缺文件不报错，启动失败原因不明 |
-| 起进程后立刻 `return await Task.FromResult(true)` | 末尾 | **不保留 `Process` 句柄** → 监听不到游戏退出、无退出码、无崩溃检测、无停止按钮 |
-| `${version_type}`、`${quickPlay*}` **未在替换表内** | 同上 | 这些占位符会**字面量进入命令行**（1.20+ 的 quick-play 参数） |
-| `MainClass` 无空值校验 | 同上 | JSON 异常时启动参数错误 |
-| natives 目录从不清理 | — | 磁盘占用持续增长 |
+| 缺陷 | 后果 |
+|---|---|
+| `${auth_access_token}` 硬编码 `"0"`、`${user_type}` 硬编码 `"legacy"`、`${auth_session}` 硬编码 `"0"` | **正版账号实际以离线身份进服，进不了正版服务器** |
+| 无 `-Xmx/-Xms` 内存设置，`InstanceInfo` 没有内存/JVM 参数字段 | 无法调内存 |
+| 分辨率写死 925×530 | 无法自定义窗口 |
+| 缺库**静默跳过**，无完整性校验 | 启动失败原因不明 |
+| **进程只被加入列表，没有对外的停止/查询接口**，也不回传退出码到 UI | 无法从界面感知"游戏已退出/崩溃" |
+| `${version_type}`、`${quickPlay*}` 未在替换表内 | 会**字面量进入命令行** |
+| `MainClass` 无空值校验；natives 目录从不清理 | — |
 
 ## 3.3 Java 检测 ✅ 可用
 
-`JavaDetector.DetectAllAsync` 从 **4 个来源**收集候选（去重靠 `HashSet<string>(OrdinalIgnoreCase)`，**未做路径规范化**）：
+`JavaDetector.DetectAllAsync` 从 4 个来源收集候选（`HashSet` 去重，**未做路径规范化**）：
 
 1. `JAVA_HOME\bin\java.exe`
 2. `PATH` 逐段找 `java.exe`
 3. 7 个常见 JDK 厂商目录（Java / Adoptium / Microsoft / Zulu / BellSoft / Corretto），各扫一层
 4. `InstanceService.GetSelectedInstance()?.JavaPath`
 
-执行 `java -version` 解析主版本（兼容 `1.8.0_x` → 8 与 `17.0.9` → 17 两种格式，stdout/stderr 都读）。
+执行 `java -version` 解析主版本（兼容 `1.8.0_x` → 8 与 `17.0.9` → 17，stdout/stderr 都读）。
+`Match()`：**优先精确匹配**，否则取**最小且 > 要求**的。
 
-`Match()` 策略：**优先精确匹配**版本 JSON 的 `javaVersion.majorVersion`，否则取**最小且 > 要求**的。
-
-> ⚠️ 缺陷：
-> - `proc.WaitForExit(5000)` 是**死代码**（两个流此时已 EOF），`java.exe` 挂起会让检测**无限卡住**
-> - `Match()` **无上界**：需要 Java 8 时若只有 Java 21，会选 Java 21
-> - 顺序执行，每个候选都要起一次进程，慢
+> ⚠️ `proc.WaitForExit(5000)` 是**死代码**（两流已 EOF）→ `java.exe` 挂起会**无限卡住**；
+> `Match()` **无上界**（需 Java 8 时可能选中 Java 21）；顺序执行，慢。
 
 ## 3.4 实例管理 ✅ 可用
 
-`MinecraftDirectoryAnalyzer.Analyze(path)` 自动识别两种布局：
+`MinecraftDirectoryAnalyzer.Analyze(path)` 自动识别：
 
 - **形态 A（standard）**：`<path>\versions` 存在 → 用户选的是 `.minecraft` 根目录
 - **形态 B（isolated）**：`<path>\.minecraft\versions` 存在 → 隔离实例
-- 两者都不像 → `Layout` 为空，`IsValid = false`
+- 都不像 → `Layout` 为空，`IsValid = false`
 
-扫出所有"**目录名 == 同名 `.json`**"的版本（**不检查 jar 是否存在**），排序后持久化到 `instances.json`。
+扫出所有"**目录名 == 同名 `.json`**"的版本（**不检查 jar**），排序后存 `instances.json`。
 
-> ### 🔴 两个已确认的缺陷（见 [4.1](#41--p0-级功能失效缺陷)）
-> 1. **`isolated` 布局的实例永远无法启动**（版本路径硬编码）
-> 2. **版本排序用 `StringComparer.OrdinalIgnoreCase`**，与注释"新版本靠后"行为相反：
->    `"1.20.1"` 排在 `"1.9"` **前面**（因为 `'2' < '9'`），而 UI 取 `Versions[^1]` 作为默认版本
+> ### 🔴 两个已确认缺陷
+> 1. **`isolated` 布局的实例永远无法启动** —— 见 [4.1 P0-1](#41--p0-级功能失效缺陷)
+> 2. **版本排序用 `StringComparer.OrdinalIgnoreCase`**，与注释"新版本靠后"相反：
+>    `"1.20.1"` 排在 `"1.9"` **前面**（`'2' < '9'`），而 UI 取 `Versions[^1]`
 >    → **实测会挑中更旧的 `1.9`**
 
 ## 3.5 UI 交互 ✅ 完成度较高
@@ -447,35 +700,30 @@ dotnet publish Project.Launch.csproj -c Release
 
 - 960×560，`WindowDecorations="None"`，`CanResize="False"`（**固定尺寸**）
 - `TransparencyLevelHint="AcrylicBlur"` + `Background="Transparent"`，根 `Grid` 半透明灰 `#D9E0E0E0`
-- Win11 圆角（`Win32Properties.WindowCornerPreference="Round"`）
-- 自绘标题栏 35px，可拖动（XAML 绑 `TitleBar_PointerPressed` → `BeginMoveDrag`）
+- Win11 圆角；自绘标题栏 35px，可拖动（`TitleBar_PointerPressed` → `BeginMoveDrag`）
 
 ### 五个 Tab
 
 | index | 底部按钮 | 内容面板 | 状态 |
 |---|---|---|---|
-| 0 | `DownloadTabButton` | `DownloadPanel` | **纯 UI 骨架，无下载逻辑** |
+| 0 | `DownloadTabButton` | `DownloadPanel` | 版本选择器可用；**版本列表 UI 尚未接线** |
 | 1 | `LaunchTabButton` | `LaunchPanel` | 3D 皮肤 + 启动按钮 |
-| 2 | `HomeTabButton` | `HomePanel` | 登录态 + 头像 + 切换账户（**默认停在这里**） |
+| 2 | `HomeTabButton` | `HomePanel` | 登录态 + 头像 + 切换账户（**默认**） |
 | 3 | `SettingsTabButton` | `SettingsPanel` | 纯占位"暂时无设置功能" |
 | 4 | `ToolsTabButton` | `ToolsPanel` | 纯占位"暂时无工具功能" |
 
-底栏 `BottomNavBar` 520×52，`Grid ColumnDefinitions="*,*,*,*,*"` 每列 104 DIP（= `AnimationConfig.TabStep`），玻璃滑块 `TabSlider` 96×44。
+底栏 `BottomNavBar` 520×52，每列 104 DIP（= `AnimationConfig.TabStep`），玻璃滑块 `TabSlider` 96×44。
 
-### 标题栏两态机制（改 UI 时必读）
+### 标题栏两态机制（改 UI 必读）
 
-- **态 A 渐变**：`UpdateTitleBarGradient(_defaultStartColor, _defaultEndColor)`
-  用于：主窗启动未登录时、弹出模态窗（登录窗 / 账户管理窗）时
-  默认色 `#CCFF6B9D` → `#CCB366FF`
-- **态 B 透明**：`SetTransparentTitleBarAsync()`
-  登录完成后恢复。实现是"图标淡出 → 200ms → 换黑图 → 淡入"，背景/字色由 XAML 的 `BrushTransition` 0.4s 补间
-  ⚠️ 两个时长不一致（0.2 vs 0.4），图标与背景并非同步收尾
-- 亮度判定 `GetLuminance` 是标准 WCAG 相对亮度，`useDark = avgLuminance > 0.5` 决定黑/白文字与图标
+- **态 A 渐变**：`UpdateTitleBarGradient(...)` —— 主窗未登录时、弹出模态窗时。默认色 `#CCFF6B9D` → `#CCB366FF`
+- **态 B 透明**：`SetTransparentTitleBarAsync()` —— 登录完成后。实现是"图标淡出 → 200ms → 换黑图 → 淡入"，背景/字色由 XAML `BrushTransition` 0.4s 补间
+- ⚠️ 两个时长不一致（0.2 vs 0.4），图标与背景并非同步收尾
+- 亮度判定 `GetLuminance` 是标准 WCAG 相对亮度，`useDark = avgLuminance > 0.5`
 
-### 滑块动画范式（可复用到其他选择器）
+### 滑块动画范式（可复用）
 
-`LoginWindow.AnimateSliderTo` / `MainWindow.AnimateTabSliderTo` / `AnimateEditionSliderTo`
-三者用**同一套手写 16ms `DispatcherTimer` 缓动**：
+`LoginWindow.AnimateSliderTo` / `MainWindow.AnimateTabSliderTo` / `AnimateEditionSliderTo` 用**同一套手写 16ms `DispatcherTimer` 缓动**：
 
 ```
 位移：cubic ease-in-out
@@ -487,45 +735,42 @@ dotnet publish Project.Launch.csproj -c Release
 
 ### 其他 UI 事实
 
-- **Toast**：右下角 `CancelToast`，`ShowToastAsync` 2.5s 自动隐藏，**无重入保护**（连续调用会互相打断）
-- **音效**：`SoundService`（NAudio，后台线程播放）。全工程只有 **2 处** `Play` 调用（登录窗 `"Open"`、主窗 Toast `"Messages"`）；
-  `Errors` / `BigError` / `Messages2` / **`DownloadDone`** 配置了却**从未被调用**（`DownloadDone` 显然是给下载功能预留的）
-- **头像**：主页 `HomeFaceImage`/`HomeHatImage`，按 UUID 推算 Steve/Alex 后裁切脸+帽子两层。
-  ⚠️ **正版账号也不拉取真实皮肤**（`AccountInfo.SkinUrl` 只写不读），始终显示内置 `Steve.png`/`Alex.png`
-- ⚠️ **`SwitchPanelAsync` / `ShowToastAsync` 都无并发保护**，快速连点会竞态
-- ⚠️ **登录窗与账户管理窗都设了 `WindowDecorations=None`，但只有主窗绑了拖动逻辑** → **这两个子窗口无法用鼠标拖动**
-- ⚠️ 头像裁切逻辑在 `MainWindow` 与 `LoginWindow` 里**各写了一份**（`CropSkinAsync`），未复用 `SkinCropper`
+- **Toast**：右下角 `CancelToast`，2.5s 自动隐藏，**无重入保护**
+- **音效**：全工程只有 **2 处** `Play` 调用（登录窗 `"Open"`、主窗 Toast `"Messages"`）；
+  `Errors` / `BigError` / `Messages2` / **`DownloadDone`** 配了却**从未被调用**
+- **头像**：按 UUID 推算 Steve/Alex 后裁切脸+帽子两层。⚠️ **正版账号也不拉真实皮肤**（`AccountInfo.SkinUrl` 只写不读）
+- ⚠️ **`SwitchPanelAsync` / `ShowToastAsync` 无并发保护**，快速连点会竞态
+- ⚠️ **登录窗与账户管理窗设了 `WindowDecorations=None` 但都没绑拖动逻辑 → 无法用鼠标拖动**
+- ⚠️ 头像裁切逻辑在 `MainWindow` 与 `LoginWindow` 里**各写了一份**，未复用 `SkinCropper`
 
 ## 3.6 3D 皮肤投影 ✅ 可用
 
-- `MinecraftSkinModel`：手工定义头/身/手臂/腿 + 各 overlay 的顶点与 UV；支持 **Classic（4 宽臂）/ Slim（3 宽臂）**
+- `MinecraftSkinModel`：手工定义头/身/手臂/腿 + overlay 顶点与 UV；支持 **Classic（4 宽臂）/ Slim（3 宽臂）**
   UV 表已核对官方 1.8+ 布局，**是正确的**（含 Slim 手臂背面偏移 51/43 这类刁钻处）
 - `Pivot3DControl`：`ICustomDrawOperation` + SkiaSharp `DrawVertices`
   - 伪 3D 投影 + **画家算法排序**（无 z-buffer）+ 2D 投影背面剔除
   - 手写 yaw/pitch 旋转，`cameraDist=60`，`scale = viewH*0.78/32`
-  - 光照：`0.6 + 0.4 * max(0, n·l)`，光源**跟随相机**（法线已修正为朝外，**不要把这里改回去**）
-- **皮肤类型自动检测**：按 64 宽比例缩放后，看 `(54*ratio, 20*ratio)` 起 `12*ratio` 行像素是否全透明 → 判 Slim/Classic
-- 自动旋转（33ms timer）+ 鼠标拖拽旋转（俯仰限 ±30°，灵敏度 `InteractionConfig.PivotSensitivity`）
-- 默认皮肤判定 `DefaultSkinSelector`：按官方逻辑取 UUID 第 8/16/24/32 位 hex 异或判奇偶
+  - 光照 `0.6 + 0.4 * max(0, n·l)`，光源**跟随相机**（法线已修正为朝外，**不要改回去**）
+- **皮肤类型自动检测**：按 64 宽比例缩放后，看 `(54*ratio, 20*ratio)` 起 `12*ratio` 行像素是否全透明 → Slim/Classic
+- 自动旋转（33ms）+ 鼠标拖拽（俯仰限 ±30°，灵敏度 `InteractionConfig.PivotSensitivity`）
+- 默认皮肤判定 `DefaultSkinSelector`：取 UUID 第 8/16/24/32 位 hex 异或判奇偶
 - 头像裁切 `SkinCropper`：支持 64×32 / 64×64 / 128×128
 
-> ⚠️ 已知缺陷：
-> - **64×32 旧版皮肤 3D 渲染错误**（overlay 面采样越界），而 `src\Views\imgs\skin\` 里**自带 2 张 64×32 皮肤**
-> - **256×256 不一致**：`SkinCropper` 拒绝（头像 null），`Pivot3DControl` 接受（`ratio=4`）；仓库里自带 1 张
-> - `SKShader.CreateImage` **每面每帧都新建**（12 盒 × 6 面 × 30fps ≈ **2160 次/秒**），且 `Equals => false` 主动放弃渲染缓存
-> - `BitmapToSkImage` 假定 `Bgra8888`/`Premul`，**未检查 `Bitmap.Format`**
-> - `SkinCropper` 全部异常用裸 `catch` 吞掉，**无任何日志**
+> ⚠️ **64×32 旧版皮肤 3D 渲染错误**（overlay 面采样越界），而仓库**自带 2 张 64×32 皮肤**；
+> **256×256 不一致**（`SkinCropper` 拒绝、`Pivot3DControl` 接受），仓库自带 1 张；
+> `SKShader.CreateImage` **每面每帧新建**（约 2160 次/秒）且 `Equals => false` 放弃缓存；
+> `BitmapToSkImage` 未检查 `Bitmap.Format`；`SkinCropper` 裸 `catch` 吞异常无日志。
 
-## 3.7 液态玻璃子系统 — 含本次根因修复
+## 3.7 液态玻璃子系统 —— 含历史根因修复
 
-> **这一节是最重要的**。这个子系统曾经有一个极其反直觉、排查了很长时间的 bug，
-> 在你动玻璃相关代码之前**务必读完**，否则会重复走一遍所有弯路。
+> **这一节最重要。** 这个子系统曾有一个极其反直觉的 bug，排查了很久。
+> 动玻璃相关代码之前**务必读完**，否则会重复走一遍所有弯路。
 
 ### 3.7.1 它是什么
 
-`src\LiquidGlassAvaloniaUI\` 是一个 **vendored 的第三方库**（上游 MIT 项目 `KaranocaVe/LiquidGlassAvaloniaUI`）。
+`MainSrc\LiquidGlassAvaloniaUI\` 是一个 **vendored 第三方库**（上游 MIT 项目 `KaranocaVe/LiquidGlassAvaloniaUI`）。
 
-它**不是**普通的 Avalonia 效果库，而是一个**手写的背景采样渲染器**：
+它**不是**普通的效果库，而是**手写的背景采样渲染器**：
 
 ```
 抓取窗口背景 → 存成 SKImage 快照 → 每个 LiquidGlassSurface 用 SKSL 着色器采样它
@@ -538,10 +783,10 @@ dotnet publish Project.Launch.csproj -c Release
 | `LiquidGlassSurface`（`: ContentControl`） | 40 个 StyledProperty 的玻璃控件 |
 | `LiquidGlassInteractiveSurface` | 带按压缩放形变 + 径向高光 |
 | `LiquidGlassBackdrop.IsExcludedFromCapture` | 附加属性：把某个 Visual 排除出快照 |
-| `LiquidGlassDiagnostics.Snapshot` / `.Reset()` | **25 个运行时计数器**（详见 3.7.6） |
+| `LiquidGlassDiagnostics.Snapshot` / `.Reset()` | **25 个运行时计数器** |
 | `UseLiquidGlassPerformanceDefaults()` | AppBuilder 扩展：设 `UseRegionDirtyRectClipping` / `MaxDirtyRects` / Skia GPU 预算 |
 
-宿主实际使用的参数（三个滑块几乎相同）：
+宿主实际参数（三个滑块几乎相同）：
 
 | 参数 | `LoginModeSlider` | `TabSlider` | `EditionSlider` |
 |---|---|---|---|
@@ -550,27 +795,26 @@ dotnet publish Project.Launch.csproj -c Release
 | `RefractionAmount` | 40 | 40 | 40 |
 | `BlurRadius`（静止） | 0 | 0 | 0 |
 | `Vibrancy` | 0.86 | 0.86 | 0.86 |
-| `ChromaticAberration` | **True** | True | True |
+| `ChromaticAberration` | True | True | True |
 | `HighlightEnabled` | True | **False** | True |
 
-> 库的默认值是 `RefractionHeight=12`、`BlurRadius=2.0`、`Vibrancy=1.5`、`ChromaticAberration=false`。
-> **宿主把前三项都调弱了**（尤其 `Vibrancy` 从"加饱和"变成了"去饱和"）。
+> 库默认值是 `RefractionHeight=12`、`BlurRadius=2.0`、`Vibrancy=1.5`、`ChromaticAberration=false`。
+> **宿主把前三项都调弱了**（`Vibrancy` 从"加饱和"翻成"去饱和"）。
 
-### 3.7.2 🎯 根因：背景快照是一张全透明的空图（已于 `2c01d3e` 修复）
+### 3.7.2 🎯 历史根因：背景快照是一张全透明的空图（已修复）
 
 #### 症状（用户原话）
 
 1. **登录滑块**：只有最左边（离线登录）才有色散；动画时也只有它才有"毛玻璃层次感"；
-   "像是把 LoginWindow 砍成四份，最左边的那四分之一才有动画"；
-   "玻璃一半过了那个四分之一的线，左边还是模糊色散，**中间直接隔开**，右边就啥都没有了"
+   "像是把 LoginWindow 砍成四份，最左边那四分之一才有动画"；
+   "玻璃一半过了那个四分之一线，左边还是模糊色散，**中间直接隔开**，右边啥都没有"
 2. **底部导航滑块**：**只有"从任意位置移动到下载"才有动画**；启动→工具、工具→设置、下载→启动都没有
 3. **下载页的基岩版/Java版选择器反而完全正常**
-4. 所有涉及液态玻璃的地方都有问题；**怎么调参都没用**（这是 HANDOVER 上一版明确记录的）
+4. **怎么调参都没用**
 
 #### 真因
 
-库里的 `LiquidGlassVisualRenderer` 是一个**手写的视觉树遍历器**，负责把窗口背景画进 `RenderTargetBitmap`。
-实测它**在真实窗口下一个像素都没画进去**：
+库里的 `LiquidGlassVisualRenderer` 是**手写的视觉树遍历器**，负责把窗口背景画进 `RenderTargetBitmap`。实测它**在真实窗口下一个像素都没画进去**：
 
 ```
 快照位图 336×193 = 64,848 像素
@@ -579,42 +823,39 @@ alpha = 0 的像素：64,848          ← 全部
 存出来的 PNG 只有 347 字节（纯空图）
 ```
 
-**玻璃着色器采样的就是这张空图**，于是：采样透明 → 位移透明 → 输出透明 → **玻璃实际什么都没画**。
+**玻璃着色器采样的就是这张空图** → 采样透明 → 位移透明 → 输出透明 → **玻璃什么都没画**。
 
 #### 一个机制解释全部症状
 
 | 症状 | 机制 |
 |---|---|
-| 看不到折射/模糊，**却能"看到玻璃下的文字"** | 玻璃画的是全透明，你看到的是**下层真实 UI**，不是玻璃采样的结果 |
-| **调参完全无效** | 参数作用在透明像素上，数学上恒为透明。这就是上一版文档记录"折射带 4→10 调参完全无效"的真正原因 |
-| **"只有最靠左的位置有效果"** | 手写遍历的输出**整体偏移了 `+origin`**，只有落在位图内的那部分存活，存活比例 = `(W−origin.x)(H−origin.y)/(W·H)`。**控件越靠左，origin 越小，存活越多** |
-| **"中间一条硬竖缝、右边什么都没有"** | **那条线就是存活区域的边界**——线左边还有内容可采样（有折射/色散），右边全是透明 |
-| **"只有移动到下载才有动画"** | 下载是导航栏**最左**一格（index 0）→ origin 最小 → 存活最多 |
-| **"基岩版/Java版选择器反而正常"** | 它在下载页**左上角**，位置最靠左 → 同样 origin 最小 |
+| 看不到折射/模糊，**却能"看到玻璃下的文字"** | 玻璃画的是全透明，你看到的是**下层真实 UI** |
+| **调参完全无效** | 参数作用在透明像素上，数学上恒为透明 |
+| **"只有最靠左的位置有效果"** | 手写遍历输出**整体偏移 `+origin`**，存活比例 = `(W−ox)(H−oy)/(W·H)`，**越靠左 origin 越小、存活越多** |
+| **"中间一条硬竖缝"** | **那条线就是存活区域的边界**——左边还有内容可采样，右边全透明 |
+| **"只有移动到下载才有动画"** | 下载是导航栏**最左**一格（index 0）→ origin 最小 |
+| **"下载页选择器反而正常"** | 它在页面**左上角** → 同样 origin 最小 |
 
-> **另有旁证**：无头复刻实验测得同一机制的存活比例为 2.9%（那组几何的 origin 较小），
-> 与公式 `(W−ox)(H−oy)/(W·H)` 精确吻合；本次真机样本 origin=(432,507)、位图 336×193，
-> 公式给出**负数** → 存活 0% → 与实测 0.00% 完全一致。
+> 旁证：无头复刻实验测到同一机制存活比例 2.9%（该组 origin 较小），与公式精确吻合；
+> 真机样本 origin=(432,507)、位图 336×193 → 公式给出**负数** → 存活 0% → 与实测 0.00% 一致。
 
 #### 修复
 
-**改动一处**：`LiquidGlassBackdropProvider.Capture` 中，弃用手写遍历，改用 **Avalonia 自带的 `RenderTargetBitmap.Render(Visual)`**：
+**改动一处** —— `LiquidGlassBackdropProvider.Capture`，弃用手写遍历，改用 **Avalonia 自带的 `RenderTargetBitmap.Render(Visual)`**：
 
 ```csharp
-// 位图取【整窗客户区】尺寸，原点固定 (0,0)，因此不需要任何手写平移
+// 位图取【整窗客户区】尺寸，原点固定 (0,0)，不需要任何手写平移
 PixelSize fullPx = new(
     Math.Max(1, (int)Math.Ceiling(topLevel.ClientSize.Width  * scaling)),
     Math.Max(1, (int)Math.Ceiling(topLevel.ClientSize.Height * scaling)));
-
-// ...（尺寸变化时重建 ScratchBitmap）
 
 state.ScratchBitmap.Render(topLevel);   // ← 用 Avalonia 真正的渲染器
 pixelSize = fullPx;
 PixelPoint originInPixels = new(0, 0);
 ```
 
-**为什么不需要手动排除玻璃控件**：抓取期间 `s_captureDepth > 0` → `IsCapturing == true` →
-`LiquidGlassSurface.Render` 与两个 overlay 都会**提前 return**，所以玻璃天然不出现在快照里，也不会递归。
+**为什么不用手动排除玻璃控件**：抓取期间 `s_captureDepth > 0` → `IsCapturing == true` →
+`LiquidGlassSurface.Render` 与两个 overlay 都会提前 return → 玻璃天然不出现在快照里，也不会递归。
 
 **验证数据：**
 
@@ -622,59 +863,53 @@ PixelPoint originInPixels = new(0, 0);
 |---|---|---|
 | 快照不透明占比 | **0.00%**（64848/64848 像素 alpha=0） | **100.00%** |
 | 快照 PNG | 347 B（空图） | 24,550 B（完整画面） |
-| CPU（15s 窗口） | 约 0.64 核 | **约 0.48 核**（更快，`Render()` 比手写遍历高效） |
-| 工作集 | ~200 MB | ~209 MB |
+| CPU（15s 窗口） | 约 0.64 核 | **约 0.48 核**（更快） |
 | 崩溃 | — | 无 |
 
-### 3.7.3 快照机制原理（修好之后仍然需要理解）
+### 3.7.3 快照机制原理（修好后仍需理解）
 
-- **触发**：`EnsureSnapshot` 在每次 `Render` 时被调用；场景失效（`SceneInvalidated`）也会触发
-- **节流**：抓取间隔下限 33ms（约 30fps）；`state.CaptureQueued` 做请求合并
-- **裁剪区**：所有订阅者 `TransformedBounds` 的并集 ∩ 客户区，**按设备像素对齐**（`Floor`/`Ceiling`）
-- **膨胀量** `GetBackdropInflate`：`max(32, |RefractionAmount|*(CA?2:1) + BlurRadius*3 + 6 + ...)` DIP
-  → 本组合 = `max(32, 80+0+6)` = **86 DIP**
-- **去重**：配置相同（缩放/尺寸/原点）且 **8×8 采样哈希**相同时跳过发布
+- **触发**：`EnsureSnapshot` 每次 `Render` 时调用；场景失效（`SceneInvalidated`）也触发
+- **节流**：间隔下限 33ms（约 30fps）；`state.CaptureQueued` 做请求合并
+- **裁剪区**：所有订阅者 `TransformedBounds` 的并集 ∩ 客户区，**按设备像素对齐**
+- **膨胀量** `GetBackdropInflate`：本组合 = `max(32, 80+0+6)` = **86 DIP**
+- **去重**：配置相同且 **8×8 采样哈希**相同时跳过发布
 - **滤镜缓存**：`FilteredKey` 含 crop 四元组，LRU 上限 8
-- **发布顺序**：先 `Volatile.Write` 新快照，**再** `RequestDispose` 旧的（避免渲染线程看到已释放的快照而回退成白色填充）
+- **发布顺序**：先 `Volatile.Write` 新快照，**再** `RequestDispose` 旧的
 - **订阅者失效**：发布后对所有订阅者 `InvalidateVisual()`
 
-### 3.7.4 本次同时做的库健壮性补强
+### 3.7.4 同时做的库健壮性补强
 
-除根因修复外，另加了两处（**它们不是根因**，但补上了一个真实缺口）：
+除根因修复外，另加两处（**不是根因**，但补了真实缺口）：
 
 1. **`LiquidGlassSurface` 订阅渲染变换变化**
-   `RenderTransform`（递归到 `TransformGroup` 的子变换）的 `Changed` 事件 → 通知 `EnsureSnapshot`。
-   原因：`TranslateTransform.X` 这类改动由**合成器**处理，`Visual.RenderTransformChanged` 只更新合成视觉的变换、
-   **不重新录制绘制树**，因此**不触发 `SceneInvalidated`** —— 玻璃库唯一的"按位置重抓"入口就此失效。
-   （已用独立探针验证过：`TranslateTransform.Changed` / `ScaleTransform.Changed` 确实会触发，`TransformGroup` 会冒泡。）
-2. **`EnsureSnapshot` 增加"控件跑出上次抓取覆盖区"的触发条件**
-   原来这个检测（`needsClipGrowthCapture`）**只存在于 `SceneInvalidated` 处理器内部**，事件不来就是死代码。
+   `RenderTransform`（递归到 `TransformGroup` 子变换）的 `Changed` → 通知 `EnsureSnapshot`。
+   原因：`TranslateTransform.X` 这类改动由**合成器**处理，`Visual.RenderTransformChanged` 只更新合成视觉变换、
+   **不重新录制绘制树**，因此**不触发 `SceneInvalidated`**，玻璃库唯一的"按位置重抓"入口就此失效。
+2. **`EnsureSnapshot` 增加"控件跑出上次抓取覆盖区"触发条件**
+   原检测（`needsClipGrowthCapture`）**只在 `SceneInvalidated` 处理器内部**，事件不来就是死代码。
 
 ### 3.7.5 已知的空转与死代码
 
-> ⚠️ 改玻璃前请先确认这些，避免浪费时间：
-
 | 项 | 状态 |
 |---|---|
-| **`src\Views\Glass.axaml`** 的全部资源 + `Button.Glass` 样式 | **零使用**。它是一张"玻璃参数表"，但真正的玻璃参数写在各窗口 XAML 里内联 |
-| `Styles.axaml` 的 `Button.MiretAcrylic` / `Button.LarMiret` | **零使用**（只有 `Button.Miret` 在用） |
-| **`LiquidGlassVisualRenderer.cs`（153 行）** | **根因修复后已成为死代码**（不再被调用），且它本身有缺陷（见下） |
+| **`MainSrc\Views\Glass.axaml`** 全部资源 + `Button.Glass` | **零使用**（真正参数写在各窗口 XAML 内联） |
+| `Styles.axaml` 的 `MiretAcrylic` / `LarMiret` | **零使用**（只有 `Miret` 在用） |
+| **`LiquidGlassVisualRenderer.cs`（153 行）** | **根因修复后已成死代码**，且本身有缺陷（见下） |
 | `RenderVisualWithClip` / `GetExcludedRoots` | 同上，已无调用者 |
-| `UseLiquidGlassPerformanceDefaults()` | **宿主从未调用** —— 脏矩形裁剪与 Skia GPU 预算仍是 Avalonia 默认值 |
-| `LiquidGlassDiagnostics` 的 25 个计数器 | **从未被任何 App 代码读取**（只有库内部在写）。排查时接上它极为有用，见 3.7.6 |
-| `TintColor` / `SurfaceColor` | 在 `GammaPower == 1.0`（默认）时**被静默忽略**——`DrawSurfaceOverlay` 只在 gamma 分支内可达 |
-| `DepthEffect` / `ProgressiveBlur*` / `AdaptiveLuminance*` / `InnerShadow*` / `BackdropZoom` / `BackdropOffset` | 全部是 `false` / 默认值，**当前均不参与渲染** |
-| 哈希去重 | 只采样 **8×8 = 64 个像素**，细进度条 / 光标这类小范围变化会被误判为"没变" |
+| `UseLiquidGlassPerformanceDefaults()` | **宿主从未调用** |
+| `LiquidGlassDiagnostics` 25 个计数器 | **从未被任何 App 代码读取**（见 3.7.6） |
+| `TintColor` / `SurfaceColor` | 在 `GammaPower == 1.0`（默认）时**被静默忽略** |
+| `DepthEffect` / `ProgressiveBlur*` / `AdaptiveLuminance*` / `InnerShadow*` / `BackdropZoom` / `BackdropOffset` | 全部 `false`/默认值，**当前均不参与渲染** |
+| 哈希去重 | 只采样 **8×8 = 64 像素**，细进度条/光标这类变化会被误判"没变" |
 
-> 关于 `LiquidGlassVisualRenderer` 的缺陷（**即使它现在是死代码，也请知道这件事**）：
-> 它的递归里，遇到 `ClipToBounds == true` 的视觉时会执行 `totalTransform = Matrix.Identity; clipRect = rect;`
+> **`LiquidGlassVisualRenderer` 的缺陷**（虽是死代码，也请知道）：
+> 递归里遇到 `ClipToBounds == true` 的视觉时执行 `totalTransform = Matrix.Identity; clipRect = rect;`
 > ——**就地改写剔除基准**，会让同一父级中排在它之后的兄弟子树用错误基准做 `Intersects` 剔除。
-> 官方 `ImmediateRenderer` 只重设 clip、**不重设 transform**。这正是上面那个"内容整体偏移 `+origin`"的来源。
+> 官方 `ImmediateRenderer` 只重设 clip、**不重设 transform**。这正是"内容整体偏移 `+origin`"的来源。
 
 ### 3.7.6 出问题时怎么排查（强烈建议）
 
-这次能挖出根因，靠的是**把库自己抓到的快照落盘 + 读它的计数器**。以后再遇到玻璃问题，
-**先做这两件事，不要先调参**：
+这次能挖出根因，靠的是**把库自己抓到的快照落盘 + 读它的计数器**。以后再遇到玻璃问题，**先做这两件事，不要先调参**：
 
 **① 接上计数器**（`LiquidGlassDiagnostics.Snapshot` 是公开 API）：
 
@@ -686,103 +921,119 @@ PixelPoint originInPixels = new(0, 0);
 订阅者失效 SubscriberInvalidations / 滤镜命中 FilterCacheHits/Misses
 ```
 
-判读要点：
+判读：`CapturesPublished` 持续增长 = 抓取健康；`空裁剪` 不为 0 = 有帧没抓成，快照会停在旧位置。
 
-- `CapturesPublished` 持续增长 = 抓取健康
-- **`脏矩形抑制` 与 `哈希跳过` 长期为 0** = 那两条"优化"从未生效（本次实测如此）
-- `空裁剪 SkippedEmptyClip` 不为 0 = 有帧没抓成，快照会停在旧位置
-
-**② 把快照落盘**（本次用的方法，几行代码即可）：
+**② 把快照落盘**（几行代码）：
 
 ```csharp
 // 在 LiquidGlassBackdropProvider.Capture 里 Render 之后
-state.ScratchBitmap.Save(某个路径 + ".png");
+state.ScratchBitmap.Save(某路径 + ".png");
 // 然后统计：不透明像素占比、内容包围盒
 ```
 
 - **不透明占比 ≈ 0%** → 快照是空图（本次的根因）
 - 占比正常但**内容整体偏移** → 遍历器的变换问题
-- 占比与内容都正常 → 问题在采样矩阵 / 着色器 / 滤镜裁剪
+- 都正常 → 问题在采样矩阵 / 着色器 / 滤镜裁剪
 
 **③ 参数解释不了的事，别用参数去解释**
 
-`RefractionHeight=4` 意味着折射**只发生在离边缘 4 DIP 的窄带内**，滑块内部 100% 原样透传；
-而 `BlurRadius=0` 表示静止态**没有模糊**。所以在平坦的 `#D8D8D8` 轨道上，
+`RefractionHeight=4` 意味着折射**只发生在离边缘 4 DIP 的窄带内**，内部 100% 原样透传；
+`BlurRadius=0` 表示静止态**没有模糊**。所以在平坦的 `#D8D8D8` 轨道上，
 **即使一切正常，静止态也几乎看不见玻璃效果**——这是参数决定的，不是 bug。
-（想要更明显的观感，把 `RefractionHeight` 调到 `10~12`、`BlurRadius` 静止值调到 `1~2`。）
+（想要更明显的观感：`RefractionHeight` 调到 `10~12`、`BlurRadius` 静止值调到 `1~2`。）
+
+## 3.8 版本清单模块 —— 下载功能 P1
+
+`MainSrc\Tools\Download\`，**下载功能的第一步，目前只做到"拿到清单"**。
+
+| 文件 | 内容 |
+|---|---|
+| `MinecraftManifest.cs` | `version_manifest_v2` 数据模型：`VersionManifest{ Latest, Versions[] }`、`LatestVersions{ Release, Snapshot }`、`VersionEntry{ Id, Type, Url, ReleaseTime, ReleaseTimeStr }` |
+| `VersionService.cs` | `GetVersionManifestAsync()` —— **BMCLAPI 优先 → 官方源兜底**；复用静态 `HttpClient`（15s 超时）；成功/失败都写 `app.log` |
+
+**实测**：成功获取 **920 个版本**（日志原文：`成功获取版本清单(https://bmclapi2.bangbang93.com/...)，共 920 个版本`）。
+
+> ⚠️ **当前状态**：UI 还没有消费它 —— `DownloadPanel` 里仍然只有"版本列表（待接入）"。
+> 也就是说这个模块**目前只在日志里验证过**，没有接到界面上。
+>
+> ⚠️ 另注：清单里**没有** `latest` 之外的版本 JSON 下载、没有 jar/库/资源下载、没有校验、没有断点续传。
 
 ---
 
 # 第四部分：已知缺陷与待办
 
+> 状态基于 `commit 2d5b01c` 逐条实测核对。
+
 ## 4.1 🔴 P0 级（功能失效）
 
-| # | 问题 | 位置 | 说明 |
+| # | 问题 | 状态 | 位置 |
 |---|---|---|---|
-| 1 | **`isolated` 布局的实例永远无法启动** | `MinecraftDirectoryAnalyzer` vs `MainWindow.StartGameAsync` / `GameLauncher` | 分析器把形态 B 的版本目录算成 `<path>\.minecraft\versions`，但**消费方全部硬编码** `Path.Combine(RootPath, "versions")` —— 而这个路径**不存在正是分析器判定形态 B 的原因**。结果：弹"版本文件缺失"，**`GameLauncher` 根本不会被调用**。<br>**铁证**：`AnalysisResult` 算出的 `VersionsDir` / `LibrariesDir` / `AssetsDir` / `GameDirectory` **四个字段全项目零消费**。<br>讽刺的是 `GameLauncher` 专门为 isolated 处理了 `gameDirectory`，说明作者想到了 isolated，但**版本路径这条线没接上** |
-| 2 | **正版账号以离线身份启动** | `GameLauncher.ReplacePlaceholders` | `${auth_access_token}`→`"0"`、`${user_type}`→`"legacy"`、`${auth_session}`→`"0"` 硬编码；`MainWindow` 只传 `playerName`/`playerUuid`。<br>`MicrosoftAuthFlow` 认真写进 `accounts.json` 的 `MicrosoftRefreshToken` / `MinecraftAccessToken` / `TokenExpireAt` / `SkinUrl` **四个字段无人读取** → **登录成功只等于拿到一个用户名 + UUID** |
-| 3 | **正版登录走不通** | `DeviceCodeAuthService.ClientId` | 占位测试 ID `7dddbcf7-…` 被 Mojang 拒绝。等用户自有 AppID 审批下来后替换即可 |
+| 1 | **`isolated` 布局的实例永远无法启动** | ❌ **未修** | `MinecraftDirectoryAnalyzer` 把形态 B 的版本目录算成 `<path>\.minecraft\versions`，但**消费方全部硬编码** `Path.Combine(RootPath, "versions")`（`MainWindow.cs:596`、`GameLauncher.cs:29`）—— 而这个路径**不存在正是分析器判定形态 B 的原因**。结果：弹"版本文件缺失"，`GameLauncher` 根本不会被调用。<br>**铁证**：`AnalysisResult` 算出的 `VersionsDir`/`LibrariesDir`/`AssetsDir`/`GameDirectory` **四个字段全项目零消费** |
+| 2 | **正版账号以离线身份启动** | ❌ **未修** | `GameLauncher.ReplacePlaceholders` 里 `${auth_access_token}`→`"0"`、`${user_type}`→`"legacy"`、`${auth_session}`→`"0"`。`MicrosoftAuthFlow` 认真写进 `accounts.json` 的 4 个凭据字段**无人读取** → **登录成功只等于拿到用户名 + UUID** |
+| 3 | **正版登录走不通** | ❌ **未修** | `DeviceCodeAuthService.ClientId` 仍是占位 `7dddbcf7-…`，被 Mojang 拒绝。等自有 AppID 审批 |
 
 ## 4.2 🟠 P1 级（明显错误）
 
-| # | 问题 | 位置 |
+| # | 问题 | 状态 |
 |---|---|---|
-| 4 | **版本排序 Ordinal → 默认选中旧版本**（实测 `1.9` 胜过 `1.20.1`） | `MinecraftDirectoryAnalyzer` 排序 + `MainWindow` 取 `Versions[^1]` |
-| 5 | **无 `inheritsFrom` 建模** → Forge / NeoForge / Fabric / OptiFine **全部不支持** | `MinecraftVersionJson.cs` |
-| 6 | **无刷新令牌流程** → 24 小时后必须重新设备码登录 | `src\Tools\Auth\` |
-| 7 | **登录窗 / 账户管理窗无法用鼠标拖动**（`WindowDecorations=None` 但只有主窗绑了 `BeginMoveDrag`） | 两个子窗口的 axaml |
-| 8 | **64×32 旧版皮肤 3D 渲染错误**，而仓库自带 2 张 | `Pivot3DControl.DetectSkinType` |
-| 9 | **`accounts.json` 损坏会被静默清空**（解析失败后写回空 root → 所有账户被抹掉） | `AccountService.ModifyAccounts` |
-| 10 | **无 `-Xmx/-Xms` 内存设置**，无每实例 JVM 参数 | `GameLauncher` / `InstanceData` |
-| 11 | **起进程后立刻返回，不保留句柄** → 监听不到游戏退出、无退出码 | `GameLauncher` 末尾 |
+| 4 | **版本排序 Ordinal → 默认选中旧版本**（实测 `1.9` 胜过 `1.20.1`） | ❌ 未修 |
+| 5 | **无 `inheritsFrom` 建模** → Forge / NeoForge / Fabric / OptiFine **全部不支持** | ❌ **仍未修**（`MinecraftVersionJson` 里没有该字段） |
+| 6 | **无刷新令牌流程** → 24 小时后必须重新设备码登录 | ❌ 未修 |
+| 7 | **登录窗 / 账户管理窗无法用鼠标拖动** | ❌ 未修 |
+| 8 | **64×32 旧版皮肤 3D 渲染错误**（仓库自带 2 张） | ❌ 未修 |
+| 9 | **`accounts.json` 损坏会被静默清空**（**所有账户被抹掉**） | ❌ 未修 |
+| 10 | **无 `-Xmx/-Xms` 内存设置**，无每实例 JVM 参数 | ❌ 未修 |
+| 11 | 进程只加入 `_runningProcesses` **无对外停止/查询接口**，不回传退出码 | ⚠️ **部分改善**（已有跟踪，但不可控） |
 
 ## 4.3 🟡 P2 级（健壮性 / 安全）
 
 | # | 问题 |
 |---|---|
-| 12 | **token 明文存储**（`accounts.json`，无 DPAPI） |
+| 12 | **token 明文存储**（无 DPAPI） |
 | 13 | **数据写在 exe 同级** → 装到 `Program Files` 后所有保存**静默失效** |
-| 14 | **`app.log` 无轮转**，永久增长；natives 目录从不清理 |
-| 15 | **`SwitchPanelAsync` / `ShowToastAsync` 无并发保护**，连点会竞态 |
-| 16 | **`SkinCropper` 裸 `catch` 无日志**，且 `RenderTargetBitmap` 在 `Task.Run` 线程池线程上创建（非支持的 Avalonia 用法） |
+| 14 | **`app.log` 无轮转**；natives 目录从不清理 |
+| 15 | **`SwitchPanelAsync` / `ShowToastAsync` 无并发保护** |
+| 16 | **`SkinCropper` 裸 `catch` 无日志**；`RenderTargetBitmap` 在 `Task.Run` 线程池线程上创建（非支持用法） |
 | 17 | **`JavaDetector` 的 `WaitForExit(5000)` 是死代码**；`Match()` 无上界 |
-| 18 | **`rules[].features` 与 `RuleOs.Arch/Version` 被忽略** → feature-gated 参数（quick-play）被无条件加入 |
+| 18 | **`rules[].features` 与 `RuleOs.Arch/Version` 被忽略** → feature-gated 参数被无条件加入 |
 | 19 | **`Pivot3DControl` 每面每帧新建 `SKShader`**（约 2160 次/秒）；`Equals => false` 放弃缓存 |
-| 20 | **`BitmapToSkImage` 未检查 `Bitmap.Format`**，假定 `Bgra8888`/`Premul` |
-| 21 | 手动遍历器（现为死代码）的 `ClipToBounds` 剔除缺陷（见 [3.7.5](#375-已知的空转与死代码)） |
-| 22 | **无测试工程**；全仓**无 TODO / FIXME / NotImplementedException 标记** → 所有缺口都是"静默遗漏"，不是"标注的桩" |
+| 20 | **`BitmapToSkImage` 未检查 `Bitmap.Format`** |
+| 21 | **无测试工程**；全仓**无 TODO / FIXME / NotImplementedException 标记** → 所有缺口都是"静默遗漏" |
+| 22 | **`VersionService` 只拉清单**，UI 未接线；无版本 JSON / jar / 库 / 资源下载，无校验、无断点续传 |
+| 23 | **`DownloaDone` 等 4 个音效配置了却从未调用**（`DownloadDone` 显然是给下载功能预留的） |
 
 ## 4.4 ⚪ 死代码 / 遗留（清理项）
 
 | 项 | 位置 |
 |---|---|
-| `LiquidGlassVisualRenderer.cs`（153 行）、`RenderVisualWithClip`、`GetExcludedRoots`、`IsExcludedFromCapture` | 根因修复后**已无调用者** |
-| `Glass.axaml` 全部资源 + `Button.Glass`；`Styles.axaml` 的 `MiretAcrylic` / `LarMiret` | 零使用 |
-| `MsProgressPanel` / `MsProgressText` | 声明并 `FindControl` 了，**从不设为可见**（进度写进 `MsStatus`） |
-| `LoginWindow` 的 `OFFSET_OFFLINE` / `OFFSET_THIRD` 常量；`Close(bool isLogin)` 的参数 | 未使用 / 无效 |
-| `MainWindow.SetTitleBarGradient`（public）；`src\ViewModel\TestWindowButton.cs` | 无调用者 |
+| `LiquidGlassVisualRenderer.cs`、`RenderVisualWithClip`、`GetExcludedRoots`、`IsExcludedFromCapture` | 根因修复后**已无调用者** |
+| `Glass.axaml` 全部资源 + `Button.Glass`；`MiretAcrylic` / `LarMiret` | 零使用 |
+| `MsProgressPanel` / `MsProgressText` | 声明并 `FindControl` 了却**从不设为可见** |
+| `LoginWindow` 的 `OFFSET_OFFLINE` / `OFFSET_THIRD`；`Close(bool isLogin)` 的参数 | 未使用 / 无效 |
+| `MainWindow.SetTitleBarGradient`（public）；`ViewModel\TestWindowButton.cs` | 无调用者 |
 | `MainWindow._httpClient`、`LoginWindow._httpClient` | 声明后从未使用 |
-| `InteractionConfig` / `SoundConfig` / `AnimationConfig` | 可变静态字段，**无持久化、无 UI**（设置页是它们的预留出口） |
-| `publish\` 目录下的旧日志 | 曾被误改，已还原 |
-| `LoginWindow.axaml` 底部红字 **"请更换仓库不要露全部代码"** 与硬编码 `rc-5`；主窗标题硬编码 `KilimMinecraftLauncherDemo` | **交付前必须清掉的开发期痕迹** |
-| `Pivot3DControl` 文件在 `src\Tools\`，**namespace 却是 `Project.Launch.Views`** | 命名不一致 |
+| `InteractionConfig` / `SoundConfig` / `AnimationConfig` | 可变静态字段，**无持久化、无 UI** |
+| `imgs\Main\images\Blocks\`（16）、`Loaders\`（12）、`Support\` 的 3 个 | 资源存在但**代码未引用** |
+| `LoginWindow.axaml` 底部红字 **"请更换仓库不要露全部代码"**、硬编码 `rc-5`；主窗标题硬编码 `KilimMinecraftLauncherDemo` | **交付前必须清掉的开发期痕迹** |
+| `Pivot3DControl` 在 `Tools\` 但 namespace 是 `Project.Launch.Views` | 命名不一致 |
+| `read.me` 与 `read.md` 混用 | 不统一 |
 
 ## 4.5 已排除的排查方向（**勿重复踩坑**）
 
-以下是本次排查中**用硬证据证伪**的假设。它们看起来都很有道理，但**都不是原因**：
+以下假设都**看起来很有道理**，但被硬证据**逐一证伪**：
 
 | 假设 | 证伪方式 |
 |---|---|
-| 快照刷新时机 / 抓取没触发 | 真实 App 内计数器显示：**抓取持续发生**（发布 242→534，约 20~50 次/秒），`脏矩形抑制=0`、`哈希跳过=0`、`空裁剪=0` |
-| 控件位置测量错误（`GetTransformedBounds` 不含 RenderTransform） | 诊断打印的全局 AABB 随动画**平滑正确变化**（如 TabSlider 432→312→224），`TransformToAABB` 正确 |
-| 变换事件不被感知 | 独立探针证明 `TranslateTransform.Changed` / `ScaleTransform.Changed` 会触发，`TransformGroup` 会冒泡 |
-| DPI 问题（120% / 125% 缩放） | 用户实测 100% / 150% 均无效；且映射公式中 `scaling` 在分子分母**完全对消**，三档缩放逐像素精确 |
-| 滤镜结果图比所需采样范围小 → Clamp 硬缝 | 数值推导：余量 88 DIP ≥ 需求最坏 80 DIP；且 `crop` 恒等于整张快照 |
-| 采样矩阵 / `WithPixelOrigin` 的 localMatrix 约定写错 | 用真实 SkiaSharp 双向反证：**现在的写法是对的**，改成"看起来对"的写法反而会坏 |
-| 宿主玻璃参数配置导致 | `LoginModeSlider`（坏）与 `EditionSlider`（好）的**参数逐项完全相同** |
-| 着色器本身能产生竖直分界 | 主透镜**左右严格对称**；唯一的不对称来自坐标域错误，表现是"错位重影"而非"平坦" |
+| 快照刷新时机 / 抓取没触发 | 真实 App 计数器：抓取持续发生（发布 242→534，约 20~50 次/秒），`脏矩形抑制=0`、`哈希跳过=0`、`空裁剪=0` |
+| 控件位置测量错误 | 诊断打印的全局 AABB 随动画**平滑正确变化**（TabSlider 432→312→224） |
+| 变换事件不被感知 | 独立探针证明 `TranslateTransform.Changed` / `ScaleTransform.Changed` 触发、`TransformGroup` 冒泡 |
+| DPI 问题（120% / 125%） | 用户实测 100% / 150% 均无效；映射公式中 `scaling` 分子分母**完全对消** |
+| 滤镜结果图比采样范围小 → Clamp 硬缝 | 数值推导：余量 88 DIP ≥ 需求最坏 80 DIP；`crop` 恒等于整张快照 |
+| `WithPixelOrigin` 的 localMatrix 写错 | 用真实 SkiaSharp **双向反证**：现在的写法是对的，改成"看起来对"的写法反而会坏 |
+| 宿主玻璃参数配置导致 | `LoginModeSlider`（坏）与 `EditionSlider`（好）参数**逐项完全相同** |
+| 着色器本身能产生竖直分界 | 主透镜**左右严格对称**；唯一不对称来自坐标域错误，表现是"错位重影"而非"平坦" |
 
-> **教训**：上面每一条看起来都很有道理，我们花了大量时间在这几条上。
+> **教训**：上面每一条听起来都对，我们花了大量时间在这几条上。
 > 真正的突破点是**把快照本身落盘看了一眼**——发现它是全透明的。
 > **下次遇到渲染问题，先拿到中间产物看一眼，再谈推理。**
 
@@ -790,7 +1041,7 @@ state.ScratchBitmap.Save(某个路径 + ".png");
 
 # 第五部分：下一步需求 —— 下载功能
 
-> 这一部分来自前人的产品调研，**结论仍然有效**。这是本项目从"Demo"走向"可用启动器"的关键一步。
+> 前人已做过扎实的产品调研，**结论仍然有效**。P1 阶段（版本清单）**已开始实现**（见 [3.8](#38-版本清单模块--下载功能-p1)）。
 
 ## 5.1 用户的产品定位与硬约束（重要）
 
@@ -802,20 +1053,19 @@ state.ScratchBitmap.Save(某个路径 + ".png");
      → 启动器**绝不能热链 mcappx 的任何下载链接**
   3. **唯一要求：公开项目必须标注来源 `mcappx.com`**（建议做进"关于"页 + 下载页脚注）
   4. 数据源对部分区域屏蔽，可向他们申请访问权限
-     - ⚠️ **实测该数据接口在用户本机请求超时**（`https://data.mcappx.com/v2/bedrock.json` 30s 无响应，文档站可正常访问）—— **印证区域屏蔽**
+     - ⚠️ **实测该数据接口在用户本机请求超时**（`data.mcappx.com` 30s 无响应，文档站正常）—— **印证区域屏蔽**
 
 ## 5.2 Java 版下载源（已调研确认）
 
 **官方**
-- 清单：`https://piston-meta.mojang.com/mc/game/version_manifest_v2.json`
+- 清单：`https://piston-meta.mojang.com/mc/game/version_manifest_v2.json` ✅ **已实现**
 - 版本 JSON：`https://piston-meta.mojang.com/v1/packages/{hash}/{id}.json`
-- client.jar：版本 JSON 内 `downloads.client.url`（`piston-data.mojang.com`）
+- client.jar：版本 JSON 内 `downloads.client.url`
 - 库：`https://libraries.minecraft.net/{maven路径}`（group 的 `.` 换成 `/`）
 - 资源：`https://resources.download.minecraft.net/{hash前2位}/{hash}`
 
 **镜像**
-- **BMCLAPI**（`bmclapi2.bangbang93.com`）：国内事实标准，覆盖全部端点，
-  字符串替换域名即可，文档 `bmclapidoc.bangbang93.com`。**推荐作为默认源 + 官方回退**
+- **BMCLAPI**（`bmclapi2.bangbang93.com`）：国内事实标准，覆盖全部端点，字符串替换域名即可 ✅ **已作为默认源**
 - **MCBBS 镜像已废弃**（站点关闭），不要使用
 
 **关键字段**：`downloads.client.url/sha1`、`assetIndex.url/sha1`、`libraries[]`（需按 OS/arch 过滤）
@@ -827,7 +1077,6 @@ https://data.mcappx.com/v2/bedrock.json     （v1 已停止更新）
 文档：https://www.mcappx.com/dev-docs/data-source/
 ```
 
-**v2 数据结构**
 ```
 From_mcappx.com
  └─ "1.21.100.24"                        ← 版本号
@@ -840,49 +1089,44 @@ From_mcappx.com
          ├─ ArchivalStatus 3=有官方记录 2=无记录 1=未发布 0=已丢失
          ├─ OSbuild       最低 Windows 构建号（如 19041）
          ├─ MetaData[]    ★ UWP 存 UpdateID(GUID)，GDK 存 msixvc 直链
-         └─ MD5           校验值（注意：只有 MD5，没有 SHA）
+         └─ MD5           校验值（**只有 MD5，没有 SHA**）
 ```
 
 **路线 A：GDK（msixvc 直链，最省事，建议先行）**
-- `MetaData` 直接就是完整直链，例如：
-  `http://assets1.xboxlive.cn/.../Microsoft.MinecraftWindowsBeta_1.21.12021.0_x64__8wekyb3d8bbwe.msixvc`
-- **可切换 CDN 域名提速**（文档给出的国内快域名）：
+- `MetaData` 直接是完整直链；**可切换 CDN 域名提速**：
   `assets1.xboxlive.cn` / `d1.xboxlive.cn` / `assets2.xboxlive.cn` / `d2.xboxlive.cn`（**快**）
   `*.xboxlive.com`（中国大陆**慢**）
 - ⚠️ **msixvc 是原始 Xbox 分发包，不是 zip，无法解压**，只能整体用 `Add-AppxPackage` 安装
 
 **路线 B：UWP（UpdateID → FE3 解析，麻烦且成功率低）**
-- 只有 UpdateID (GUID)，需调微软 SOAP API：
-  `https://fe3cr.delivery.mp.microsoft.com/ClientWebService/client.asmx/secured`
+- 需调微软 SOAP API：`https://fe3cr.delivery.mp.microsoft.com/ClientWebService/client.asmx/secured`
   用 `GetExtendedUpdateInfo2`，请求 `FileUrl` + `FileDecryption` 两种 infoType
 - ⚠️ **文档明确警告：大量 UpdateID 已失效**（所有 Beta、早期 Preview、少数正式版）
   → **必须有兜底**（退回打开 Microsoft Store 页面）
 
 **安装注意事项**
-- GDK 依赖 **Xbox Gaming Services** 服务在运行（缺失则装完也跑不起来）
-- UWP 需先装"框架包"，否则 `Add-AppxPackage` 会失败
-- 装旧版会被系统拒绝，需 `-ForceUpdateFromAnyVersion`（甚至先卸载）
-- **多版本共存涉及改包身份 → 签名失效、需开发者模式**，MCAPPX 有专门的"GDK 功能修补应用"处理
-  → **建议 v1 只做单版本模式**
+- GDK 依赖 **Xbox Gaming Services** 服务（缺失则装完也跑不起来）
+- UWP 需先装"框架包"，否则 `Add-AppxPackage` 失败
+- 装旧版会被拒绝，需 `-ForceUpdateFromAnyVersion`（甚至先卸载）
+- **多版本共存涉及改包身份 → 签名失效、需开发者模式** → **建议 v1 只做单版本模式**
 
 ## 5.4 建议架构（三段式，Java / 基岩共用）
 
 ```
-① 数据层  拉清单 + 本地缓存（按 CreationTime 判断是否刷新）
+① 数据层  拉清单 + 本地缓存（按 CreationTime 判断是否刷新）   ← P1 已完成清单部分
           区域屏蔽/超时 → 用缓存 + 明确提示，不能崩
-② 解析层  Java: 版本 JSON（含 inheritsFrom 继承链）
-          基岩: GDK 直链 / UWP → FE3 SOAP（失败兜底 Store）
-③ 下载层  DownloadEngine（★ 共用）
+② 解析层  Java: 版本 JSON（含 inheritsFrom 继承链）            ← 未做；注意 inheritsFrom 尚未建模
+          基岩: GDK 直链 / UWP → FE3 SOAP（失败兜底 Store）    ← 未做
+③ 下载层  DownloadEngine（★ 共用）                             ← 未做
           HttpClient + 并发 + Range 断点续传 + 校验 + 进度/速度/取消/重试
-④ 安装层  基岩: Add-AppxPackage（提权/依赖/错误码）
+④ 安装层  基岩: Add-AppxPackage（提权/依赖/错误码）             ← 未做
 ```
 
 **下载引擎要点**
-- `SocketsHttpHandler`：`MaxConnectionsPerServer` 拉高（资源小文件可 32–64 并发）、
-  `AutomaticDecompression = GZip | Deflate`
+- `SocketsHttpHandler`：`MaxConnectionsPerServer` 拉高（资源小文件可 32–64 并发）、`AutomaticDecompression = GZip | Deflate`
 - 断点续传：`.part` 临时文件 + HTTP `Range`；大文件可分段并行
 - 校验：Java 用 **SHA1**，基岩用 **MD5**
-- 多镜像回退：每资源配镜像列表（BMCLAPI → 官方，或反序），失败自动切换
+- 多镜像回退：每资源配镜像列表（BMCLAPI → 官方，或反序）
 - 进度：`CancellationTokenSource` + `IProgress<double>`，直接接现有 UI
 
 ### 🎯 与现有架构的衔接（好消息）
@@ -890,14 +1134,11 @@ From_mcappx.com
 > 下载器把版本装进一个 **standard 布局目录**（`versions/` + `libraries/` + `assets/`）后，
 > `MinecraftDirectoryAnalyzer.Analyze` **直接就能扫出来**，`GameLauncher` **完全不用改**。
 >
-> → **"下载安装新版本" = 新建目录 → 下载 → 调 `SetSelectedInstance` 注册**，
->   **与现有"导入"走同一条下游链路**。
+> → **"下载安装新版本" = 新建目录 → 下载 → 调 `SetSelectedInstance` 注册**，与现有"导入"走同一条下游链路。
 >
-> → 基岩版不能用 `InstanceInfo`（没有 `.minecraft/versions/json/Java`），需新建 `BedrockInstance` 实体，
->   目录建议在 `LauncherPaths` 下加 `bedrock/`。
+> → 基岩版不能用 `InstanceInfo`（没有 `.minecraft/versions/json/Java`），需新建 `BedrockInstance` 实体。
 >
-> ⚠️ **但请注意**：如果先不修 [4.1 的 P0-1](#41--p0-级功能失效缺陷)（isolated 版本路径），
-> 下载器装出来的 standard 布局目录是能用的（standard 那条路径是自洽的），所以**下载功能可以先做**。
+> ⚠️ 注意：**standard 布局这条路是自洽的**，所以下载功能可以先做，不必先修 [4.1 的 P0-1](#41--p0-级功能失效缺陷)。
 
 ## 5.5 待产品决策（用户尚未拍板）
 
@@ -910,47 +1151,44 @@ From_mcappx.com
 
 ## 5.6 建议路线图
 
-1. **P1 版本清单**：拉 manifest、解析、版本列表 UI（Release/Snapshot 分类 + 搜索）——零风险，先把下载 Tab 激活
+1. **P1 版本清单** —— ✅ **已开始**（`Tools\Download` 可拉 920 个版本）；**还差接到 UI**
 2. **P2 原版安装**：版本 JSON（含 `inheritsFrom`）→ client.jar → libraries → assets，
    SHA1 校验 + 并发 + 断点续传 + BMCLAPI 优先
 3. **P3 安装进度 UI**：速度 / 进度条 / 取消 / 重试 / 镜像设置
 4. **P4 Java 运行时自动下载**（1.17+ 必备）
-5. **P5 加载器**（Fabric / Forge / NeoForge）
+5. **P5 加载器**（Fabric / Forge / NeoForge）—— `imgs\Main\images\Loaders\` 的 12 个图标已就位
 6. **P6 Mod 下载**（Modrinth API v2 无需 key；CurseForge 需申请 key）
 
 ## 5.7 可参考的实现
 
-- **MinecraftLaunch**（Blessed-Flight）：C# 启动器库，与本项目技术栈一致，**强烈建议翻源码参考**镜像处理与下载实现
+- **MinecraftLaunch**（Blessed-Flight）：C# 启动器库，与本项目技术栈一致，**强烈建议翻源码参考**镜像与下载实现
 - **CmlLib.Core**：老牌 C# 启动器库
 - **HMCL**：镜像列表与测速切换的标杆
 - `Downloader`（Bezzad）NuGet：现成分段下载组件
 
-## 5.8 下载页 UI 骨架现状（已完成，逻辑未写）
+## 5.8 下载页 UI 骨架现状
 
 `MainWindow.axaml` 的 `DownloadPanel` 已完成骨架：
 
 - **左上角**：基岩版 / Java版 切换器（240×44 灰轨道 + `LiquidGlassSurface` 滑块 `EditionSlider`）
-- **下方安全区**：白色圆角卡片（`CornerRadius=12` + `DropShadowEffect`），
-  内含 `BedrockPanel` / `JavaPanel` 两个占位面板（目前只显示"版本列表（待接入）"）
+- **下方安全区**：白色圆角卡片（`CornerRadius=12` + `DropShadowEffect`），内含 `BedrockPanel` / `JavaPanel` 两个占位面板（目前只显示"版本列表（待接入）"）
 - 切换逻辑在 `MainWindow.cs` 的 `InitializeEditionSelector` / `SelectEdition` / `AnimateEditionSliderTo`
-  （复用 `AnimationConfig.Slider*` 参数，曲线与 LoginWindow 完全一致）
 
-**页面里完全没有的**：版本列表控件（无 ListBox / ItemsControl / ScrollViewer）、版本数据源、
-"下载/安装"按钮、进度条、任何网络请求（`MainWindow._httpClient` 声明后未使用）。
-
+**页面里仍然没有的**：版本列表控件（无 ListBox / ItemsControl / ScrollViewer）、版本数据源绑定、
+"下载/安装"按钮、进度条。`MainWindow._httpClient` 声明后未使用。
 
 # 第六部分：完整源码
 
-> **本部分由脚本从仓库真实文件直接生成**，内容与 `commit 2c01d3e` 的工作区逐字一致，不存在手抄误差。
+> **本部分由脚本从仓库真实文件直接生成**，与 `commit 2d5b01c` 的工作区逐字一致，不存在手抄误差。
 >
-> 若你发现某一节与仓库里的文件不一致，说明**文档已过期**——请直接向用户索要该文件的最新版本，
-> 不要试图根据这里的代码去推断当前实现。详见 [第零部分 0.1](#01-文档一定会过期--这是设计前提)。
+> ⚠️ 只要用户在此之后又改过代码，**对应小节立即失效**。需要查/改具体实现时，
+> 请直接向用户索要该文件的最新版本，不要依据本文档推断当前实现。详见第零部分 0.1。
 >
-> 二进制资源（图片 / 音效 / 图标 / 着色器外的资源）**不嵌入**，清单见 6.7。
+> 二进制资源（图片 / 音效 / 图标）不嵌入，清单见 6.8。
 
 ## 6.1 根目录
 
-工程入口、应用级 XAML、项目文件与清单。
+工程入口、应用级 XAML、项目文件、清单与忽略规则。
 
 ### `Program.cs`
 
@@ -1021,9 +1259,9 @@ namespace Project.Launch
     <Application.Styles>
         <FluentTheme />
         <!-- 主题色 + Miret 样式 -->
-        <StyleInclude Source="avares://Project.Launch/src/Views/Styles.axaml" />
+        <StyleInclude Source="avares://Project.Launch/MainSrc/Views/Styles.axaml" />
         <!-- ★ 液态玻璃参数表 + Glass 按钮样式 -->
-        <StyleInclude Source="avares://Project.Launch/src/Views/Glass.axaml" />
+        <StyleInclude Source="avares://Project.Launch/MainSrc/Views/Glass.axaml" />
     </Application.Styles>
 </Application>
 ```
@@ -1100,7 +1338,7 @@ namespace Project.Launch
 
 ### `Project.Launch.csproj`
 
-<!-- 73 行 / 3.1 KB -->
+<!-- 88 行 / 4 KB -->
 
 ```xml
 <Project Sdk="Microsoft.NET.Sdk">
@@ -1109,7 +1347,7 @@ namespace Project.Launch
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ApplicationManifest>app.manifest</ApplicationManifest>
-    <ApplicationIcon>src\Views\imgs\MainLogo.ico</ApplicationIcon>
+    <ApplicationIcon>MainSrc\Views\imgs\Main\images\Launcher\MainLogo.ico</ApplicationIcon>
 
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
 
@@ -1124,12 +1362,27 @@ namespace Project.Launch
     <SatelliteResourceLanguages>zh-Hans;en</SatelliteResourceLanguages>
   </PropertyGroup>
 
+  <!-- ★ 新增：指定 Debug 构建输出到 MainSrc\BuiltDebugRun\ -->
+  <PropertyGroup Condition="'$(Configuration)' == 'Debug'">
+    <OutputPath>MainSrc\BuiltDebugRun\</OutputPath>
+    <!-- 去除中间目录，让 exe 和 dll 直接铺在 BuiltDebugRun 根目录 -->
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
+  </PropertyGroup>
+
   <ItemGroup>
-    <Compile Remove="src\LiquidGlassAvaloniaUI\**" />
-    <AvaloniaXaml Remove="src\LiquidGlassAvaloniaUI\**" />
-    <AvaloniaResource Remove="src\LiquidGlassAvaloniaUI\**" />
-    <EmbeddedResource Remove="src\LiquidGlassAvaloniaUI\**" />
-    <None Remove="src\LiquidGlassAvaloniaUI\**" />
+    <Compile Remove="MainSrc\LiquidGlassAvaloniaUI\**" />
+    <AvaloniaXaml Remove="MainSrc\LiquidGlassAvaloniaUI\**" />
+    <AvaloniaResource Remove="MainSrc\LiquidGlassAvaloniaUI\**" />
+    <EmbeddedResource Remove="MainSrc\LiquidGlassAvaloniaUI\**" />
+    <None Remove="MainSrc\LiquidGlassAvaloniaUI\**" />
+
+    <!-- ★ 新增：排除输出目录，防止生成的 .cs 被重复编译导致 CS0579 错误 -->
+    <Compile Remove="MainSrc\BuiltDebugRun\**" />
+    <AvaloniaXaml Remove="MainSrc\BuiltDebugRun\**" />
+    <AvaloniaResource Remove="MainSrc\BuiltDebugRun\**" />
+    <EmbeddedResource Remove="MainSrc\BuiltDebugRun\**" />
+    <None Remove="MainSrc\BuiltDebugRun\**" />
   </ItemGroup>
 
   <ItemGroup>
@@ -1146,33 +1399,33 @@ namespace Project.Launch
 
     <PackageReference Include="SkiaSharp" Version="3.119.4" />
 
-    <ProjectReference Include="src\LiquidGlassAvaloniaUI\LiquidGlassAvaloniaUI.csproj" />
+    <ProjectReference Include="MainSrc\LiquidGlassAvaloniaUI\LiquidGlassAvaloniaUI.csproj" />
   </ItemGroup>
 
   <ItemGroup>
     <!-- ★ 用 Update（不是 Include），避免和默认 glob 重复 -->
     <AvaloniaXaml Update="App.axaml" />
-    <AvaloniaXaml Update="src\Views\LoginWindow.axaml" />
-    <AvaloniaXaml Update="src\Views\MainWindow.axaml" />
-    <AvaloniaXaml Update="src\Views\AccountManagerWindow.axaml" />
+    <AvaloniaXaml Update="MainSrc\Views\LoginWindow.axaml" />
+    <AvaloniaXaml Update="MainSrc\Views\MainWindow.axaml" />
+    <AvaloniaXaml Update="MainSrc\Views\AccountManagerWindow.axaml" />
 
     <!-- 样式：作为 AvaloniaResource 读，避免被当独立 XAML 编译 -->
-    <AvaloniaResource Include="src\Views\Styles.axaml" />
-    <AvaloniaResource Include="src\Views\Glass.axaml" />
+    <AvaloniaResource Include="MainSrc\Views\Styles.axaml" />
+    <AvaloniaResource Include="MainSrc\Views\Glass.axaml" />
 
     <!-- 图片和音效 -->
-    <AvaloniaResource Include="src\Views\imgs\**" Exclude="src\Views\imgs\MainLogo.ico" />
-    <AvaloniaResource Include="src\Sound\**" />
+    <AvaloniaResource Include="MainSrc\Views\imgs\**" Exclude="MainSrc\Views\imgs\Main\images\Launcher\MainLogo.ico" />
+    <AvaloniaResource Include="MainSrc\Sound\**" />
 
     <!-- 任务栏图标 -->
-    <Content Include="src\Views\imgs\MainLogo.ico">
+    <Content Include="MainSrc\Views\imgs\Main\images\Launcher\MainLogo.ico">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
 
-    <Compile Update="src\Views\MainWindow.cs">
+    <Compile Update="MainSrc\Views\MainWindow.cs">
       <DependentUpon>MainWindow.axaml</DependentUpon>
     </Compile>
-    <Compile Update="src\ViewModel\TestWindowButton.cs" />
+    <Compile Update="MainSrc\ViewModel\TestWindowButton.cs" />
     <Compile Update="App.axaml.cs" />
   </ItemGroup>
 </Project>
@@ -1205,12 +1458,43 @@ namespace Project.Launch
 
 ### `.gitignore`
 
-<!-- 4 行 / 0 KB -->
+<!-- 35 行 / 0.9 KB -->
 
 ```text
+# ============================================================
+# Kilim Minecraft Launcher — 忽略规则
+# 目标：构建产物、发布产物、IDE 配置、运行日志一律不入库
+# ============================================================
+
+# ---------- 构建输出（任意层级的 bin / obj 都忽略）----------
 bin/
 obj/
+
+# ---------- Debug 构建输出目录 ----------
+# csproj 里 Debug 的 OutputPath 指向 MainSrc\BuiltDebugRun\
+BuiltDebugRun/
+
+# ---------- 发布产物 ----------
+# 含 exe / dll / pdb，历史上一度达到 132 MB，绝对不入库
+publish/
+
+# ---------- IDE / 编辑器 ----------
 .vscode/
+.vs/
+.idea/
+*.user
+*.suo
+
+# ---------- 运行日志 ----------
+# 运行时数据目录（exe 同级的 KilimLauncher\）与各类日志文件
+KilimLauncher/
+*.log
+
+# ---------- .NET 临时文件 ----------
+*.tmp
+*.cache
+project.assets.json
+project.nuget.cache
 ```
 
 ### `README.md`
@@ -1276,13 +1560,13 @@ Policy Updates
 We may update this policy at any time. Continued use of the Launcher constitutes acceptance of the updated policy.
 ```
 
-## 6.2 src\Views —— 界面层
+## 6.2 MainSrc\Views —— 界面层
 
-四个窗口（主窗 / 登录 / 账户管理）+ 两套样式表。`MainWindow` 与 `LoginWindow` 是理解本项目 UI 的核心。
+四个窗口（主窗 / 登录 / 账户管理）+ 两套样式表。`MainWindow` 与 `LoginWindow` 是理解 UI 的核心。
 
-### `src\Views\MainWindow.axaml`
+### `MainSrc\Views\MainWindow.axaml`
 
-<!-- 751 行 / 38.8 KB -->
+<!-- 777 行 / 41.9 KB -->
 
 ```xml
 <Window xmlns="https://github.com/avaloniaui"
@@ -1290,6 +1574,7 @@ We may update this policy at any time. Continued use of the Launcher constitutes
         xmlns:avalonia="clr-namespace:Avalonia.Controls;assembly=Avalonia.Controls"
         xmlns:lg="using:LiquidGlassAvaloniaUI"
         xmlns:views="clr-namespace:Project.Launch.Views"
+        xmlns:dl="clr-namespace:Project.Launch.Tools.Download"
         x:Class="Project.Launch.Views.MainWindow"
         Title="KilimMinecraftLauncherDemo"
         Width="960" Height="560"
@@ -1363,7 +1648,7 @@ We may update this policy at any time. Continued use of the Launcher constitutes
                         Width="45" Height="35"
                         Cursor="Hand">
                     <Image x:Name="MinimizeImage"
-                           Source="avares://Project.Launch/src/Views/imgs/white-.png"
+                           Source="avares://Project.Launch/MainSrc/Views/imgs/Main/images/Buttons/white-.png"
                            Width="20" Height="26" Stretch="Fill"
                            VerticalAlignment="Center" HorizontalAlignment="Center"
                            Opacity="1">
@@ -1383,7 +1668,7 @@ We may update this policy at any time. Continued use of the Launcher constitutes
                         Cursor="Hand"
                         Margin="0,0,10,0">
                     <Image x:Name="CloseImage"
-                           Source="avares://Project.Launch/src/Views/imgs/whitex.png"
+                           Source="avares://Project.Launch/MainSrc/Views/imgs/Main/images/Buttons/whitex.png"
                            Width="20" Height="20" Stretch="Uniform"
                            VerticalAlignment="Center" HorizontalAlignment="Center"
                            Opacity="1">
@@ -1454,7 +1739,7 @@ We may update this policy at any time. Continued use of the Launcher constitutes
                                     </Style>
                                 </Button.Styles>
                                 <Grid>
-                                    <Image Source="avares://Project.Launch/src/Views/imgs/ReLogin.png"
+                                    <Image Source="avares://Project.Launch/MainSrc/Views/imgs/Main/images/Buttons/ReLogin.png"
                                            Stretch="Fill"
                                            HorizontalAlignment="Stretch"
                                            VerticalAlignment="Stretch" />
@@ -1586,7 +1871,7 @@ We may update this policy at any time. Continued use of the Launcher constitutes
                             </Button.Styles>
                             <Grid>
                                 <Image x:Name="LaunchGameImage"
-                                       Source="avares://Project.Launch/src/Views/imgs/button-Start3.png"
+                                       Source="avares://Project.Launch/MainSrc/Views/imgs/Main/images/Buttons/button-Start3.png"
                                        Stretch="Fill" />
                                 <TextBlock x:Name="LaunchGameText"
                                            Text="导入实例"
@@ -1623,7 +1908,7 @@ We may update this policy at any time. Continued use of the Launcher constitutes
                             </Button.Styles>
                             <Grid>
                                 <Image x:Name="ExpandImage"
-                                       Source="avares://Project.Launch/src/Views/imgs/button-Start4.png"
+                                       Source="avares://Project.Launch/MainSrc/Views/imgs/Main/images/Buttons/button-Start4.png"
                                        Stretch="Fill" />
                                 <TextBlock Text="^"
                                            FontSize="30"
@@ -1745,27 +2030,52 @@ We may update this policy at any time. Continued use of the Launcher constitutes
                                            Margin="0,8,0,0" />
                             </StackPanel>
 
-                            <!-- Java版面板 -->
-                            <StackPanel x:Name="JavaPanel"
-                                        HorizontalAlignment="Center"
-                                        VerticalAlignment="Center"
-                                        Spacing="10"
-                                        IsVisible="False">
-                                <TextBlock Text="Java版"
-                                           FontSize="22"
-                                           FontWeight="SemiBold"
-                                           Foreground="#555"
-                                           HorizontalAlignment="Center" />
-                                <TextBlock Text="版本列表（待接入）"
-                                           FontSize="14"
-                                           Foreground="#888"
-                                           HorizontalAlignment="Center" />
-                                <TextBlock Text="自觉遵守 Demo 测试保密"
-                                           FontSize="12"
-                                           Foreground="#AAA"
-                                           HorizontalAlignment="Center"
-                                           Margin="0,8,0,0" />
-                            </StackPanel>
+                            <!-- ★ Java版面板（版本列表） -->
+                            <Grid x:Name="JavaPanel" IsVisible="False" RowDefinitions="Auto, *" Margin="20">
+                                <!-- 顶部工具栏：类型筛选 + 搜索 -->
+                                <Grid Grid.Row="0" ColumnDefinitions="Auto, *">
+                                    <ComboBox x:Name="VersionTypeFilter" SelectedIndex="0" Width="140" 
+                                              SelectionChanged="OnVersionFilterChanged">
+                                        <ComboBoxItem Content="全部版本" Tag="all" />
+                                        <ComboBoxItem Content="正式版 (Release)" Tag="release" />
+                                        <ComboBoxItem Content="快照版 (Snapshot)" Tag="snapshot" />
+                                    </ComboBox>
+                                    
+                                    <TextBox x:Name="VersionSearchBox" Grid.Column="1" PlaceholderText="搜索版本号..." 
+                                             Width="220" HorizontalAlignment="Right" TextChanged="OnVersionSearchChanged" />
+                                </Grid>
+                                
+                                <!-- 列表区 -->
+                                <Border Grid.Row="1" Margin="0,15,0,0" BorderBrush="#E0E0E0" BorderThickness="1" CornerRadius="8">
+                                    <Grid>
+                                        <!-- 版本列表（自带虚拟化） -->
+                                        <ListBox x:Name="VersionListBox" Background="Transparent" BorderThickness="0" 
+                                                 DoubleTapped="OnVersionListDoubleTapped" SelectionChanged="OnVersionSelected">
+                                            <ListBox.ItemTemplate>
+                                                <DataTemplate x:DataType="dl:VersionEntry">
+                                                    <Grid ColumnDefinitions="150, 120, *" Margin="0,5">
+                                                        <TextBlock Text="{Binding Id}" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                                        <TextBlock Grid.Column="1" Text="{Binding Type}" Foreground="#888" VerticalAlignment="Center" />
+                                                        <TextBlock Grid.Column="2" Text="{Binding ReleaseTimeStr}" Foreground="#AAA" 
+                                                                   HorizontalAlignment="Right" VerticalAlignment="Center" />
+                                                    </Grid>
+                                                </DataTemplate>
+                                            </ListBox.ItemTemplate>
+                                        </ListBox>
+                                        
+                                        <!-- 加载中提示 -->
+                                        <StackPanel x:Name="VersionLoadingPanel" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="10">
+                                            <TextBlock Text="正在连接镜像 API 获取版本列表..." Foreground="#666" FontSize="14"/>
+                                        </StackPanel>
+                                        
+                                        <!-- 加载失败提示 -->
+                                        <StackPanel x:Name="VersionErrorPanel" IsVisible="False" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="15">
+                                            <TextBlock Text="获取版本列表失败，请检查网络连接" Foreground="#CC5555" FontSize="14"/>
+                                            <Button Content="重试" Click="OnRetryVersionsClicked" Classes="Miret" HorizontalAlignment="Center" />
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
+                            </Grid>
                         </Grid>
                     </Border>
                 </Grid>
@@ -1851,7 +2161,7 @@ We may update this policy at any time. Continued use of the Launcher constitutes
                                     Background="Transparent"
                                     HorizontalAlignment="Center"
                                     VerticalAlignment="Center">
-                            <Image Source="avares://Project.Launch/src/Views/imgs/Download.png"
+                            <Image Source="avares://Project.Launch/MainSrc/Views/imgs/Main/images/Buttons/Download.png"
                                    Width="22" Height="22" Stretch="Uniform" />
                             <TextBlock Text="下载"
                                        FontSize="10"
@@ -1874,7 +2184,7 @@ We may update this policy at any time. Continued use of the Launcher constitutes
                                     Background="Transparent"
                                     HorizontalAlignment="Center"
                                     VerticalAlignment="Center">
-                            <Image Source="avares://Project.Launch/src/Views/imgs/Launch.png"
+                            <Image Source="avares://Project.Launch/MainSrc/Views/imgs/Main/images/Buttons/Launch.png"
                                    Width="22" Height="22" Stretch="Uniform" />
                             <TextBlock Text="启动"
                                        FontSize="10"
@@ -1897,7 +2207,7 @@ We may update this policy at any time. Continued use of the Launcher constitutes
                                     Background="Transparent"
                                     HorizontalAlignment="Center"
                                     VerticalAlignment="Center">
-                            <Image Source="avares://Project.Launch/src/Views/imgs/Home.png"
+                            <Image Source="avares://Project.Launch/MainSrc/Views/imgs/Main/images/Buttons/Home.png"
                                    Width="22" Height="22" Stretch="Uniform" />
                             <TextBlock Text="主页"
                                        FontSize="10"
@@ -1920,7 +2230,7 @@ We may update this policy at any time. Continued use of the Launcher constitutes
                                     Background="Transparent"
                                     HorizontalAlignment="Center"
                                     VerticalAlignment="Center">
-                            <Image Source="avares://Project.Launch/src/Views/imgs/Setting.png"
+                            <Image Source="avares://Project.Launch/MainSrc/Views/imgs/Main/images/Buttons/Setting.png"
                                    Width="22" Height="22" Stretch="Uniform" />
                             <TextBlock Text="设置"
                                        FontSize="10"
@@ -1943,7 +2253,7 @@ We may update this policy at any time. Continued use of the Launcher constitutes
                                     Background="Transparent"
                                     HorizontalAlignment="Center"
                                     VerticalAlignment="Center">
-                            <Image Source="avares://Project.Launch/src/Views/imgs/Tool.png"
+                            <Image Source="avares://Project.Launch/MainSrc/Views/imgs/Main/images/Buttons/Tool.png"
                                    Width="22" Height="22" Stretch="Uniform" />
                             <TextBlock Text="工具"
                                        FontSize="10"
@@ -2021,7 +2331,7 @@ We may update this policy at any time. Continued use of the Launcher constitutes
             <StackPanel Orientation="Horizontal"
                         VerticalAlignment="Center"
                         Spacing="14">
-                <Image Source="avares://Project.Launch/src/Views/imgs/warning.png"
+                <Image Source="avares://Project.Launch/MainSrc/Views/imgs/Main/images/Buttons/warning.png"
                        Width="28"
                        Height="28"
                        Stretch="Uniform"
@@ -2038,9 +2348,9 @@ We may update this policy at any time. Continued use of the Launcher constitutes
 </Window>
 ```
 
-### `src\Views\MainWindow.cs`
+### `MainSrc\Views\MainWindow.cs`
 
-<!-- 1070 行 / 41.6 KB -->
+<!-- 1178 行 / 46.6 KB -->
 
 ```csharp
 using Avalonia;
@@ -2060,6 +2370,8 @@ using System.Net.Http;
 using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
+using System.Collections.Generic;
+using Project.Launch.Tools.Download;
 
 namespace Project.Launch.Views
 {
@@ -2083,7 +2395,8 @@ namespace Project.Launch.Views
 
         // 下载页：基岩版 / Java版 选择器
         private Button? _bedrockEditionBtn, _javaEditionBtn;
-        private StackPanel? _bedrockPanel, _javaPanel;
+        private StackPanel? _bedrockPanel;
+        private Grid? _javaPanel; // 改为 Grid
         private LiquidGlassSurface? _editionSlider;
         private TranslateTransform? _editionSliderTransform;
         private ScaleTransform? _editionSliderScale;
@@ -2091,6 +2404,12 @@ namespace Project.Launch.Views
         private DispatcherTimer? _editionAnimTimer;
         private double _editionAnimStartX, _editionAnimTargetX;
         private DateTime _editionAnimStartTime;
+
+        // Java 版版本列表
+        private List<VersionEntry>? _allVersions;
+        private bool _isVersionsLoading = false;
+        // private bool _isVersionsLoaded = false; // 已移除，消除 CS0414 警告
+        private VersionEntry? _selectedVersion;
 
         public MainWindow()
         {
@@ -2127,6 +2446,7 @@ namespace Project.Launch.Views
 
             InitializeTabSelector();
             InitializeEditionSelector();
+            InitializeVersionList(); // 初始化版本列表请求
 
             Log("按钮事件绑定完成", "Button events bound");
 
@@ -2368,7 +2688,7 @@ namespace Project.Launch.Views
             _bedrockEditionBtn = this.FindControl<Button>("BedrockEditionButton");
             _javaEditionBtn = this.FindControl<Button>("JavaEditionButton");
             _bedrockPanel = this.FindControl<StackPanel>("BedrockPanel");
-            _javaPanel = this.FindControl<StackPanel>("JavaPanel");
+            _javaPanel = this.FindControl<Grid>("JavaPanel");
 
             _editionSlider = this.FindControl<LiquidGlassSurface>("EditionSlider");
             if (_editionSlider != null)
@@ -2512,6 +2832,104 @@ namespace Project.Launch.Views
             _editionAnimTimer.Start();
         }
 
+        // ============================================================
+        // Java 版版本列表逻辑
+        // ============================================================
+        private void InitializeVersionList()
+        {
+            _ = LoadVersionManifestAsync();
+        }
+
+        private async Task LoadVersionManifestAsync()
+        {
+            if (_isVersionsLoading) return;
+            _isVersionsLoading = true;
+            
+            var loadingPanel = this.FindControl<StackPanel>("VersionLoadingPanel");
+            var errorPanel = this.FindControl<StackPanel>("VersionErrorPanel");
+            var listBox = this.FindControl<ListBox>("VersionListBox");
+            
+            if (loadingPanel != null) loadingPanel.IsVisible = true;
+            if (errorPanel != null) errorPanel.IsVisible = false;
+            if (listBox != null) listBox.IsVisible = false;
+
+            var manifest = await VersionService.GetVersionManifestAsync();
+            
+            if (manifest != null && manifest.Versions.Count > 0)
+            {
+                _allVersions = manifest.Versions;
+                
+                // 按时间倒序排列
+                _allVersions = _allVersions.OrderByDescending(v => v.ReleaseTime).ToList();
+                
+                ApplyVersionFilter();
+                
+                if (loadingPanel != null) loadingPanel.IsVisible = false;
+                if (listBox != null) listBox.IsVisible = true;
+            }
+            else
+            {
+                if (loadingPanel != null) loadingPanel.IsVisible = false;
+                if (errorPanel != null) errorPanel.IsVisible = true;
+            }
+            
+            _isVersionsLoading = false;
+        }
+
+        private void ApplyVersionFilter()
+        {
+            if (_allVersions == null) return;
+            
+            var listBox = this.FindControl<ListBox>("VersionListBox");
+            var filterCombo = this.FindControl<ComboBox>("VersionTypeFilter");
+            var searchBox = this.FindControl<TextBox>("VersionSearchBox");
+            
+            if (listBox == null || filterCombo == null || searchBox == null) return;
+            
+            string filter = (filterCombo.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "all";
+            string search = searchBox.Text?.Trim().ToLowerInvariant() ?? "";
+            
+            var filtered = _allVersions.Where(v => 
+            {
+                if (filter != "all" && !v.Type.Equals(filter, StringComparison.OrdinalIgnoreCase)) 
+                    return false;
+                if (!string.IsNullOrEmpty(search) && !v.Id.ToLowerInvariant().Contains(search)) 
+                    return false;
+                return true;
+            }).ToList();
+            
+            listBox.ItemsSource = filtered;
+        }
+
+        private void OnVersionFilterChanged(object? sender, SelectionChangedEventArgs e) => ApplyVersionFilter();
+
+        private void OnVersionSearchChanged(object? sender, TextChangedEventArgs e) => ApplyVersionFilter();
+
+        private void OnRetryVersionsClicked(object? sender, Avalonia.Interactivity.RoutedEventArgs e) => _ = LoadVersionManifestAsync();
+
+        private void OnVersionSelected(object? sender, SelectionChangedEventArgs e)
+        {
+            var listBox = this.FindControl<ListBox>("VersionListBox");
+            _selectedVersion = listBox?.SelectedItem as VersionEntry;
+            
+            if (_selectedVersion != null)
+            {
+                Log($"用户选中了版本: {_selectedVersion.Id}", $"User selected version: {_selectedVersion.Id}");
+            }
+        }
+
+        private void OnVersionListDoubleTapped(object? sender, TappedEventArgs e)
+        {
+            // 预留：双击进入下载安装，留给 P2 实现
+            if (_selectedVersion != null)
+            {
+                // 暂时没写逻辑
+            }
+        }
+
+        // ============================================================
+        // 启动与状态同步逻辑
+        // ============================================================
         private async void OnMainButtonClicked(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
         {
             if (_currentInstance == null)
@@ -2685,7 +3103,6 @@ namespace Project.Launch.Views
         // ★ 账户管理窗口
         private async Task ShowAccountManagerAsync()
         {
-            // 与登录窗行为一致：主窗切渐变标题栏（浅色文字/图标）+ 隐藏内容区
             UpdateTitleBarGradient(_defaultStartColor, _defaultEndColor);
 
             var contentArea = this.FindControl<Grid>("ContentArea");
@@ -2709,7 +3126,6 @@ namespace Project.Launch.Views
             finally
             {
                 if (contentArea != null) contentArea.IsVisible = true;
-                // 关闭后恢复透明标题栏（深色文字/图标）
                 await SetTransparentTitleBarAsync();
             }
         }
@@ -2797,13 +3213,13 @@ namespace Project.Launch.Views
             {
                 if (minImg != null)
                 {
-                    var uri = new Uri("avares://Project.Launch/src/Views/imgs/black-.png");
+                    var uri = new Uri("avares://Project.Launch/MainSrc/Views/imgs/Main/images/Buttons/black-.png");
                     using var stream = AssetLoader.Open(uri);
                     minImg.Source = new Bitmap(stream);
                 }
                 if (closeImg != null)
                 {
-                    var uri = new Uri("avares://Project.Launch/src/Views/imgs/blackx.png");
+                    var uri = new Uri("avares://Project.Launch/MainSrc/Views/imgs/Main/images/Buttons/blackx.png");
                     using var stream = AssetLoader.Open(uri);
                     closeImg.Source = new Bitmap(stream);
                 }
@@ -2847,7 +3263,7 @@ namespace Project.Launch.Views
                 if (launchImg != null)
                 {
                     using var stream = AssetLoader.Open(new Uri(
-                        $"avares://Project.Launch/src/Views/imgs/{mainIcon}"));
+                        $"avares://Project.Launch/MainSrc/Views/imgs/Main/images/Buttons/{mainIcon}"));
                     launchImg.Source = new Bitmap(stream);
                 }
                 if (launchTxt != null)
@@ -2856,7 +3272,7 @@ namespace Project.Launch.Views
                 if (expandImg != null)
                 {
                     using var stream = AssetLoader.Open(new Uri(
-                        $"avares://Project.Launch/src/Views/imgs/{subIcon}"));
+                        $"avares://Project.Launch/MainSrc/Views/imgs/Main/images/Buttons/{subIcon}"));
                     expandImg.Source = new Bitmap(stream);
                 }
             }
@@ -2882,57 +3298,86 @@ namespace Project.Launch.Views
                 return;
             }
 
-            // ★ 按 UUID 决定 Steve / Alex
-            string skinAssetPath = DefaultSkinSelector.GetSkinAssetPath(App.OfflineUuid);
-            Log($"选中默认皮肤: {skinAssetPath}",
-                $"Selected default skin: {skinAssetPath}");
+            var account = AccountService.GetSelectedAccount();
+            Bitmap? skinBitmap = null;
 
-            // 3D 皮肤
+            // ★ 正版皮肤：尝试爬取网络皮肤
+            if (account != null && account.Type == "microsoft" && !string.IsNullOrEmpty(account.SkinUrl))
+            {
+                try
+                {
+                    Log($"正在下载正版皮肤: {account.SkinUrl}", $"Downloading official skin: {account.SkinUrl}");
+                    byte[] bytes = await _httpClient.GetByteArrayAsync(account.SkinUrl);
+                    using var ms = new MemoryStream(bytes);
+                    skinBitmap = new Bitmap(ms);
+                    Log("正版皮肤下载成功", "Official skin downloaded successfully");
+                }
+                catch (Exception ex)
+                {
+                    Log($"正版皮肤下载失败，将回退到默认皮肤: {ex.Message}", $"Skin download failed, falling back to default: {ex.Message}");
+                }
+            }
+
+            // ★ 离线或下载失败：回退默认皮肤（UUID 判断）
+            if (skinBitmap == null)
+            {
+                string skinAssetPath = DefaultSkinSelector.GetSkinAssetPath(account?.Uuid ?? App.OfflineUuid);
+                Log($"使用默认皮肤: {skinAssetPath}", $"Using default skin: {skinAssetPath}");
+                try
+                {
+                    using var stream = AssetLoader.Open(new Uri(skinAssetPath));
+                    skinBitmap = new Bitmap(stream);
+                }
+                catch (Exception ex)
+                {
+                    Log($"加载默认皮肤失败: {ex.Message}", $"Failed to load default skin: {ex.Message}");
+                }
+            }
+
+            if (skinBitmap == null) return;
+
+            // 1. 更新 3D 皮肤投影
             try
             {
-                var uri = new Uri(skinAssetPath);
-                using var stream = AssetLoader.Open(uri);
-
                 _fullSkinBitmap?.Dispose();
-                _fullSkinBitmap = new Bitmap(stream);
+                _fullSkinBitmap = skinBitmap;
 
                 var skinViewer = this.FindControl<Pivot3DControl>("SkinViewer");
                 if (skinViewer != null)
                 {
                     skinViewer.Skin = _fullSkinBitmap;
                 }
-
-                Log("已加载 3D 皮肤", "3D skin loaded");
+                Log("3D 皮肤视图已更新", "3D skin view updated");
             }
             catch (Exception ex)
             {
-                Log($"加载 3D 皮肤失败: {ex.Message}", $"Failed to load 3D skin: {ex.Message}");
+                Log($"更新 3D 皮肤视图失败: {ex.Message}", $"Failed to update 3D skin view: {ex.Message}");
             }
 
-            // 主页 2D 头像
+            // 2. 更新 2D 头像
             var faceImg = this.FindControl<Image>("HomeFaceImage");
             var hatImg = this.FindControl<Image>("HomeHatImage");
-            if (faceImg == null || hatImg == null) return;
-
-            try
+            if (faceImg != null && hatImg != null)
             {
-                var uri = new Uri(skinAssetPath);
-                using var stream = AssetLoader.Open(uri);
-                var (face, hat) = await CropSkinAsync(stream);
-
-                if (face != null && hat != null)
+                try
                 {
-                    faceImg.Source = face;
-                    hatImg.Source = hat;
-                    RenderOptions.SetBitmapInterpolationMode(faceImg, BitmapInterpolationMode.None);
-                    RenderOptions.SetBitmapInterpolationMode(hatImg, BitmapInterpolationMode.None);
-
-                    Log("已加载 2D 头像", "2D avatar loaded");
+                    if (_fullSkinBitmap != null) // 修复 CS8604 警告
+                    {
+                        var (face, hat) = CropSkinFromBitmap(_fullSkinBitmap);
+                        if (face != null && hat != null)
+                        {
+                            faceImg.Source = face;
+                            hatImg.Source = hat;
+                            RenderOptions.SetBitmapInterpolationMode(faceImg, BitmapInterpolationMode.None);
+                            RenderOptions.SetBitmapInterpolationMode(hatImg, BitmapInterpolationMode.None);
+                            Log("2D 头像已更新", "2D avatar updated");
+                        }
+                    }
                 }
-            }
-            catch (Exception ex)
-            {
-                Log($"加载头像失败: {ex.Message}", $"Failed to load avatar: {ex.Message}");
+                catch (Exception ex)
+                {
+                    Log($"更新 2D 头像失败: {ex.Message}", $"Failed to update 2D avatar: {ex.Message}");
+                }
             }
         }
 
@@ -2967,62 +3412,35 @@ namespace Project.Launch.Views
 
         private Task ShowCancelToastAsync() => ShowToastAsync("用户取消登录", "Messages");
 
-        private async Task<(Bitmap? face, Bitmap? hat)> CropSkinAsync(Stream stream)
+        private (Bitmap? face, Bitmap? hat) CropSkinFromBitmap(Bitmap bitmap)
         {
             try
             {
-                byte[] imageData;
-                using (var ms = new MemoryStream())
-                {
-                    await stream.CopyToAsync(ms);
-                    imageData = ms.ToArray();
-                }
+                int width = bitmap.PixelSize.Width;
+                int height = bitmap.PixelSize.Height;
+                
+                // 动态计算比例（支持 64x64, 128x128, 256x256 等任意倍数）
+                int scale = width / 64;
+                if (scale < 1) return (null, null);
+                
+                int faceX = 8 * scale;
+                int faceY = 8 * scale;
+                int faceSize = 8 * scale;
+                int hatX = 40 * scale;
+                int hatY = 8 * scale;
 
-                return await Task.Run<(Bitmap? face, Bitmap? hat)>(() =>
-                {
-                    try
-                    {
-                        using var bitmap = new Bitmap(new MemoryStream(imageData));
-                        int width = bitmap.PixelSize.Width;
-                        int height = bitmap.PixelSize.Height;
+                var faceCropped = new CroppedBitmap(bitmap, new PixelRect(faceX, faceY, faceSize, faceSize));
+                var hatCropped = new CroppedBitmap(bitmap, new PixelRect(hatX, hatY, faceSize, faceSize));
 
-                        bool isValidSize = (width == 64 && height == 32) ||
-                                           (width == 64 && height == 64) ||
-                                           (width == 128 && height == 128);
-                        if (!isValidSize)
-                            return (null, null);
+                var faceBmp = new RenderTargetBitmap(new PixelSize(faceSize, faceSize), new Vector(96, 96));
+                using (var ctx = faceBmp.CreateDrawingContext())
+                    ctx.DrawImage(faceCropped, new Rect(0, 0, faceSize, faceSize));
 
-                        int faceX, faceY, faceSize, hatX, hatY;
+                var hatBmp = new RenderTargetBitmap(new PixelSize(faceSize, faceSize), new Vector(96, 96));
+                using (var ctx = hatBmp.CreateDrawingContext())
+                    ctx.DrawImage(hatCropped, new Rect(0, 0, faceSize, faceSize));
 
-                        if (width >= 128 && height >= 128)
-                        {
-                            faceX = 16; faceY = 16; faceSize = 16;
-                            hatX = 80; hatY = 16;
-                        }
-                        else
-                        {
-                            faceX = 8; faceY = 8; faceSize = 8;
-                            hatX = 40; hatY = 8;
-                        }
-
-                        var faceCropped = new CroppedBitmap(bitmap, new PixelRect(faceX, faceY, faceSize, faceSize));
-                        var hatCropped = new CroppedBitmap(bitmap, new PixelRect(hatX, hatY, faceSize, faceSize));
-
-                        var faceBmp = new RenderTargetBitmap(new PixelSize(faceSize, faceSize), new Vector(96, 96));
-                        using (var ctx = faceBmp.CreateDrawingContext())
-                            ctx.DrawImage(faceCropped, new Rect(0, 0, faceSize, faceSize));
-
-                        var hatBmp = new RenderTargetBitmap(new PixelSize(faceSize, faceSize), new Vector(96, 96));
-                        using (var ctx = hatBmp.CreateDrawingContext())
-                            ctx.DrawImage(hatCropped, new Rect(0, 0, faceSize, faceSize));
-
-                        return (faceBmp, hatBmp);
-                    }
-                    catch
-                    {
-                        return (null, null);
-                    }
-                });
+                return (faceBmp, hatBmp);
             }
             catch
             {
@@ -3062,8 +3480,8 @@ namespace Project.Launch.Views
             var minImg = this.FindControl<Image>("MinimizeImage");
             if (minImg != null)
             {
-                var path = useDark ? "avares://Project.Launch/src/Views/imgs/black-.png"
-                                   : "avares://Project.Launch/src/Views/imgs/white-.png";
+                var path = useDark ? "avares://Project.Launch/MainSrc/Views/imgs/Main/images/Buttons/black-.png"
+                                   : "avares://Project.Launch/MainSrc/Views/imgs/Main/images/Buttons/white-.png";
                 try
                 {
                     var uri = new Uri(path);
@@ -3076,8 +3494,8 @@ namespace Project.Launch.Views
             var closeImg = this.FindControl<Image>("CloseImage");
             if (closeImg != null)
             {
-                var path = useDark ? "avares://Project.Launch/src/Views/imgs/blackx.png"
-                                   : "avares://Project.Launch/src/Views/imgs/whitex.png";
+                var path = useDark ? "avares://Project.Launch/MainSrc/Views/imgs/Main/images/Buttons/blackx.png"
+                                   : "avares://Project.Launch/MainSrc/Views/imgs/Main/images/Buttons/whitex.png";
                 try
                 {
                     var uri = new Uri(path);
@@ -3115,9 +3533,9 @@ namespace Project.Launch.Views
 }
 ```
 
-### `src\Views\LoginWindow.axaml`
+### `MainSrc\Views\LoginWindow.axaml`
 
-<!-- 285 行 / 17 KB -->
+<!-- 313 行 / 18.3 KB -->
 
 ```xml
 <Window xmlns="https://github.com/avaloniaui"
@@ -3135,6 +3553,51 @@ namespace Project.Launch.Views
         Background="Transparent"
         TransparencyLevelHint="AcrylicBlur"
         avalonia:Win32Properties.WindowCornerPreference="Round">
+
+    <Window.Styles>
+        <!-- ============================================================ -->
+        <!-- 模式选择按钮（离线 / 正版 / 第三方）                          -->
+        <!--   · 未选中无鼠标 → 灰字                                      -->
+        <!--   · 鼠标悬停     → 白字（无背景、无阴影）                    -->
+        <!--   · 液态玻璃选中 → 加粗黑字                                  -->
+        <!-- ============================================================ -->
+        <Style Selector="Button.ModeBtn">
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate>
+                        <ContentPresenter Content="{TemplateBinding Content}"
+                                          HorizontalAlignment="Center"
+                                          VerticalAlignment="Center" />
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Foreground" Value="#555555" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Transitions">
+                <Transitions>
+                    <BrushTransition Property="Foreground" Duration="0:0:0.15" />
+                </Transitions>
+            </Setter>
+        </Style>
+
+        <!-- 鼠标悬停：只改字色为白，不加任何背景/阴影 -->
+        <Style Selector="Button.ModeBtn:pointerover">
+            <Setter Property="Foreground" Value="White" />
+        </Style>
+
+        <!-- 液态玻璃选中的那一项：加粗黑字，无背景 -->
+        <Style Selector="Button.ModeBtn.Selected">
+            <Setter Property="Foreground" Value="Black" />
+            <Setter Property="FontWeight" Value="Bold" />
+        </Style>
+    </Window.Styles>
 
     <Border CornerRadius="12" Background="White">
         <Grid>
@@ -3162,42 +3625,9 @@ namespace Project.Launch.Views
                                        HorizontalAlignment="Center" />
                             <Grid Margin="0,10,0,0" Width="360" Height="44">
                                 <Border Background="#D8D8D8" CornerRadius="8" />
-                                <Grid ColumnDefinitions="*, *, *">
-                                    <Button x:Name="OfflineLoginButton"
-                                            Grid.Column="0"
-                                            Background="Transparent"
-                                            BorderThickness="0"
-                                            Foreground="#666666"
-                                            FontWeight="SemiBold"
-                                            Content="离线登录"
-                                            Cursor="Hand"
-                                            HorizontalAlignment="Stretch"
-                                            HorizontalContentAlignment="Center"
-                                            Padding="0" />
-                                    <Button x:Name="OnlineLoginButton"
-                                            Grid.Column="1"
-                                            Background="Transparent"
-                                            BorderThickness="0"
-                                            Foreground="#666666"
-                                            FontWeight="SemiBold"
-                                            Content="正版登录"
-                                            Cursor="Hand"
-                                            HorizontalAlignment="Stretch"
-                                            HorizontalContentAlignment="Center"
-                                            Padding="0" />
-                                    <Button x:Name="ThirdPartyLoginButton"
-                                            Grid.Column="2"
-                                            Background="Transparent"
-                                            BorderThickness="0"
-                                            Foreground="#666666"
-                                            FontWeight="SemiBold"
-                                            Content="第三方登录"
-                                            Cursor="Hand"
-                                            HorizontalAlignment="Stretch"
-                                            HorizontalContentAlignment="Center"
-                                            Padding="0" />
-                                </Grid>
 
+                                <!-- ★ 液态玻璃滑块：位于按钮下层；
+                                     HighlightEnabled=False 去掉玻璃自身白色高光 -->
                                 <lg:LiquidGlassSurface x:Name="LoginModeSlider"
                                                        Width="114"
                                                        Height="36"
@@ -3217,7 +3647,7 @@ namespace Project.Launch.Views
                                                        BackdropOpacity="1.0"
                                                        ChromaticAberration="True"
                                                        DepthEffect="False"
-                                                       HighlightEnabled="True"
+                                                       HighlightEnabled="False"
                                                        ShadowEnabled="True"
                                                        ShadowRadius="24"
                                                        ShadowOffset="0,4"
@@ -3229,6 +3659,22 @@ namespace Project.Launch.Views
                                         </TransformGroup>
                                     </lg:LiquidGlassSurface.RenderTransform>
                                 </lg:LiquidGlassSurface>
+
+                                <!-- 按钮层：z-order 在玻璃之上；视觉由 Window.Styles 提供 -->
+                                <Grid ColumnDefinitions="*, *, *">
+                                    <Button x:Name="OfflineLoginButton"
+                                            Grid.Column="0"
+                                            Classes="ModeBtn"
+                                            Content="离线登录" />
+                                    <Button x:Name="OnlineLoginButton"
+                                            Grid.Column="1"
+                                            Classes="ModeBtn"
+                                            Content="正版登录" />
+                                    <Button x:Name="ThirdPartyLoginButton"
+                                            Grid.Column="2"
+                                            Classes="ModeBtn"
+                                            Content="第三方登录" />
+                                </Grid>
                             </Grid>
                         </StackPanel>
                     </Border>
@@ -3396,7 +3842,7 @@ namespace Project.Launch.Views
                     <TextBlock DockPanel.Dock="Left" Text="rc-5" FontSize="11" Foreground="#999" VerticalAlignment="Center" />
                     <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center" Spacing="8">
                         <Button x:Name="GitHubButton" Background="Transparent" BorderThickness="0" Cursor="Hand" Padding="0" Width="44" Height="44" ToolTip.Tip="点击即访问仓库">
-                            <Image Source="avares://Project.Launch/src/Views/imgs/github.png" Width="36" Height="36" Stretch="Uniform" />
+                            <Image Source="avares://Project.Launch/MainSrc/Views/imgs/Main/images/Support/github.png" Width="36" Height="36" Stretch="Uniform" />
                         </Button>
                         <TextBlock Text="请更换仓库不要露全部代码" FontSize="9" Foreground="#CC5555" VerticalAlignment="Center" Opacity="0.7" />
                     </StackPanel>
@@ -3407,9 +3853,9 @@ namespace Project.Launch.Views
 </Window>
 ```
 
-### `src\Views\LoginWindow.xaml.cs`
+### `MainSrc\Views\LoginWindow.xaml.cs`
 
-<!-- 605 行 / 22.8 KB -->
+<!-- 616 行 / 23.2 KB -->
 
 ```csharp
 using System;
@@ -3707,18 +4153,29 @@ namespace Project.Launch.Views
             UpdateButtonColors(index);
         }
 
+        /// <summary>
+        /// 通过样式类切换选中态。
+        /// 视觉（灰色 / 悬停白字深底药丸 / 选中加粗黑字）由 LoginWindow.axaml 的
+        /// Button.ModeBtn 系列样式定义，这里只负责切换 "Selected" 类与命中测试开关。
+        /// </summary>
         private void UpdateButtonColors(int selectedIndex)
         {
             var buttons = new[] { _offlineBtn, _onlineBtn, _thirdPartyBtn };
             for (int i = 0; i < buttons.Length; i++)
             {
-                if (buttons[i] != null)
+                if (buttons[i] == null) continue;
+
+                if (i == selectedIndex)
                 {
-                    buttons[i]!.Foreground = (i == selectedIndex)
-                        ? new SolidColorBrush(Colors.Black)
-                        : new SolidColorBrush(Color.Parse("#666666"));
-                    buttons[i]!.IsHitTestVisible = (i != selectedIndex);
+                    if (!buttons[i]!.Classes.Contains("Selected"))
+                        buttons[i]!.Classes.Add("Selected");
                 }
+                else
+                {
+                    buttons[i]!.Classes.Remove("Selected");
+                }
+
+                buttons[i]!.IsHitTestVisible = (i != selectedIndex);
             }
         }
 
@@ -3842,7 +4299,7 @@ namespace Project.Launch.Views
         }
 
         // ============================================================
-        // 正版登录：复制代码（★ 已改成扩展方法 SetTextAsync）
+        // 正版登录：复制代码
         // ============================================================
         private async void OnMsCopyCodeClicked(object? sender, RoutedEventArgs e)
         {
@@ -3930,7 +4387,7 @@ namespace Project.Launch.Views
         {
             try
             {
-                var stevePath = "avares://Project.Launch/src/Views/imgs/skin/Steve.png";
+                var stevePath = "avares://Project.Launch/MainSrc/Views/imgs/skin/Steve.png";
                 var uri = new Uri(stevePath);
                 using var stream = AssetLoader.Open(uri);
 
@@ -4019,7 +4476,7 @@ namespace Project.Launch.Views
 }
 ```
 
-### `src\Views\AccountManagerWindow.axaml`
+### `MainSrc\Views\AccountManagerWindow.axaml`
 
 <!-- 193 行 / 8.6 KB -->
 
@@ -4219,7 +4676,7 @@ namespace Project.Launch.Views
 </Window>
 ```
 
-### `src\Views\AccountManagerWindow.axaml.cs`
+### `MainSrc\Views\AccountManagerWindow.axaml.cs`
 
 <!-- 319 行 / 11.5 KB -->
 
@@ -4545,7 +5002,7 @@ namespace Project.Launch.Views
 }
 ```
 
-### `src\Views\Styles.axaml`
+### `MainSrc\Views\Styles.axaml`
 
 <!-- 192 行 / 8.8 KB -->
 
@@ -4744,7 +5201,7 @@ namespace Project.Launch.Views
 </Styles>
 ```
 
-### `src\Views\Glass.axaml`
+### `MainSrc\Views\Glass.axaml`
 
 <!-- 147 行 / 7.5 KB -->
 
@@ -4898,24 +5355,24 @@ namespace Project.Launch.Views
 </Styles>
 ```
 
-### `src\Views\read.me`
+### `MainSrc\Views\read.md`
 
 <!-- 4 行 / 0.1 KB -->
 
-```text
+```markdown
 --By Erics   九条开源
 Gui层  图标源文件引用  美化
 
 GUI Layer | Icon Asset References | Theme/Skin Scripts Directory
 ```
 
-## 6.3 src\Tools —— 内核工具层
+## 6.3 MainSrc\Tools —— 内核工具层
 
 启动链路、Java 检测、实例管理、账户持久化、3D 皮肤投影、音效与配置。**这是启动器的"引擎"**。
 
-### `src\Tools\GameLauncher.cs`
+### `MainSrc\Tools\GameLauncher.cs`
 
-<!-- 339 行 / 13.9 KB -->
+<!-- 431 行 / 17.8 KB -->
 
 ```csharp
 using System;
@@ -4926,12 +5383,16 @@ using System.IO.Compression;
 using System.Linq;
 using System.Text;
 using System.Text.Json;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace Project.Launch.Tools
 {
     public static class GameLauncher
     {
+        // 保活正在运行的进程，防止 Process 对象被 GC 回收导致输出流中断
+        private static readonly List<Process> _runningProcesses = new();
+
         public static async Task<bool> LaunchAsync(
             InstanceInfo instance,
             MinecraftVersionJson versionJson,
@@ -5039,6 +5500,10 @@ namespace Project.Launch.Tools
                     args.AddRange(replaced.Split(' ', StringSplitOptions.RemoveEmptyEntries));
                 }
 
+                // ★ 追加语言参数：确保与系统语言一致（覆盖 options.txt 中的默认英文）
+                args.Add("--language");
+                args.Add(GetMinecraftLanguage());
+
                 // 5. 日志文件
                 string logDir = Path.Combine(LauncherPaths.Root, "instances", instance.Id);
                 Directory.CreateDirectory(logDir);
@@ -5075,11 +5540,54 @@ namespace Project.Launch.Tools
                 proc.BeginOutputReadLine();
                 proc.BeginErrorReadLine();
 
-                LogHelper.Write(LauncherPaths.AppLog,
-                    $"游戏已启动 (PID={proc.Id})",
-                    $"Game launched (PID={proc.Id})");
+                // 将进程加入保活列表
+                lock (_runningProcesses)
+                {
+                    _runningProcesses.Add(proc);
+                }
 
-                return await Task.FromResult(true);
+                LogHelper.Write(LauncherPaths.AppLog,
+                    $"游戏已启动 (PID={proc.Id})，日志文件: {logPath}",
+                    $"Game launched (PID={proc.Id}), log file: {logPath}");
+
+                // 等待 3 秒检测是否闪退
+                using var cts = new CancellationTokenSource(3000);
+                try
+                {
+                    // 如果 3 秒内进程退出了，说明启动失败闪退了
+                    await proc.WaitForExitAsync(cts.Token);
+                    
+                    // 确保输出流被完全读取
+                    proc.WaitForExit(); 
+
+                    // 闪退时，读取最后几十行日志直接写入 app.log，方便用户排查
+                    string crashLog = "";
+                    try
+                    {
+                        if (File.Exists(logPath))
+                        {
+                            var lines = File.ReadAllLines(logPath);
+                            crashLog = string.Join("\n", lines.TakeLast(50));
+                        }
+                    }
+                    catch { }
+
+                    LogHelper.Write(LauncherPaths.AppLog,
+                        $"游戏进程异常退出，退出码: {proc.ExitCode}\n最后输出:\n{crashLog}",
+                        $"Game process exited with code: {proc.ExitCode}\nLast Output:\n{crashLog}");
+
+                    lock (_runningProcesses)
+                    {
+                        _runningProcesses.Remove(proc);
+                    }
+
+                    return false;
+                }
+                catch (OperationCanceledException)
+                {
+                    // 3秒后依然在运行，说明游戏成功启动了
+                    return true;
+                }
             }
             catch (Exception ex)
             {
@@ -5087,6 +5595,31 @@ namespace Project.Launch.Tools
                     $"启动游戏失败: {ex.Message}",
                     $"Launch failed: {ex.Message}");
                 return false;
+            }
+        }
+
+        /// <summary>
+        /// 获取当前系统语言对应的 Minecraft 语言代码
+        /// </summary>
+        private static string GetMinecraftLanguage()
+        {
+            try
+            {
+                // 获取系统 UI 语言，例如 "zh-CN", "en-US"
+                string culture = System.Globalization.CultureInfo.CurrentUICulture.Name;
+                string lang = culture.Replace("-", "_").ToLowerInvariant();
+
+                // 处理简繁体映射
+                if (lang.StartsWith("zh_hans") || lang == "zh_cn" || lang == "zh_sg")
+                    return "zh_cn";
+                if (lang.StartsWith("zh_hant") || lang == "zh_tw" || lang == "zh_hk")
+                    return "zh_tw";
+                
+                return lang;
+            }
+            catch
+            {
+                return "en_us";
             }
         }
 
@@ -5194,7 +5727,8 @@ namespace Project.Launch.Tools
         {
             if (rules.ValueKind != JsonValueKind.Array) return true;
 
-            bool allowed = true;
+            // 默认必须是 false，否则非 Windows 的规则（如 macOS）会被错误放行
+            bool allowed = false; 
             foreach (var rule in rules.EnumerateArray())
             {
                 string action = rule.TryGetProperty("action", out var a) ? a.GetString() ?? "" : "";
@@ -5208,6 +5742,21 @@ namespace Project.Launch.Tools
                         if (!string.IsNullOrEmpty(n) &&
                             !n.Equals("windows", StringComparison.OrdinalIgnoreCase))
                             matches = false;
+                    }
+                }
+
+                // ★ 修复：处理 features 规则。目前启动器不支持任何特殊 feature（如 quick play），
+                // 因此只要 JSON 要求某个 feature 为 true，我们就视为不匹配，拒绝添加该参数。
+                if (rule.TryGetProperty("features", out var features) && 
+                    features.ValueKind == JsonValueKind.Object)
+                {
+                    foreach (var feature in features.EnumerateObject())
+                    {
+                        if (feature.Value.ValueKind == JsonValueKind.True)
+                        {
+                            matches = false;
+                            break;
+                        }
                     }
                 }
 
@@ -5259,7 +5808,7 @@ namespace Project.Launch.Tools
 }
 ```
 
-### `src\Tools\JavaDetector.cs`
+### `MainSrc\Tools\JavaDetector.cs`
 
 <!-- 183 行 / 6.1 KB -->
 
@@ -5449,7 +5998,7 @@ namespace Project.Launch.Tools
 }
 ```
 
-### `src\Tools\MinecraftDirectoryAnalyzer.cs`
+### `MainSrc\Tools\MinecraftDirectoryAnalyzer.cs`
 
 <!-- 98 行 / 3.5 KB -->
 
@@ -5554,7 +6103,7 @@ namespace Project.Launch.Tools
 }
 ```
 
-### `src\Tools\MinecraftVersionJson.cs`
+### `MainSrc\Tools\MinecraftVersionJson.cs`
 
 <!-- 109 行 / 3.5 KB -->
 
@@ -5670,7 +6219,7 @@ namespace Project.Launch.Tools
 }
 ```
 
-### `src\Tools\InstanceData.cs`
+### `MainSrc\Tools\InstanceData.cs`
 
 <!-- 24 行 / 0.9 KB -->
 
@@ -5701,7 +6250,7 @@ namespace Project.Launch.Tools
 }
 ```
 
-### `src\Tools\InstanceService.cs`
+### `MainSrc\Tools\InstanceService.cs`
 
 <!-- 84 行 / 2.9 KB -->
 
@@ -5792,7 +6341,7 @@ namespace Project.Launch.Tools
 }
 ```
 
-### `src\Tools\AccountData.cs`
+### `MainSrc\Tools\AccountData.cs`
 
 <!-- 36 行 / 1.4 KB -->
 
@@ -5835,7 +6384,7 @@ namespace Project.Launch.Tools
 }
 ```
 
-### `src\Tools\AccountService.cs`
+### `MainSrc\Tools\AccountService.cs`
 
 <!-- 131 行 / 4.4 KB -->
 
@@ -5973,7 +6522,7 @@ namespace Project.Launch.Tools
 }
 ```
 
-### `src\Tools\OfflineUuidGenerator.cs`
+### `MainSrc\Tools\OfflineUuidGenerator.cs`
 
 <!-- 50 行 / 1.9 KB -->
 
@@ -6030,7 +6579,7 @@ namespace Project.Launch.Tools
 }
 ```
 
-### `src\Tools\DefaultSkinSelector.cs`
+### `MainSrc\Tools\DefaultSkinSelector.cs`
 
 <!-- 71 行 / 2.6 KB -->
 
@@ -6049,10 +6598,10 @@ namespace Project.Launch.Tools
     public static class DefaultSkinSelector
     {
         public const string SteveAssetPath =
-            "avares://Project.Launch/src/Views/imgs/skin/Steve.png";
+            "avares://Project.Launch/MainSrc/Views/imgs/skin/Steve.png";
 
         public const string AlexAssetPath =
-            "avares://Project.Launch/src/Views/imgs/skin/Alex.png";
+            "avares://Project.Launch/MainSrc/Views/imgs/skin/Alex.png";
 
         /// <summary>
         /// 根据 UUID 判断是否应使用 Alex 模型
@@ -6108,9 +6657,9 @@ namespace Project.Launch.Tools
 }
 ```
 
-### `src\Tools\SkinCropper.cs`
+### `MainSrc\Tools\SkinCropper.cs`
 
-<!-- 97 行 / 3.2 KB -->
+<!-- 88 行 / 2.8 KB -->
 
 ```csharp
 using System;
@@ -6128,7 +6677,7 @@ namespace Project.Launch.Tools
     {
         /// <summary>
         /// 同步裁切：返回 (face 头像, hat 帽子层)
-        /// 支持 64×64 / 128×128 皮肤，64×32 旧版不支持（返回 null）
+        /// 支持 64×64 / 128×128 / 256×256 等任意倍率皮肤
         /// </summary>
         public static (Bitmap? face, Bitmap? hat) Crop(Stream stream)
         {
@@ -6138,24 +6687,15 @@ namespace Project.Launch.Tools
                 int width = src.PixelSize.Width;
                 int height = src.PixelSize.Height;
 
-                bool isValidSize = (width == 64 && height == 32) ||
-                                   (width == 64 && height == 64) ||
-                                   (width == 128 && height == 128);
-                if (!isValidSize)
-                    return (null, null);
+                // 动态计算比例
+                int scale = width / 64;
+                if (scale < 1) return (null, null);
 
-                int faceX, faceY, faceSize, hatX, hatY;
-
-                if (width >= 128 && height >= 128)
-                {
-                    faceX = 16; faceY = 16; faceSize = 16;
-                    hatX = 80; hatY = 16;
-                }
-                else
-                {
-                    faceX = 8; faceY = 8; faceSize = 8;
-                    hatX = 40; hatY = 8;
-                }
+                int faceX = 8 * scale;
+                int faceY = 8 * scale;
+                int faceSize = 8 * scale;
+                int hatX = 40 * scale;
+                int hatY = 8 * scale;
 
                 var faceCropped = new CroppedBitmap(src, new PixelRect(faceX, faceY, faceSize, faceSize));
                 var hatCropped = new CroppedBitmap(src, new PixelRect(hatX, hatY, faceSize, faceSize));
@@ -6212,7 +6752,7 @@ namespace Project.Launch.Tools
 }
 ```
 
-### `src\Tools\MinecraftSkinModel.cs`
+### `MainSrc\Tools\MinecraftSkinModel.cs`
 
 <!-- 284 行 / 10.6 KB -->
 
@@ -6503,7 +7043,7 @@ namespace Project.Launch.Tools
 }
 ```
 
-### `src\Tools\Pivot3DControl.cs`
+### `MainSrc\Tools\Pivot3DControl.cs`
 
 <!-- 337 行 / 12.1 KB -->
 
@@ -6847,7 +7387,7 @@ namespace Project.Launch.Views
 }
 ```
 
-### `src\Tools\Pivot3DRenderer.cs`
+### `MainSrc\Tools\Pivot3DRenderer.cs`
 
 <!-- 136 行 / 5.2 KB -->
 
@@ -6990,7 +7530,7 @@ namespace Project.Launch.Tools
 }
 ```
 
-### `src\Tools\LauncherPaths.cs`
+### `MainSrc\Tools\LauncherPaths.cs`
 
 <!-- 48 行 / 1.6 KB -->
 
@@ -7045,7 +7585,7 @@ namespace Project.Launch.Tools
 }
 ```
 
-### `src\Tools\LogHelper.cs`
+### `MainSrc\Tools\LogHelper.cs`
 
 <!-- 51 行 / 1.6 KB -->
 
@@ -7103,7 +7643,7 @@ namespace Project.Launch.Tools
 }
 ```
 
-### `src\Tools\SoundConfig.cs`
+### `MainSrc\Tools\SoundConfig.cs`
 
 <!-- 54 行 / 1.9 KB -->
 
@@ -7122,7 +7662,7 @@ namespace Project.Launch.Tools
         /// 音频资源根路径（末尾要带斜杠）
         /// Asset root path (trailing slash required)
         /// </summary>
-        public const string AssetRoot = "avares://Project.Launch/src/Sound/";
+        public const string AssetRoot = "avares://Project.Launch/MainSrc/Sound/";
 
         /// <summary>
         /// 全局音量倍率（0.0 ~ 1.0）
@@ -7164,7 +7704,7 @@ namespace Project.Launch.Tools
 }
 ```
 
-### `src\Tools\SoundService.cs`
+### `MainSrc\Tools\SoundService.cs`
 
 <!-- 88 行 / 2.9 KB -->
 
@@ -7259,7 +7799,7 @@ namespace Project.Launch.Tools
 }
 ```
 
-### `src\Tools\AnimationConfig.cs`
+### `MainSrc\Tools\AnimationConfig.cs`
 
 <!-- 79 行 / 3.4 KB -->
 
@@ -7345,7 +7885,7 @@ namespace Project.Launch.Tools
 }
 ```
 
-### `src\Tools\InteractionConfig.cs`
+### `MainSrc\Tools\InteractionConfig.cs`
 
 <!-- 28 行 / 1 KB -->
 
@@ -7380,7 +7920,7 @@ namespace Project.Launch.Tools
 }
 ```
 
-### `src\Tools\read.me`
+### `MainSrc\Tools\read.me`
 
 <!-- 5 行 / 0.2 KB -->
 
@@ -7392,11 +7932,11 @@ Kernel-level：Application Folder Operations, Internal
 Operations, Verification Tools, Download API Handshake
 ```
 
-## 6.4 src\Tools\Auth —— 微软正版登录
+## 6.4 MainSrc\Tools\Auth —— 微软正版登录
 
-MSA → Xbox Live → XSTS → Minecraft 全链路。注意：`DeviceCodeAuthService.ClientId` 目前是**占位 ID**，正版登录走不通。
+MSA → Xbox Live → XSTS → Minecraft 全链路。⚠️ `DeviceCodeAuthService.ClientId` 目前是**占位 ID**，正版登录走不通。
 
-### `src\Tools\Auth\AuthModels.cs`
+### `MainSrc\Tools\Auth\AuthModels.cs`
 
 <!-- 186 行 / 5.4 KB -->
 
@@ -7589,7 +8129,7 @@ namespace Project.Launch.Tools.Auth
 }
 ```
 
-### `src\Tools\Auth\MicrosoftAuthFlow.cs`
+### `MainSrc\Tools\Auth\MicrosoftAuthFlow.cs`
 
 <!-- 167 行 / 6.7 KB -->
 
@@ -7763,7 +8303,7 @@ namespace Project.Launch.Tools.Auth
 }
 ```
 
-### `src\Tools\Auth\DeviceCodeAuthService.cs`
+### `MainSrc\Tools\Auth\DeviceCodeAuthService.cs`
 
 <!-- 186 行 / 7.1 KB -->
 
@@ -7956,7 +8496,7 @@ namespace Project.Launch.Tools.Auth
 }
 ```
 
-### `src\Tools\Auth\XboxAuthService.cs`
+### `MainSrc\Tools\Auth\XboxAuthService.cs`
 
 <!-- 138 行 / 5.4 KB -->
 
@@ -8101,7 +8641,7 @@ namespace Project.Launch.Tools.Auth
 }
 ```
 
-### `src\Tools\Auth\MinecraftAuthService.cs`
+### `MainSrc\Tools\Auth\MinecraftAuthService.cs`
 
 <!-- 116 行 / 4.6 KB -->
 
@@ -8224,11 +8764,107 @@ namespace Project.Launch.Tools.Auth
 }
 ```
 
-## 6.5 src\ViewModel
+## 6.5 MainSrc\Tools\Download —— 版本清单（下载功能 P1）
 
-预留的协调接口层，目前只有一个演示用文件，**未被任何代码引用**。
+下载功能的第一阶段：拉取 `version_manifest_v2`，**BMCLAPI 优先 + 官方源兜底**。目前只有清单，还没有下载/安装。
 
-### `src\ViewModel\TestWindowButton.cs`
+### `MainSrc\Tools\Download\MinecraftManifest.cs`
+
+<!-- 31 行 / 0.9 KB -->
+
+```csharp
+using System;
+using System.Collections.Generic;
+
+namespace Project.Launch.Tools.Download
+{
+    public class VersionManifest
+    {
+        public LatestVersions Latest { get; set; } = new();
+        public List<VersionEntry> Versions { get; set; } = new();
+    }
+
+    public class LatestVersions
+    {
+        public string Release { get; set; } = "";
+        public string Snapshot { get; set; } = "";
+    }
+
+    public class VersionEntry
+    {
+        public string Id { get; set; } = "";
+        public string Type { get; set; } = "";
+        public string Url { get; set; } = "";
+        public DateTime ReleaseTime { get; set; }
+
+        // 供 UI 显示的格式化时间
+        public string ReleaseTimeStr => ReleaseTime.ToString("yyyy-MM-dd");
+
+        // ★ 新增：用于 UI 显示的图标路径
+        public string IconPath { get; set; } = "";
+    }
+}
+```
+
+### `MainSrc\Tools\Download\VersionService.cs`
+
+<!-- 47 行 / 1.9 KB -->
+
+```csharp
+using System;
+using System.Net.Http;
+using System.Text.Json;
+using System.Threading.Tasks;
+
+namespace Project.Launch.Tools.Download
+{
+    public static class VersionService
+    {
+        // 复用 HttpClient，避免产生过多 Socket
+        private static readonly HttpClient _httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
+
+        public static async Task<VersionManifest?> GetVersionManifestAsync()
+        {
+            // 遵循 BMCLAPI 优先，官方源兜底的策略
+            string[] urls = 
+            {
+                "https://bmclapi2.bangbang93.com/mc/game/version_manifest_v2.json",
+                "https://piston-meta.mojang.com/mc/game/version_manifest_v2.json"
+            };
+
+            foreach (var url in urls)
+            {
+                try
+                {
+                    string json = await _httpClient.GetStringAsync(url);
+                    var manifest = JsonSerializer.Deserialize<VersionManifest>(json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                    
+                    if (manifest != null && manifest.Versions.Count > 0)
+                    {
+                        LogHelper.Write(LauncherPaths.AppLog, 
+                            $"成功获取版本清单({url})，共 {manifest.Versions.Count} 个版本", 
+                            $"Successfully fetched manifest from {url}, count: {manifest.Versions.Count}");
+                        return manifest;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    LogHelper.Write(LauncherPaths.AppLog, 
+                        $"获取版本清单失败({url}): {ex.Message}", 
+                        $"Failed to fetch manifest ({url}): {ex.Message}");
+                }
+            }
+            return null;
+        }
+    }
+}
+```
+
+## 6.6 MainSrc\ViewModel 与 MainSrc\Codes
+
+`ViewModel` 是预留的协调接口层（只有一个无人引用的演示文件）；`Codes` 是空目录，规划为"内核级主程序代码"。
+
+### `MainSrc\ViewModel\TestWindowButton.cs`
 
 <!-- 20 行 / 0.5 KB -->
 
@@ -8255,11 +8891,11 @@ namespace Project.Launch.ViewModel
 }
 ```
 
-### `src\ViewModel\read.me`
+### `MainSrc\ViewModel\read.md`
 
 <!-- 6 行 / 0.3 KB -->
 
-```text
+```markdown
 --By Erics  九条开源
 内核级别协调接口提前引入，后期进行插入更新、完成其他操作的时候能够更快插入
 
@@ -8268,18 +8904,29 @@ so that later insertions and updates can be
 plugged in more quickly when performing other operations.
 ```
 
-## 6.6 src\LiquidGlassAvaloniaUI —— 液态玻璃库（vendored 第三方）
+### `MainSrc\Codes\read.md`
 
-**重要说明**：这是一个**内置（vendored）的第三方库**，上游 MIT 项目为 `KaranocaVe/LiquidGlassAvaloniaUI`。
-主项目通过 `<Compile Remove="src\LiquidGlassAvaloniaUI\**" />` 把它的源码排除在自己的编译之外，再以 `ProjectReference` 引用它独立编译出的 DLL。
+<!-- 4 行 / 0.1 KB -->
 
-**本次根因修复改动了其中两个文件**：
-- `LiquidGlassBackdropProvider.cs` —— 抓取实现改为 Avalonia 自带的 `RenderTargetBitmap.Render(Visual)`（**根因修复**）+ 移动触发条件
+```markdown
+--By Erics  九条开源
+内核级别 主程序代码
+
+Kernel level：Main codes
+```
+
+## 6.7 MainSrc\LiquidGlassAvaloniaUI —— 液态玻璃库（vendored 第三方）
+
+**重要**：这是**内置（vendored）的第三方库**，上游 MIT 项目 `KaranocaVe/LiquidGlassAvaloniaUI`。
+主项目用 `<Compile Remove="MainSrc\LiquidGlassAvaloniaUI\**" />` 把它排除在自己的编译之外，再以 `ProjectReference` 引用它独立编译的 DLL。
+
+**历史根因修复改动了其中两个文件**：
+- `LiquidGlassBackdropProvider.cs` —— 抓取实现改用 Avalonia 自带的 `RenderTargetBitmap.Render(Visual)`（**根因修复**）
 - `LiquidGlassSurface.cs` —— 订阅渲染变换变化
 
-其余文件基本是上游原样。**改动前请先读 [3.8 液态玻璃子系统](#38-液态玻璃子系统--含本次根因修复)。**
+其余文件基本是上游原样。**改之前请先读第三部分 3.8。**
 
-### `src\LiquidGlassAvaloniaUI\LiquidGlassAvaloniaUI.csproj`
+### `MainSrc\LiquidGlassAvaloniaUI\LiquidGlassAvaloniaUI.csproj`
 
 <!-- 40 行 / 1.9 KB -->
 
@@ -8325,7 +8972,7 @@ plugged in more quickly when performing other operations.
 </Project>
 ```
 
-### `src\LiquidGlassAvaloniaUI\LiquidGlassBackdropProvider.cs`
+### `MainSrc\LiquidGlassAvaloniaUI\LiquidGlassBackdropProvider.cs`
 
 <!-- 848 行 / 34 KB -->
 
@@ -9179,7 +9826,7 @@ namespace LiquidGlassAvaloniaUI
 }
 ```
 
-### `src\LiquidGlassAvaloniaUI\LiquidGlassSurface.cs`
+### `MainSrc\LiquidGlassAvaloniaUI\LiquidGlassSurface.cs`
 
 <!-- 969 行 / 38.5 KB -->
 
@@ -10154,7 +10801,7 @@ namespace LiquidGlassAvaloniaUI
 }
 ```
 
-### `src\LiquidGlassAvaloniaUI\LiquidGlassBackdropSnapshot.cs`
+### `MainSrc\LiquidGlassAvaloniaUI\LiquidGlassBackdropSnapshot.cs`
 
 <!-- 231 行 / 7.6 KB -->
 
@@ -10391,7 +11038,7 @@ namespace LiquidGlassAvaloniaUI
 }
 ```
 
-### `src\LiquidGlassAvaloniaUI\LiquidGlassDrawOperation.cs`
+### `MainSrc\LiquidGlassAvaloniaUI\LiquidGlassDrawOperation.cs`
 
 <!-- 864 行 / 35 KB -->
 
@@ -11262,7 +11909,7 @@ namespace LiquidGlassAvaloniaUI
 }
 ```
 
-### `src\LiquidGlassAvaloniaUI\LiquidGlassDrawParameters.cs`
+### `MainSrc\LiquidGlassAvaloniaUI\LiquidGlassDrawParameters.cs`
 
 <!-- 65 行 / 2.2 KB -->
 
@@ -11333,7 +11980,7 @@ namespace LiquidGlassAvaloniaUI
 }
 ```
 
-### `src\LiquidGlassAvaloniaUI\LiquidGlassVisualRenderer.cs`
+### `MainSrc\LiquidGlassAvaloniaUI\LiquidGlassVisualRenderer.cs`
 
 <!-- 154 行 / 5.4 KB -->
 
@@ -11493,7 +12140,7 @@ namespace LiquidGlassAvaloniaUI
 }
 ```
 
-### `src\LiquidGlassAvaloniaUI\LiquidGlassBackdrop.cs`
+### `MainSrc\LiquidGlassAvaloniaUI\LiquidGlassBackdrop.cs`
 
 <!-- 35 行 / 0.9 KB -->
 
@@ -11534,7 +12181,7 @@ namespace LiquidGlassAvaloniaUI
 }
 ```
 
-### `src\LiquidGlassAvaloniaUI\LiquidGlassInteractiveSurface.cs`
+### `MainSrc\LiquidGlassAvaloniaUI\LiquidGlassInteractiveSurface.cs`
 
 <!-- 388 行 / 12.7 KB -->
 
@@ -11928,7 +12575,7 @@ namespace LiquidGlassAvaloniaUI
 }
 ```
 
-### `src\LiquidGlassAvaloniaUI\LiquidGlassOverlays.cs`
+### `MainSrc\LiquidGlassAvaloniaUI\LiquidGlassOverlays.cs`
 
 <!-- 54 行 / 1.9 KB -->
 
@@ -11988,7 +12635,7 @@ namespace LiquidGlassAvaloniaUI
 }
 ```
 
-### `src\LiquidGlassAvaloniaUI\LiquidGlassShadowDrawOperations.cs`
+### `MainSrc\LiquidGlassAvaloniaUI\LiquidGlassShadowDrawOperations.cs`
 
 <!-- 227 行 / 7.2 KB -->
 
@@ -12221,7 +12868,7 @@ namespace LiquidGlassAvaloniaUI
 }
 ```
 
-### `src\LiquidGlassAvaloniaUI\LiquidGlassAppBuilderExtensions.cs`
+### `MainSrc\LiquidGlassAvaloniaUI\LiquidGlassAppBuilderExtensions.cs`
 
 <!-- 26 行 / 0.7 KB -->
 
@@ -12253,7 +12900,7 @@ namespace LiquidGlassAvaloniaUI
 }
 ```
 
-### `src\LiquidGlassAvaloniaUI\LiquidGlassDiagnostics.cs`
+### `MainSrc\LiquidGlassAvaloniaUI\LiquidGlassDiagnostics.cs`
 
 <!-- 210 行 / 11 KB -->
 
@@ -12469,7 +13116,7 @@ namespace LiquidGlassAvaloniaUI
 }
 ```
 
-### `src\LiquidGlassAvaloniaUI\LiquidGlassPathUtils.cs`
+### `MainSrc\LiquidGlassAvaloniaUI\LiquidGlassPathUtils.cs`
 
 <!-- 43 行 / 1.4 KB -->
 
@@ -12518,7 +13165,7 @@ namespace LiquidGlassAvaloniaUI
 }
 ```
 
-### `src\LiquidGlassAvaloniaUI\Assets\Shaders\LiquidGlassShader.sksl`
+### `MainSrc\LiquidGlassAvaloniaUI\Assets\Shaders\LiquidGlassShader.sksl`
 
 <!-- 117 行 / 3.9 KB -->
 
@@ -12641,7 +13288,7 @@ half4 main(float2 coord) {
 }
 ```
 
-### `src\LiquidGlassAvaloniaUI\Assets\Shaders\LiquidGlassHighlight.sksl`
+### `MainSrc\LiquidGlassAvaloniaUI\Assets\Shaders\LiquidGlassHighlight.sksl`
 
 <!-- 54 行 / 1.9 KB -->
 
@@ -12701,7 +13348,7 @@ half4 main(float2 coord) {
 }
 ```
 
-### `src\LiquidGlassAvaloniaUI\Assets\Shaders\LiquidGlassInteractiveHighlight.sksl`
+### `MainSrc\LiquidGlassAvaloniaUI\Assets\Shaders\LiquidGlassInteractiveHighlight.sksl`
 
 <!-- 17 行 / 0.5 KB -->
 
@@ -12724,7 +13371,7 @@ half4 main(float2 coord) {
 }
 ```
 
-### `src\LiquidGlassAvaloniaUI\Assets\Shaders\LiquidGlassGamma.sksl`
+### `MainSrc\LiquidGlassAvaloniaUI\Assets\Shaders\LiquidGlassGamma.sksl`
 
 <!-- 15 行 / 0.3 KB -->
 
@@ -12745,7 +13392,7 @@ half4 main(float2 coord) {
 }
 ```
 
-### `src\LiquidGlassAvaloniaUI\Assets\Shaders\LiquidGlassProgressiveMask.sksl`
+### `MainSrc\LiquidGlassAvaloniaUI\Assets\Shaders\LiquidGlassProgressiveMask.sksl`
 
 <!-- 37 行 / 1.2 KB -->
 
@@ -12788,7 +13435,7 @@ half4 main(float2 coord) {
 }
 ```
 
-### `src\LiquidGlassAvaloniaUI\Assets\Shaders\LiquidGlassBackdropTransform.sksl`
+### `MainSrc\LiquidGlassAvaloniaUI\Assets\Shaders\LiquidGlassBackdropTransform.sksl`
 
 <!-- 19 行 / 0.6 KB -->
 
@@ -12813,157 +13460,213 @@ half4 main(float2 coord) {
 }
 ```
 
-## 6.7 二进制资源清单（不嵌入内容）
+## 6.8 二进制资源清单（不嵌入内容）
 
-这些文件以 `AvaloniaResource` 形式打进程序集，**内容不在此文档内**。若需要改动它们（换图/换音效），请向用户索要源文件。
+以下文件以 `AvaloniaResource` 打进程序集，**内容不在本文档内**。要替换它们请向用户索要源文件。
 
-| 路径 | 用途 |
+**⚠️ 注意路径**：这些资源经过一次目录重构（见第一部分 1.7），代码里引用的 `avares://` 路径必须与这里的物理路径**逐字一致**，否则运行时会静默失败。
+
+| 物理路径 | 用途 |
 |---|---|
-| `src\Sound\BigError.wav` | 音效 |
-| `src\Sound\DownloadDone.wav` | 音效 |
-| `src\Sound\Errors.wav` | 音效 |
-| `src\Sound\Messages.wav` | 音效 |
-| `src\Sound\Messages2.wav` | 音效 |
-| `src\Sound\Open.wav` | 音效 |
-| `src\Views\imgs\a7d21-in3zc.png` | 界面图片 |
-| `src\Views\imgs\black-.png` | 界面图片 |
-| `src\Views\imgs\blackx.png` | 界面图片 |
-| `src\Views\imgs\button-Start1.png` | 界面图片 |
-| `src\Views\imgs\button-Start2.png` | 界面图片 |
-| `src\Views\imgs\button-Start3.png` | 界面图片 |
-| `src\Views\imgs\button-Start4.png` | 界面图片 |
-| `src\Views\imgs\cyan_glazed_terracotta.png` | 界面图片 |
-| `src\Views\imgs\Download.png` | 界面图片 |
-| `src\Views\imgs\github.png` | 界面图片 |
-| `src\Views\imgs\hav-Background\button-choose1.png` | 备用背景图组 |
-| `src\Views\imgs\hav-Background\button-Start1.png` | 备用背景图组 |
-| `src\Views\imgs\hav-Background\button-Start2.png` | 备用背景图组 |
-| `src\Views\imgs\hav-Background\button-Start3.png` | 备用背景图组 |
-| `src\Views\imgs\hav-Background\button-Start4.png` | 备用背景图组 |
-| `src\Views\imgs\hav-Background\github1.jpg` | 备用背景图组 |
-| `src\Views\imgs\Home.png` | 界面图片 |
-| `src\Views\imgs\Launch.png` | 界面图片 |
-| `src\Views\imgs\MainLogo.ico` | 程序图标（同时作为任务栏图标，以 Content 复制） |
-| `src\Views\imgs\ReLogin.png` | 界面图片 |
-| `src\Views\imgs\Setting.png` | 界面图片 |
-| `src\Views\imgs\show.png` | 界面图片 |
-| `src\Views\imgs\show-64x.png` | 界面图片 |
-| `src\Views\imgs\skin\_-酔った东京空_3.png` | 皮肤贴图（3D 投影 / 头像裁切用） |
-| `src\Views\imgs\skin\【搬运】◇苦力怕娘（作者：钻茜）.png` | 皮肤贴图（3D 投影 / 头像裁切用） |
-| `src\Views\imgs\skin\Alex.png` | 皮肤贴图（3D 投影 / 头像裁切用） |
-| `src\Views\imgs\skin\Steve.png` | 皮肤贴图（3D 投影 / 头像裁切用） |
-| `src\Views\imgs\skin\艾利克斯-Alex 夏日款.png` | 皮肤贴图（3D 投影 / 头像裁切用） |
-| `src\Views\imgs\skin\菜鸟.png` | 皮肤贴图（3D 投影 / 头像裁切用） |
-| `src\Views\imgs\skin\电脑人.png` | 皮肤贴图（3D 投影 / 头像裁切用） |
-| `src\Views\imgs\skin\粉嫩女装史蒂夫.png` | 皮肤贴图（3D 投影 / 头像裁切用） |
-| `src\Views\imgs\skin\胡桃.png` | 皮肤贴图（3D 投影 / 头像裁切用） |
-| `src\Views\imgs\skin\猎奇史蒂夫.png` | 皮肤贴图（3D 投影 / 头像裁切用） |
-| `src\Views\imgs\skin\猫娘史蒂夫（白丝.png` | 皮肤贴图（3D 投影 / 头像裁切用） |
-| `src\Views\imgs\skin\美西螈.png` | 皮肤贴图（3D 投影 / 头像裁切用） |
-| `src\Views\imgs\skin\史蒂夫，但是byd脸.png` | 皮肤贴图（3D 投影 / 头像裁切用） |
-| `src\Views\imgs\skin\史蒂夫【卡兰兹大眼】.png` | 皮肤贴图（3D 投影 / 头像裁切用） |
-| `src\Views\imgs\skin\幼猫.png` | 皮肤贴图（3D 投影 / 头像裁切用） |
-| `src\Views\imgs\Tool.png` | 界面图片 |
-| `src\Views\imgs\warning.png` | 界面图片 |
-| `src\Views\imgs\white-.png` | 界面图片 |
-| `src\Views\imgs\whitex.png` | 界面图片 |
-| `src\Views\imgs\wildflowers.png` | 界面图片 |
-| `src\Views\imgs\微信图片_20260803115740_100_82.jpg` | 界面图片 |
+| `MainSrc\Sound\BigError.wav` | 音效 |
+| `MainSrc\Sound\DownloadDone.wav` | 音效 |
+| `MainSrc\Sound\Errors.wav` | 音效 |
+| `MainSrc\Sound\Messages.wav` | 音效 |
+| `MainSrc\Sound\Messages2.wav` | 音效 |
+| `MainSrc\Sound\Open.wav` | 音效 |
+| `MainSrc\Views\imgs\Main\images\BackGrounds\banb_img.png` | 界面图片 |
+| `MainSrc\Views\imgs\Main\images\BackGrounds\bg.jpg` | 界面图片 |
+| `MainSrc\Views\imgs\Main\images\BackGrounds\ic_setting_sign_in_background.webp` | 界面图片 |
+| `MainSrc\Views\imgs\Main\images\Blocks\Anvil.png` | 方块图标（当前未引用） |
+| `MainSrc\Views\imgs\Main\images\Blocks\april_fools.png` | 方块图标（当前未引用） |
+| `MainSrc\Views\imgs\Main\images\Blocks\chest.png` | 方块图标（当前未引用） |
+| `MainSrc\Views\imgs\Main\images\Blocks\CobbleStone.png` | 方块图标（当前未引用） |
+| `MainSrc\Views\imgs\Main\images\Blocks\command.png` | 方块图标（当前未引用） |
+| `MainSrc\Views\imgs\Main\images\Blocks\CommandBlock.png` | 方块图标（当前未引用） |
+| `MainSrc\Views\imgs\Main\images\Blocks\craft_table.png` | 方块图标（当前未引用） |
+| `MainSrc\Views\imgs\Main\images\Blocks\furnace.png` | 方块图标（当前未引用） |
+| `MainSrc\Views\imgs\Main\images\Blocks\GoldBlock.png` | 方块图标（当前未引用） |
+| `MainSrc\Views\imgs\Main\images\Blocks\Grass.png` | 方块图标（当前未引用） |
+| `MainSrc\Views\imgs\Main\images\Blocks\grass2.png` | 方块图标（当前未引用） |
+| `MainSrc\Views\imgs\Main\images\Blocks\GrassPath.png` | 方块图标（当前未引用） |
+| `MainSrc\Views\imgs\Main\images\Blocks\hmcl.png` | 方块图标（当前未引用） |
+| `MainSrc\Views\imgs\Main\images\Blocks\RedstoneBlock.png` | 方块图标（当前未引用） |
+| `MainSrc\Views\imgs\Main\images\Blocks\RedstoneLampOff.png` | 方块图标（当前未引用） |
+| `MainSrc\Views\imgs\Main\images\Blocks\RedstoneLampOn.png` | 方块图标（当前未引用） |
+| `MainSrc\Views\imgs\Main\images\Buttons\black-.png` | 按钮 / 标题栏图标 |
+| `MainSrc\Views\imgs\Main\images\Buttons\blackx.png` | 按钮 / 标题栏图标 |
+| `MainSrc\Views\imgs\Main\images\Buttons\button-Start1.png` | 按钮 / 标题栏图标 |
+| `MainSrc\Views\imgs\Main\images\Buttons\button-Start2.png` | 按钮 / 标题栏图标 |
+| `MainSrc\Views\imgs\Main\images\Buttons\button-Start3.png` | 按钮 / 标题栏图标 |
+| `MainSrc\Views\imgs\Main\images\Buttons\button-Start4.png` | 按钮 / 标题栏图标 |
+| `MainSrc\Views\imgs\Main\images\Buttons\Download.png` | 按钮 / 标题栏图标 |
+| `MainSrc\Views\imgs\Main\images\Buttons\Home.png` | 按钮 / 标题栏图标 |
+| `MainSrc\Views\imgs\Main\images\Buttons\Launch.png` | 按钮 / 标题栏图标 |
+| `MainSrc\Views\imgs\Main\images\Buttons\ReLogin.png` | 按钮 / 标题栏图标 |
+| `MainSrc\Views\imgs\Main\images\Buttons\Setting.png` | 按钮 / 标题栏图标 |
+| `MainSrc\Views\imgs\Main\images\Buttons\Tool.png` | 按钮 / 标题栏图标 |
+| `MainSrc\Views\imgs\Main\images\Buttons\warning.png` | 按钮 / 标题栏图标 |
+| `MainSrc\Views\imgs\Main\images\Buttons\white-.png` | 按钮 / 标题栏图标 |
+| `MainSrc\Views\imgs\Main\images\Buttons\whitex.png` | 按钮 / 标题栏图标 |
+| `MainSrc\Views\imgs\Main\images\Launcher\a7d21-in3zc.png` | 启动器装饰图 / 背景图 |
+| `MainSrc\Views\imgs\Main\images\Launcher\cyan_glazed_terracotta.png` | 启动器装饰图 / 背景图 |
+| `MainSrc\Views\imgs\Main\images\Launcher\Erics.jpg` | 启动器装饰图 / 背景图 |
+| `MainSrc\Views\imgs\Main\images\Launcher\MainLogo.ico` | 程序图标 + 任务栏图标（Content 复制） 启动器装饰图 / 背景图 |
+| `MainSrc\Views\imgs\Main\images\Launcher\show.png` | 启动器装饰图 / 背景图 |
+| `MainSrc\Views\imgs\Main\images\Launcher\show-64x.png` | 启动器装饰图 / 背景图 |
+| `MainSrc\Views\imgs\Main\images\Launcher\wildflowers.png` | 启动器装饰图 / 背景图 |
+| `MainSrc\Views\imgs\Main\images\Loaders\8mi-tech.png` | 加载器图标（当前未引用，为 P5 预留） |
+| `MainSrc\Views\imgs\Main\images\Loaders\chicken.png` | 加载器图标（当前未引用，为 P5 预留） |
+| `MainSrc\Views\imgs\Main\images\Loaders\cleanroom.png` | 加载器图标（当前未引用，为 P5 预留） |
+| `MainSrc\Views\imgs\Main\images\Loaders\Egg.png` | 加载器图标（当前未引用，为 P5 预留） |
+| `MainSrc\Views\imgs\Main\images\Loaders\Fabric.png` | 加载器图标（当前未引用，为 P5 预留） |
+| `MainSrc\Views\imgs\Main\images\Loaders\fabric2.png` | 加载器图标（当前未引用，为 P5 预留） |
+| `MainSrc\Views\imgs\Main\images\Loaders\forge.png` | 加载器图标（当前未引用，为 P5 预留） |
+| `MainSrc\Views\imgs\Main\images\Loaders\ic_fabric.webp` | 加载器图标（当前未引用，为 P5 预留） |
+| `MainSrc\Views\imgs\Main\images\Loaders\ic_pojav_full.webp` | 加载器图标（当前未引用，为 P5 预留） |
+| `MainSrc\Views\imgs\Main\images\Loaders\ic_quilt.webp` | 加载器图标（当前未引用，为 P5 预留） |
+| `MainSrc\Views\imgs\Main\images\Loaders\LabyMod.png` | 加载器图标（当前未引用，为 P5 预留） |
+| `MainSrc\Views\imgs\Main\images\Loaders\NeoForge.png` | 加载器图标（当前未引用，为 P5 预留） |
+| `MainSrc\Views\imgs\Main\images\Loaders\OptiFabric.png` | 加载器图标（当前未引用，为 P5 预留） |
+| `MainSrc\Views\imgs\Main\images\Loaders\optifine.png` | 加载器图标（当前未引用，为 P5 预留） |
+| `MainSrc\Views\imgs\Main\images\Loaders\quilt.png` | 加载器图标（当前未引用，为 P5 预留） |
+| `MainSrc\Views\imgs\Main\images\Support\discord.png` | 社交链接图标 |
+| `MainSrc\Views\imgs\Main\images\Support\github.png` | 社交链接图标 |
+| `MainSrc\Views\imgs\Main\images\Support\ic_curseforge.png` | 社交链接图标 |
+| `MainSrc\Views\imgs\Main\images\Support\ic_modrinth.png` | 社交链接图标 |
+| `MainSrc\Views\imgs\Main\images\Support\ic_mouse_pointer.png` | 社交链接图标 |
+| `MainSrc\Views\imgs\Main\images\Support\kookapp.png` | 社交链接图标 |
+| `MainSrc\Views\imgs\Main\images\Support\mcmod.png` | 社交链接图标 |
+| `MainSrc\Views\imgs\skin\_-酔った东京空_3.png` | 皮肤贴图（3D 投影 / 头像裁切） |
+| `MainSrc\Views\imgs\skin\【搬运】◇苦力怕娘（作者：钻茜）.png` | 皮肤贴图（3D 投影 / 头像裁切） |
+| `MainSrc\Views\imgs\skin\Alex.png` | 皮肤贴图（3D 投影 / 头像裁切） |
+| `MainSrc\Views\imgs\skin\Steve.png` | 皮肤贴图（3D 投影 / 头像裁切） |
+| `MainSrc\Views\imgs\skin\艾利克斯-Alex 夏日款.png` | 皮肤贴图（3D 投影 / 头像裁切） |
+| `MainSrc\Views\imgs\skin\菜鸟.png` | 皮肤贴图（3D 投影 / 头像裁切） |
+| `MainSrc\Views\imgs\skin\电脑人.png` | 皮肤贴图（3D 投影 / 头像裁切） |
+| `MainSrc\Views\imgs\skin\粉嫩女装史蒂夫.png` | 皮肤贴图（3D 投影 / 头像裁切） |
+| `MainSrc\Views\imgs\skin\胡桃.png` | 皮肤贴图（3D 投影 / 头像裁切） |
+| `MainSrc\Views\imgs\skin\猎奇史蒂夫.png` | 皮肤贴图（3D 投影 / 头像裁切） |
+| `MainSrc\Views\imgs\skin\猫娘史蒂夫（白丝.png` | 皮肤贴图（3D 投影 / 头像裁切） |
+| `MainSrc\Views\imgs\skin\美西螈.png` | 皮肤贴图（3D 投影 / 头像裁切） |
+| `MainSrc\Views\imgs\skin\史蒂夫，但是byd脸.png` | 皮肤贴图（3D 投影 / 头像裁切） |
+| `MainSrc\Views\imgs\skin\史蒂夫【卡兰兹大眼】.png` | 皮肤贴图（3D 投影 / 头像裁切） |
+| `MainSrc\Views\imgs\skin\幼猫.png` | 皮肤贴图（3D 投影 / 头像裁切） |
 
-> 合计 50 个文件，约 2075 KB。
+> 合计 84 个文件，约 3362 KB。
 
 
 ---
 
 # 第七部分：协作约定
 
-> 以下是本项目原作者与 AI / 协作者之间形成的约定，**接手时请一并遵守**。
+> 本项目原作者与 AI / 协作者之间形成的约定，**接手时请一并遵守**。
 
 ## 7.1 分工模式
 
-**用户负责架构与进度规划，只把一个小进度点交给协作者实现。** 因此：
+**用户负责架构与进度规划，只把一个小进度点交给协作者实现。**
 
 1. **只改被要求的那一个功能**，不做顺手重构、不加未要求的功能
 2. 有想法**先说出来问**，不擅自拍板
 3. 改动前**先读相关文件**，改完汇报**改了哪些文件、什么位置、为什么**
 4. 遇到架构冲突或多种做法，**先问再写**
 5. 用户说"不写代码"时**绝对不碰代码**
-6. **源码就在仓库里**，任何文件都可用 read 工具直接读，不要向用户索要代码
-   （⚠️ **例外**：如果你手上的是本文档而非仓库，那么本文档的源码部分可能已过期 —— 见 [0.1](#01-文档一定会过期--这是设计前提)）
+6. **源码就在仓库里**，任何文件都可直接读，不要向用户索要代码
+   （⚠️ **例外**：如果你手上只有这份文档而没有仓库，第六部分可能已过期 —— 见 [0.1](#01-文档一定会过期--这是设计前提)）
 
-## 7.2 本项目的两个"反直觉"教训（值得记住）
+## 7.2 五条反直觉教训
 
 ### 教训一：渲染类问题，先看中间产物，再谈推理
 
-这个液态玻璃 bug 花了极长时间，因为前期的排查全都在**推理与调参**：
-DPI、采样矩阵、脏矩形抑制、变换事件、滤镜裁剪……**每一条看起来都很有道理，全部被证伪**。
+液态玻璃那个 bug 花了极长时间，因为前期排查全在**推理与调参**：DPI、采样矩阵、脏矩形抑制、变换事件、滤镜裁剪……**每一条看起来都很有道理，全部被证伪**。
 
 真正的突破点只有一步：**把库抓到的背景快照存成 PNG 看了一眼** —— 发现它是全透明的。
 
-> **所以：遇到"渲染结果不对"，第一件事应该是把链路中间的产物 dump 出来看，而不是读代码猜。**
+> **所以：遇到"渲染结果不对"，第一件事是把链路中间的产物 dump 出来看，而不是读代码猜。**
 
-### 教训二：改完必须验证"产物里真的有我的改动"
+### 教训二：构建成功 ≠ 改动生效
 
-本次踩到一个很隐蔽的坑：只改了玻璃库的 `.cs`，然后 `dotnet build` 主项目，
-**MSBuild 没有重新编译玻璃库**，构建却报告"成功"。如果不去查 DLL 时间戳 / 在元数据里搜方法名，
-你会以为改动生效了，实际上跑的还是旧代码。
+只改了玻璃库的 `.cs`、然后 `dotnet build` 主项目，**MSBuild 可能不重新编译玻璃库**，构建却报告"成功"。不查 DLL 时间戳、不在元数据里搜方法名，你会以为改动生效了，实际跑的还是旧代码。
 
-> **所以：构建成功 ≠ 改动生效。** 特别是改 vendored 子项目时，务必验证产物（见 [2.3 陷阱 5](#23--环境陷阱务必先读)）。
+> **所以：特别是改 vendored 子项目时，必须验证产物**（见 [2.3 陷阱 5](#23--环境陷阱务必先读)）。
 
-### 教训三：用户的现象描述是最有价值的线索
+### 教训三：改目录/改文件名，必须做"三层验证"
+
+本次 `src → MainSrc` 与 `imgs` 分目录共改了 **74 处路径**（51 + 23），全部是**字符串字面量**。
+这类改动 **编译期完全无法校验**，且大部分加载点还被 `try/catch` 吞掉异常。
+
+必须做三层验证：**① 零残留 ② 每条引用在磁盘上存在 ③ 资源真的进了程序集**，
+最后再**人工点一遍界面**。（完整流程见 [1.6.3](#163-修改方式可复用的流程)）
+
+> **所以：路径类改动不要"改完就交"，一定要跑完这三层验证。**
+
+### 教训四：用户的现象描述是最有价值的线索
 
 这次能定位，关键信息是用户说的"**只有移动到下载才有动画**"和"**中间一条硬竖缝**"。
 前者把范围从"玻璃不好看"缩小到"**位置相关**"，后者直接指向"**某条边界在钳制采样**"。
 
 > **所以：追问具体现象（哪个位置、哪个方向、边界在哪）比反复读代码更有价值。**
 
+### 教训五：`.gitignore` 与构建输出配置是联动的
+
+历史上因为 `publish\` 没被忽略，**132 MB 的 exe/dll/pdb 被提交进仓库**，占了仓库体积的 93%。
+最后不得不**重写全部 Git 历史**（`filter-branch`）才清掉，所有 commit SHA 都变了。
+
+> **所以：改 `<OutputPath>` / 新增输出目录时，同步检查 `.gitignore`。**
+
 ## 7.3 排查脚本的存放约定
 
 - **绝不在仓库根目录建临时 csproj / 脚本**（见 [2.3 陷阱 2](#23--环境陷阱务必先读)）
-- 排查用的临时工程、脚本、实验产物一律放 `%TEMP%` 下
-- **不要把实验产物（PNG / 日志 / 临时 md）留在仓库里** —— 本次排查中曾有协作者越界改动
-  `src\Views\LoginWindow.axaml`（把 `RefractionHeight` 改成 `18` 并留下 4 个多余引号，**XAML 已损坏**），
-  以及把分析记录写进仓库根目录。**发现这类情况应立即还原并告知用户。**
+- 排查用的临时工程、脚本、实验产物一律放 `%TEMP%`
+- **不要把实验产物（PNG / 日志 / 临时 md）留在仓库里**
+
+  > 本次排查中曾有协作者**越界改动** `MainSrc\Views\LoginWindow.axaml`
+  > （把 `RefractionHeight` 改成 `18` 并留下 4 个多余引号，**XAML 已损坏**），
+  > 以及把分析记录写进仓库根目录。**发现这类情况应立即还原并告知用户。**
 
 ## 7.4 交付前检查清单
 
 | 检查项 | 说明 |
 |---|---|
-| 编译 | `dotnet build Project.Launch.csproj -c Debug --no-incremental`，确认 0 错误 |
-| 产物 | 确认 DLL / exe 时间戳已更新，关键改动确实在产物里 |
-| 运行 | 至少跑一次，确认无 `crash.log`、无异常 CPU 占用 |
-| 痕迹 | 清掉调试代码、临时日志、开发期提示文字（如"请更换仓库不要露全部代码"、硬编码 `rc-5`） |
-| 仓库 | `git status` 确认没有把实验产物 / 运行日志 / `bin`、`obj` 带进提交 |
-| 汇报 | 明确列出：改了哪些文件、哪一行、为什么 |
+| **编译** | `dotnet build Project.Launch.csproj -c Debug --no-incremental`，0 错误 |
+| **产物** | 确认 DLL / exe 时间戳已更新；改过玻璃库时额外验证其 DLL |
+| **路径** | 若动过目录/文件名：跑 [1.6.3](#163-修改方式可复用的流程) 的三层验证 |
+| **运行** | 至少跑一次，确认无 `crash.log`、无异常 CPU、`app.log` 无资源加载错误 |
+| **界面** | **人工点一遍**：标题栏最小化/关闭（黑/白两态）、底部 5 个导航图标、登录/启动按钮（有/无实例）、登录窗 GitHub 图标、exe 图标 |
+| **痕迹** | 清掉调试代码、临时日志、开发期提示（如"请更换仓库不要露全部代码"、硬编码 `rc-5`） |
+| **仓库** | `git status` 确认没有把实验产物 / 运行日志 / 构建输出带进提交 |
+| **忽略规则** | 若新增了输出目录，确认 `.gitignore` 已覆盖 |
+| **汇报** | 明确列出：改了哪些文件、哪一行、为什么 |
 
 ## 7.5 用户环境备忘
 
 | 项 | 值 |
 |---|---|
-| 显示缩放 | 125%（`RenderScaling = 1.25`）—— 涉及像素计算时注意 |
+| 显示缩放 | **125%**（`RenderScaling = 1.25`）—— 涉及像素计算时注意 |
 | 数据目录 | `<exe 目录>\KilimLauncher\`，**不在 `%AppData%`** |
-| 已有账户 | `offline_ZCLEZM`、`offline_321`（均离线账户） |
-| 3D 皮肤 | 检测结果为 Slim |
-| 仓库 | 私有，`master` 分支，作者 `Erics <Zhouxuanyao2333@outlook.com>` |
+| 当前输出目录 | `MainSrc\BuiltDebugRun\`（换目录 = 换了一套新数据目录，旧账户不会自动搬过去） |
+| 3D 皮肤 | 检测结果为 **Slim** |
+| 仓库 | 私有 `KilimMinecraftPrivateRepository`，`master`，作者 `Erics <Zhouxuanyao2333@outlook.com>` |
+| 本机限制 | 执行策略禁止直接跑 `.ps1`；`Get-Content` 默认非 UTF-8；GitHub / BMCLAPI 偶发连不上（网络环境问题，非代码问题） |
 
 ---
 
 # 附：如何更新本文档
 
-本文档的**第六部分（完整源码）是脚本从仓库真实文件生成的**，不要手工编辑那一部分。
+本文档的**第六部分（完整源码）由脚本从仓库真实文件生成**，不要手工编辑那一部分。
 
-若需要重新生成：
+重新生成的方法：
 
-1. 向用户索要 `gen_code.ps1`（本次生成脚本，位于 `%TEMP%\kilim_doc\`，未入库）
-2. 或在仓库根目录执行等价逻辑：按 6.1~6.6 的文件清单依次读取文件，
-   包进带语言标记的代码块，拼成一个 markdown
-3. **第一~五、七部分（叙述部分）如需更新，请针对性地重写对应小节**，
-   并在文档开头的表格里更新 `分支 / HEAD` 与 `文档生成` 日期
+1. 向用户索要 `gen_code.ps1`（本次生成脚本，位于 `%TEMP%\kilim_doc2\`，**未入库**）
+2. 或自行实现等价逻辑：按 [6.1](#61-根目录) ~ [6.7](#67-mainsrcliquidglassavaloniaui--液态玻璃库vendored-第三方) 的文件清单
+   依次读取文件，包进带语言标记的代码块，拼成 markdown
+3. **第一~五、七部分（叙述部分）如需更新，请针对性重写对应小节**，
+   并更新文档开头的 `分支 / HEAD` 与 `文档生成` 日期
 
-> ⚠️ **再次强调**：只要用户又改了代码，本文档第六部分对应的小节立即失效。
+> ⚠️ **再次强调**：只要用户又改了代码，本文档第六部分对应小节立即失效。
 > **需要查/改具体实现时，直接向用户索要该文件的最新版本，不要依赖本文档里的代码。**
 
 ---
 
-*文档结束。如需任何一节的展开或有疑问，请向用户确认，不要基于本文档的推测直接动手。*
+*文档结束。任何一节需要展开或存疑，请向用户确认，不要基于本文档的推测直接动手。*
 
