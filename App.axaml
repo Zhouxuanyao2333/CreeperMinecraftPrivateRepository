@@ -6,8 +6,8 @@
     <Application.Styles>
         <FluentTheme />
         <!-- 主题色 + Miret 样式 -->
-        <StyleInclude Source="avares://Project.Launch/src/Views/Styles.axaml" />
+        <StyleInclude Source="avares://Project.Launch/MainSrc/Views/Styles.axaml" />
         <!-- ★ 液态玻璃参数表 + Glass 按钮样式 -->
-        <StyleInclude Source="avares://Project.Launch/src/Views/Glass.axaml" />
+        <StyleInclude Source="avares://Project.Launch/MainSrc/Views/Glass.axaml" />
     </Application.Styles>
 </Application>

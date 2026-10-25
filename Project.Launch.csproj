@@ -1,10 +1,10 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ApplicationManifest>app.manifest</ApplicationManifest>
-    <ApplicationIcon>src\Views\imgs\MainLogo.ico</ApplicationIcon>
+    <ApplicationIcon>MainSrc\Views\imgs\Main\images\Launcher\MainLogo.ico</ApplicationIcon>
 
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
 
@@ -19,12 +19,27 @@
     <SatelliteResourceLanguages>zh-Hans;en</SatelliteResourceLanguages>
   </PropertyGroup>
 
+  <!-- ★ 新增：指定 Debug 构建输出到 MainSrc\BuiltDebugRun\ -->
+  <PropertyGroup Condition="'$(Configuration)' == 'Debug'">
+    <OutputPath>MainSrc\BuiltDebugRun\</OutputPath>
+    <!-- 去除中间目录，让 exe 和 dll 直接铺在 BuiltDebugRun 根目录 -->
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
+  </PropertyGroup>
+
   <ItemGroup>
-    <Compile Remove="src\LiquidGlassAvaloniaUI\**" />
-    <AvaloniaXaml Remove="src\LiquidGlassAvaloniaUI\**" />
-    <AvaloniaResource Remove="src\LiquidGlassAvaloniaUI\**" />
-    <EmbeddedResource Remove="src\LiquidGlassAvaloniaUI\**" />
-    <None Remove="src\LiquidGlassAvaloniaUI\**" />
+    <Compile Remove="MainSrc\LiquidGlassAvaloniaUI\**" />
+    <AvaloniaXaml Remove="MainSrc\LiquidGlassAvaloniaUI\**" />
+    <AvaloniaResource Remove="MainSrc\LiquidGlassAvaloniaUI\**" />
+    <EmbeddedResource Remove="MainSrc\LiquidGlassAvaloniaUI\**" />
+    <None Remove="MainSrc\LiquidGlassAvaloniaUI\**" />
+
+    <!-- ★ 新增：排除输出目录，防止生成的 .cs 被重复编译导致 CS0579 错误 -->
+    <Compile Remove="MainSrc\BuiltDebugRun\**" />
+    <AvaloniaXaml Remove="MainSrc\BuiltDebugRun\**" />
+    <AvaloniaResource Remove="MainSrc\BuiltDebugRun\**" />
+    <EmbeddedResource Remove="MainSrc\BuiltDebugRun\**" />
+    <None Remove="MainSrc\BuiltDebugRun\**" />
   </ItemGroup>
 
   <ItemGroup>
@@ -41,33 +56,33 @@
 
     <PackageReference Include="SkiaSharp" Version="3.119.4" />
 
-    <ProjectReference Include="src\LiquidGlassAvaloniaUI\LiquidGlassAvaloniaUI.csproj" />
+    <ProjectReference Include="MainSrc\LiquidGlassAvaloniaUI\LiquidGlassAvaloniaUI.csproj" />
   </ItemGroup>
 
   <ItemGroup>
     <!-- ★ 用 Update（不是 Include），避免和默认 glob 重复 -->
     <AvaloniaXaml Update="App.axaml" />
-    <AvaloniaXaml Update="src\Views\LoginWindow.axaml" />
-    <AvaloniaXaml Update="src\Views\MainWindow.axaml" />
-    <AvaloniaXaml Update="src\Views\AccountManagerWindow.axaml" />
+    <AvaloniaXaml Update="MainSrc\Views\LoginWindow.axaml" />
+    <AvaloniaXaml Update="MainSrc\Views\MainWindow.axaml" />
+    <AvaloniaXaml Update="MainSrc\Views\AccountManagerWindow.axaml" />
 
     <!-- 样式：作为 AvaloniaResource 读，避免被当独立 XAML 编译 -->
-    <AvaloniaResource Include="src\Views\Styles.axaml" />
-    <AvaloniaResource Include="src\Views\Glass.axaml" />
+    <AvaloniaResource Include="MainSrc\Views\Styles.axaml" />
+    <AvaloniaResource Include="MainSrc\Views\Glass.axaml" />
 
     <!-- 图片和音效 -->
-    <AvaloniaResource Include="src\Views\imgs\**" Exclude="src\Views\imgs\MainLogo.ico" />
-    <AvaloniaResource Include="src\Sound\**" />
+    <AvaloniaResource Include="MainSrc\Views\imgs\**" Exclude="MainSrc\Views\imgs\Main\images\Launcher\MainLogo.ico" />
+    <AvaloniaResource Include="MainSrc\Sound\**" />
 
     <!-- 任务栏图标 -->
-    <Content Include="src\Views\imgs\MainLogo.ico">
+    <Content Include="MainSrc\Views\imgs\Main\images\Launcher\MainLogo.ico">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
 
-    <Compile Update="src\Views\MainWindow.cs">
+    <Compile Update="MainSrc\Views\MainWindow.cs">
       <DependentUpon>MainWindow.axaml</DependentUpon>
     </Compile>
-    <Compile Update="src\ViewModel\TestWindowButton.cs" />
+    <Compile Update="MainSrc\ViewModel\TestWindowButton.cs" />
     <Compile Update="App.axaml.cs" />
   </ItemGroup>
 </Project>
