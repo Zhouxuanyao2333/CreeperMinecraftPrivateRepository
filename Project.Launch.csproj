@@ -28,11 +28,24 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Remove="MainSrc\LiquidGlassAvaloniaUI\**" />
-    <AvaloniaXaml Remove="MainSrc\LiquidGlassAvaloniaUI\**" />
-    <AvaloniaResource Remove="MainSrc\LiquidGlassAvaloniaUI\**" />
-    <EmbeddedResource Remove="MainSrc\LiquidGlassAvaloniaUI\**" />
-    <None Remove="MainSrc\LiquidGlassAvaloniaUI\**" />
+    <!-- ★ 排除「非项目源码目录」：若在项目内放置第三方/参考资料源码，
+         默认通配（**/*.cs、**/*.resx）会把它们吸进本项目编译与资源处理，
+         导致构建失败或类型冲突。该目录删除后，下面这 6 行可一并移除。 -->
+    <Compile Remove="pclsource\**" />
+    <AvaloniaXaml Remove="pclsource\**" />
+    <AvaloniaResource Remove="pclsource\**" />
+    <EmbeddedResource Remove="pclsource\**" />
+    <None Remove="pclsource\**" />
+    <Content Remove="pclsource\**" />
+
+    <!-- ★ 玻璃库已搬到 MainSrc\Tools\LiquidGlassAvaloniaUI\（2026-10 架构调整）
+         必须排除它的源码与 obj，否则会被主项目的 **/*.cs 通配吸进来，
+         与主项目自己的 obj/AssemblyInfo.cs 撞成 CS0579（程序集特性重复） -->
+    <Compile Remove="MainSrc\Tools\LiquidGlassAvaloniaUI\**" />
+    <AvaloniaXaml Remove="MainSrc\Tools\LiquidGlassAvaloniaUI\**" />
+    <AvaloniaResource Remove="MainSrc\Tools\LiquidGlassAvaloniaUI\**" />
+    <EmbeddedResource Remove="MainSrc\Tools\LiquidGlassAvaloniaUI\**" />
+    <None Remove="MainSrc\Tools\LiquidGlassAvaloniaUI\**" />
 
     <!-- ★ 新增：排除输出目录，防止生成的 .cs 被重复编译导致 CS0579 错误 -->
     <Compile Remove="MainSrc\BuiltDebugRun\**" />
@@ -56,7 +69,7 @@
 
     <PackageReference Include="SkiaSharp" Version="3.119.4" />
 
-    <ProjectReference Include="MainSrc\LiquidGlassAvaloniaUI\LiquidGlassAvaloniaUI.csproj" />
+    <ProjectReference Include="MainSrc\Tools\LiquidGlassAvaloniaUI\LiquidGlassAvaloniaUI.csproj" />
   </ItemGroup>
 
   <ItemGroup>
@@ -65,6 +78,7 @@
     <AvaloniaXaml Update="MainSrc\Views\LoginWindow.axaml" />
     <AvaloniaXaml Update="MainSrc\Views\MainWindow.axaml" />
     <AvaloniaXaml Update="MainSrc\Views\AccountManagerWindow.axaml" />
+    <AvaloniaXaml Update="MainSrc\Views\DownloadWindow.axaml" />
 
     <!-- 样式：作为 AvaloniaResource 读，避免被当独立 XAML 编译 -->
     <AvaloniaResource Include="MainSrc\Views\Styles.axaml" />
@@ -82,7 +96,6 @@
     <Compile Update="MainSrc\Views\MainWindow.cs">
       <DependentUpon>MainWindow.axaml</DependentUpon>
     </Compile>
-    <Compile Update="MainSrc\ViewModel\TestWindowButton.cs" />
     <Compile Update="App.axaml.cs" />
   </ItemGroup>
 </Project>

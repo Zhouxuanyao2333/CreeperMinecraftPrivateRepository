@@ -18,8 +18,13 @@ using Avalonia.Platform;
 using Avalonia.Threading;
 using LiquidGlassAvaloniaUI;
 using Project.Launch.Tools;
-using Project.Launch.Tools.Auth;
-
+using Project.Launch.Auth;
+
+using Project.Launch;
+using Project.Launch.Tools.AnimSettings;
+using Project.Launch.Tools.JavaConfig;
+using Project.Launch.Tools.LogsConfig;
+using Project.Launch.Tools.SoundControl;
 namespace Project.Launch.Views
 {
     public partial class LoginWindow : Window

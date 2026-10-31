@@ -10,7 +10,11 @@ using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
 using Project.Launch.Tools;
-
+
+using Project.Launch;
+using Project.Launch.Auth;
+using Project.Launch.Tools.JavaConfig;
+using Project.Launch.Tools.LogsConfig;
 namespace Project.Launch.Views
 {
     public partial class AccountManagerWindow : Window

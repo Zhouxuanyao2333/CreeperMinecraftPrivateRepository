@@ -2,10 +2,11 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:avalonia="clr-namespace:Avalonia.Controls;assembly=Avalonia.Controls"
         xmlns:lg="using:LiquidGlassAvaloniaUI"
-        xmlns:views="clr-namespace:Project.Launch.Views"
-        xmlns:dl="clr-namespace:Project.Launch.Tools.Download"
+        xmlns:p3d="clr-namespace:Project.Launch.Tools.Player3DConfig"
+        xmlns:dl="clr-namespace:Project.Launch.Download"
+        xmlns:sc="using:Project.Launch.Tools.AppConstants"
         x:Class="Project.Launch.Views.MainWindow"
-        Title="KilimMinecraftLauncherDemo"
+        Title="{x:Static sc:SetConstants.AppName}"
         Width="960" Height="560"
         WindowDecorations="None"
         ExtendClientAreaToDecorationsHint="True"
@@ -58,7 +59,7 @@
             <Grid ColumnDefinitions="*, Auto, Auto">
                 <TextBlock Grid.Column="0"
                            x:Name="TitleText"
-                           Text="KilimMinecraftLauncherDemo"
+                           Text="{x:Static sc:SetConstants.AppName}"
                            FontSize="16"
                            Foreground="White"
                            VerticalAlignment="Center"
@@ -243,7 +244,7 @@
                         <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
 
-                    <views:Pivot3DControl x:Name="SkinViewer"
+                    <p3d:Pivot3DControl x:Name="SkinViewer"
                                           Grid.Row="0"
                                           HorizontalAlignment="Stretch"
                                           VerticalAlignment="Stretch"
@@ -477,17 +478,25 @@
                                 <!-- 列表区 -->
                                 <Border Grid.Row="1" Margin="0,15,0,0" BorderBrush="#E0E0E0" BorderThickness="1" CornerRadius="8">
                                     <Grid>
-                                        <!-- 版本列表（自带虚拟化） -->
+                                        <!-- 版本列表 -->
                                         <ListBox x:Name="VersionListBox" Background="Transparent" BorderThickness="0" 
                                                  DoubleTapped="OnVersionListDoubleTapped" SelectionChanged="OnVersionSelected">
                                             <ListBox.ItemTemplate>
                                                 <DataTemplate x:DataType="dl:VersionEntry">
-                                                    <Grid ColumnDefinitions="150, 120, *" Margin="0,5">
-                                                        <TextBlock Text="{Binding Id}" FontWeight="SemiBold" VerticalAlignment="Center" />
-                                                        <TextBlock Grid.Column="1" Text="{Binding Type}" Foreground="#888" VerticalAlignment="Center" />
-                                                        <TextBlock Grid.Column="2" Text="{Binding ReleaseTimeStr}" Foreground="#AAA" 
-                                                                   HorizontalAlignment="Right" VerticalAlignment="Center" />
-                                                    </Grid>
+                                                    <DockPanel Margin="0,5">
+                                                        <!-- 右侧：日期 -->
+                                                        <TextBlock DockPanel.Dock="Right" Text="{Binding ReleaseTimeStr}" Foreground="#AAA" 
+                                                                   VerticalAlignment="Center" Margin="0,0,15,0" />
+                                                        <!-- 右侧：类型 -->
+                                                        <TextBlock DockPanel.Dock="Right" Text="{Binding Type}" Foreground="#888" 
+                                                                   VerticalAlignment="Center" Width="80" />
+                                                        <!-- 左侧：图标 -->
+                                                        <Image DockPanel.Dock="Left" Source="{Binding IconBitmap}" Width="24" Height="24" 
+                                                               VerticalAlignment="Center" />
+                                                        <!-- ★ 最关键：最后一个元素不要写 Dock，让它填满中间，且显式赋予深色字体 -->
+                                                        <TextBlock Text="{Binding VersionId}" Foreground="#333" FontWeight="SemiBold" 
+                                                                   VerticalAlignment="Center" Margin="10,0,0,0" FontSize="15" />
+                                                    </DockPanel>
                                                 </DataTemplate>
                                             </ListBox.ItemTemplate>
                                         </ListBox>

@@ -3,6 +3,7 @@
         xmlns:media="clr-namespace:Avalonia.Media;assembly=Avalonia.Base"
         xmlns:avalonia="using:Avalonia.Controls"
         xmlns:lg="using:LiquidGlassAvaloniaUI"
+        xmlns:sc="using:Project.Launch.Tools.AppConstants"
         x:Class="Project.Launch.Views.LoginWindow"
         Title="登录"
         Width="800" Height="440"
@@ -78,7 +79,7 @@
                         </Border.RenderTransform>
 
                         <StackPanel HorizontalAlignment="Center">
-                            <TextBlock Text="登录 Kilim Minecraft Launcher"
+                            <TextBlock Text="{x:Static sc:SetConstants.LoginHeader}"
                                        FontSize="20"
                                        FontWeight="Bold"
                                        Foreground="#333"
@@ -299,7 +300,7 @@
                     Background="#F5F5F5"
                     CornerRadius="0,0,12,12">
                 <DockPanel Margin="15,0,15,0">
-                    <TextBlock DockPanel.Dock="Left" Text="rc-5" FontSize="11" Foreground="#999" VerticalAlignment="Center" />
+                    <TextBlock DockPanel.Dock="Left" Text="{x:Static sc:SetConstants.Version}" FontSize="11" Foreground="#999" VerticalAlignment="Center" />
                     <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center" Spacing="8">
                         <Button x:Name="GitHubButton" Background="Transparent" BorderThickness="0" Cursor="Hand" Padding="0" Width="44" Height="44" ToolTip.Tip="点击即访问仓库">
                             <Image Source="avares://Project.Launch/MainSrc/Views/imgs/Main/images/Support/github.png" Width="36" Height="36" Stretch="Uniform" />

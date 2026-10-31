@@ -1,4 +1,4 @@
-using Avalonia;
+﻿using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Media;
@@ -16,8 +16,15 @@ using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
 using System.Collections.Generic;
-using Project.Launch.Tools.Download;
+using Project.Launch.Download;
 
+using Project.Launch;
+using Project.Launch.Auth;
+using Project.Launch.Tools.AnimSettings;
+using Project.Launch.Tools.JavaConfig;
+using Project.Launch.Tools.LogsConfig;
+using Project.Launch.Tools.Player3DConfig;
+using Project.Launch.Tools.SoundControl;
 namespace Project.Launch.Views
 {
     public partial class MainWindow : Window
@@ -41,7 +48,7 @@ namespace Project.Launch.Views
         // 下载页：基岩版 / Java版 选择器
         private Button? _bedrockEditionBtn, _javaEditionBtn;
         private StackPanel? _bedrockPanel;
-        private Grid? _javaPanel; // 改为 Grid
+        private Grid? _javaPanel;
         private LiquidGlassSurface? _editionSlider;
         private TranslateTransform? _editionSliderTransform;
         private ScaleTransform? _editionSliderScale;
@@ -53,7 +60,6 @@ namespace Project.Launch.Views
         // Java 版版本列表
         private List<VersionEntry>? _allVersions;
         private bool _isVersionsLoading = false;
-        // private bool _isVersionsLoaded = false; // 已移除，消除 CS0414 警告
         private VersionEntry? _selectedVersion;
 
         public MainWindow()
@@ -91,7 +97,7 @@ namespace Project.Launch.Views
 
             InitializeTabSelector();
             InitializeEditionSelector();
-            InitializeVersionList(); // 初始化版本列表请求
+            InitializeVersionList();
 
             Log("按钮事件绑定完成", "Button events bound");
 
@@ -105,8 +111,7 @@ namespace Project.Launch.Views
             if (!App.LoginCheck)
             {
                 UpdateTitleBarGradient(_defaultStartColor, _defaultEndColor);
-                Log("初始化完成（未登录，显示渐变标题栏）",
-                    "Initialization complete (not logged in, gradient title bar)");
+                Log("初始化完成（未登录，显示渐变标题栏）", "Initialization complete (not logged in, gradient title bar)");
 
                 Opened += async (s, e) =>
                 {
@@ -116,14 +121,11 @@ namespace Project.Launch.Views
                         await SetTransparentTitleBarAsync();
                         UpdateLoginStatus();
                         await RefreshAvatarAsync();
-
-                        Log("登录窗口已关闭，切换为透明标题栏",
-                            "Login window closed, switched to transparent title bar");
+                        Log("登录窗口已关闭，切换为透明标题栏", "Login window closed, switched to transparent title bar");
                     }
                     catch (Exception ex)
                     {
-                        Log($"弹登录窗异常: {ex.Message}",
-                            $"ShowLoginDialog exception: {ex.Message}");
+                        Log($"弹登录窗异常: {ex.Message}", $"ShowLoginDialog exception: {ex.Message}");
                     }
                 };
             }
@@ -136,14 +138,11 @@ namespace Project.Launch.Views
                         await SetTransparentTitleBarAsync(animate: false);
                         UpdateLoginStatus();
                         await RefreshAvatarAsync();
-
-                        Log("初始化完成（已登录，显示透明标题栏）",
-                            "Initialization complete (logged in, transparent title bar)");
+                        Log("初始化完成（已登录，显示透明标题栏）", "Initialization complete (logged in, transparent title bar)");
                     }
                     catch (Exception ex)
                     {
-                        Log($"初始化异常: {ex.Message}",
-                            $"Init exception: {ex.Message}");
+                        Log($"初始化异常: {ex.Message}", $"Init exception: {ex.Message}");
                     }
                 };
             }
@@ -259,10 +258,7 @@ namespace Project.Launch.Views
             double halfW = AnimationConfig.TabWidth / 2.0;
             double halfH = AnimationConfig.TabHeight / 2.0;
 
-            _tabAnimTimer = new DispatcherTimer
-            {
-                Interval = TimeSpan.FromMilliseconds(16)
-            };
+            _tabAnimTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(16) };
             _tabAnimTimer.Tick += (s, e) =>
             {
                 var elapsed = DateTime.Now - _tabAnimStartTime;
@@ -273,9 +269,7 @@ namespace Project.Launch.Views
                     _tabAnimTimer.Stop();
                 }
 
-                double eased = progress < 0.5
-                    ? 4 * progress * progress * progress
-                    : 1 - Math.Pow(-2 * progress + 2, 3) / 2;
+                double eased = progress < 0.5 ? 4 * progress * progress * progress : 1 - Math.Pow(-2 * progress + 2, 3) / 2;
                 double baseX = _tabAnimStartX + (_tabAnimTargetX - _tabAnimStartX) * eased;
 
                 double scaleCurve;
@@ -325,9 +319,6 @@ namespace Project.Launch.Views
             _tabAnimTimer.Start();
         }
 
-        // ============================================================
-        // 下载页：基岩版 / Java版 选择器
-        // ============================================================
         private void InitializeEditionSelector()
         {
             _bedrockEditionBtn = this.FindControl<Button>("BedrockEditionButton");
@@ -410,10 +401,7 @@ namespace Project.Launch.Views
             double halfW = AnimationConfig.SliderWidth / 2.0;
             double halfH = AnimationConfig.SliderHeight / 2.0;
 
-            _editionAnimTimer = new DispatcherTimer
-            {
-                Interval = TimeSpan.FromMilliseconds(16)
-            };
+            _editionAnimTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(16) };
             _editionAnimTimer.Tick += (s, e) =>
             {
                 var elapsed = DateTime.Now - _editionAnimStartTime;
@@ -424,10 +412,7 @@ namespace Project.Launch.Views
                     _editionAnimTimer.Stop();
                 }
 
-                double eased = progress < 0.5
-                    ? 4 * progress * progress * progress
-                    : 1 - Math.Pow(-2 * progress + 2, 3) / 2;
-
+                double eased = progress < 0.5 ? 4 * progress * progress * progress : 1 - Math.Pow(-2 * progress + 2, 3) / 2;
                 double baseX = _editionAnimStartX + (_editionAnimTargetX - _editionAnimStartX) * eased;
 
                 double scaleCurve;
@@ -477,9 +462,6 @@ namespace Project.Launch.Views
             _editionAnimTimer.Start();
         }
 
-        // ============================================================
-        // Java 版版本列表逻辑
-        // ============================================================
         private void InitializeVersionList()
         {
             _ = LoadVersionManifestAsync();
@@ -489,26 +471,37 @@ namespace Project.Launch.Views
         {
             if (_isVersionsLoading) return;
             _isVersionsLoading = true;
-            
+
             var loadingPanel = this.FindControl<StackPanel>("VersionLoadingPanel");
             var errorPanel = this.FindControl<StackPanel>("VersionErrorPanel");
             var listBox = this.FindControl<ListBox>("VersionListBox");
-            
+
             if (loadingPanel != null) loadingPanel.IsVisible = true;
             if (errorPanel != null) errorPanel.IsVisible = false;
             if (listBox != null) listBox.IsVisible = false;
 
             var manifest = await VersionService.GetVersionManifestAsync();
-            
+
             if (manifest != null && manifest.Versions.Count > 0)
             {
-                _allVersions = manifest.Versions;
-                
-                // 按时间倒序排列
-                _allVersions = _allVersions.OrderByDescending(v => v.ReleaseTime).ToList();
-                
+                _allVersions = manifest.Versions.OrderByDescending(v => v.ReleaseTime).ToList();
+
+                foreach (var version in _allVersions)
+                {
+                    version.IconPath = GetVersionIcon(version);
+                    try
+                    {
+                        using var stream = AssetLoader.Open(new Uri(version.IconPath));
+                        version.IconBitmap = new Bitmap(stream);
+                    }
+                    catch (Exception ex)
+                    {
+                        Log($"加载图标失败: {version.IconPath} - {ex.Message}", $"Failed to load icon: {version.IconPath} - {ex.Message}");
+                    }
+                }
+
                 ApplyVersionFilter();
-                
+
                 if (loadingPanel != null) loadingPanel.IsVisible = false;
                 if (listBox != null) listBox.IsVisible = true;
             }
@@ -517,76 +510,162 @@ namespace Project.Launch.Views
                 if (loadingPanel != null) loadingPanel.IsVisible = false;
                 if (errorPanel != null) errorPanel.IsVisible = true;
             }
-            
+
             _isVersionsLoading = false;
+        }
+
+        private string GetVersionIcon(VersionEntry version)
+        {
+            const string iconBase = "avares://Project.Launch/MainSrc/Views/imgs/Main/images/Blocks/";
+
+            var aprilFoolsIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            {
+                "15w14a", "1.rv-pre1", "3d shareware v1.34", "20w14infinite",
+                "22w13oneblockatatime", "23w13a_or_b", "24w14potato", "25w14craftmine"
+            };
+
+            if (aprilFoolsIds.Contains(version.VersionId) || version.VersionId.Contains("potato"))
+            {
+                return iconBase + "chest.png";
+            }
+
+            if (version.Type.Equals("release", StringComparison.OrdinalIgnoreCase))
+            {
+                return iconBase + "grass2.png";
+            }
+
+            if (version.Type.Equals("snapshot", StringComparison.OrdinalIgnoreCase))
+            {
+                return iconBase + "GrassPath.png";
+            }
+
+            return iconBase + "furnace.png";
         }
 
         private void ApplyVersionFilter()
         {
             if (_allVersions == null) return;
-            
+
             var listBox = this.FindControl<ListBox>("VersionListBox");
             var filterCombo = this.FindControl<ComboBox>("VersionTypeFilter");
             var searchBox = this.FindControl<TextBox>("VersionSearchBox");
-            
+
             if (listBox == null || filterCombo == null || searchBox == null) return;
-            
+
             string filter = (filterCombo.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "all";
             string search = searchBox.Text?.Trim().ToLowerInvariant() ?? "";
-            
-            var filtered = _allVersions.Where(v => 
+
+            var filtered = _allVersions.Where(v =>
             {
-                if (filter != "all" && !v.Type.Equals(filter, StringComparison.OrdinalIgnoreCase)) 
+                if (filter != "all" && !v.Type.Equals(filter, StringComparison.OrdinalIgnoreCase))
                     return false;
-                if (!string.IsNullOrEmpty(search) && !v.Id.ToLowerInvariant().Contains(search)) 
+                if (!string.IsNullOrEmpty(search) && !v.VersionId.ToLowerInvariant().Contains(search))
                     return false;
                 return true;
             }).ToList();
-            
+
             listBox.ItemsSource = filtered;
         }
 
         private void OnVersionFilterChanged(object? sender, SelectionChangedEventArgs e) => ApplyVersionFilter();
-
         private void OnVersionSearchChanged(object? sender, TextChangedEventArgs e) => ApplyVersionFilter();
-
         private void OnRetryVersionsClicked(object? sender, Avalonia.Interactivity.RoutedEventArgs e) => _ = LoadVersionManifestAsync();
 
         private void OnVersionSelected(object? sender, SelectionChangedEventArgs e)
         {
             var listBox = this.FindControl<ListBox>("VersionListBox");
             _selectedVersion = listBox?.SelectedItem as VersionEntry;
-            
+
             if (_selectedVersion != null)
             {
-                Log($"用户选中了版本: {_selectedVersion.Id}", $"User selected version: {_selectedVersion.Id}");
+                Log($"用户选中了版本: {_selectedVersion.VersionId}", $"User selected version: {_selectedVersion.VersionId}");
             }
         }
 
-        private void OnVersionListDoubleTapped(object? sender, TappedEventArgs e)
+        private async void OnVersionListDoubleTapped(object? sender, TappedEventArgs e)
         {
-            // 预留：双击进入下载安装，留给 P2 实现
-            if (_selectedVersion != null)
-            {
-                // 暂时没写逻辑
-            }
-        }
+            if (_selectedVersion == null) return;
 
-        // ============================================================
-        // 启动与状态同步逻辑
-        // ============================================================
-        private async void OnMainButtonClicked(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
-        {
-            if (_currentInstance == null)
+            // 1. 选择安装目录（选择器本身可能抛异常，必须兜住，否则 async void 会把整个进程带崩）
+            string? targetPath = await PickFolderSafeAsync(
+                $"选择 {_selectedVersion.VersionId} 的安装目录（即 .minecraft 文件夹）");
+
+            if (string.IsNullOrEmpty(targetPath)) return;
+
+            // 2. 准备后台下载 CTS
+            var cts = new System.Threading.CancellationTokenSource();
+
+            // 3. 弹窗接管 UI（逻辑类似 LoginWindow 模态窗）
+            UpdateTitleBarGradient(_defaultStartColor, _defaultEndColor);
+            var contentArea = this.FindControl<Grid>("ContentArea");
+            if (contentArea != null) contentArea.IsVisible = false;
+
+            bool success = false;
+            InstallResult? installResult = null;
+            try
             {
-                await ImportInstanceAsync();
+                var downloadWindow = new DownloadWindow(_selectedVersion, targetPath, cts);
+                success = await downloadWindow.ShowDialog<bool>(this);
+                installResult = downloadWindow.LastResult;
+            }
+            catch (Exception ex)
+            {
+                Log($"下载窗异常: {ex.Message}", $"Download window error: {ex.Message}");
+            }
+            finally
+            {
+                if (contentArea != null) contentArea.IsVisible = true;
+                await SetTransparentTitleBarAsync();
+            }
+
+            // 4. 根据结果处理
+            if (success)
+            {
+                await ShowToastAsync($"安装 {_selectedVersion.VersionId} 成功！", "DownloadDone");
+                var result = MinecraftDirectoryAnalyzer.Analyze(targetPath);
+                if (result.IsValid)
+                {
+                    var instance = new InstanceInfo
+                    {
+                        Name = _selectedVersion.VersionId,
+                        RootPath = targetPath,
+                        Layout = result.Layout,
+                        VersionId = _selectedVersion.VersionId,
+                        ImportedAt = DateTime.UtcNow,
+                        LastUsed = DateTime.UtcNow
+                    };
+                    InstanceService.SetSelectedInstance(instance);
+                    _currentInstance = instance;
+                    UpdateLoginStatus();
+                }
             }
             else
             {
-                await StartGameAsync();
+                if (!cts.IsCancellationRequested)
+                {
+                    string msg = installResult != null && installResult.FailedFiles > 0
+                        ? $"安装未完成：失败 {installResult.FailedFiles} / {installResult.TotalFiles} 个文件"
+                        : "下载失败，请查看日志";
+                    await ShowToastAsync(msg, "Errors");
+                }
             }
         }
 
+        private async void OnMainButtonClicked(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+        {
+            if (_currentInstance == null) await ImportInstanceAsync();
+            else await StartGameAsync();
+        }
+
+        // ============================================================
+        // ★ 正版链路改造点：启动游戏
+        //
+        // 改造前：直接用 App.PlayerName / App.OfflineUuid 按离线身份启动
+        // 改造后：
+        //   1. 从 AccountService 读取选中账户（不再信任 App 静态字段）
+        //   2. 微软账户：检查 MC access_token 是否临近过期，过期则用 refresh_token 静默刷新
+        //   3. 用 LaunchAuthInfo 承载真实身份，交给 GameLauncher
+        // ============================================================
         private async Task StartGameAsync()
         {
             if (_currentInstance == null) return;
@@ -594,8 +673,7 @@ namespace Project.Launch.Views
             try
             {
                 string versionsDir = Path.Combine(_currentInstance.RootPath, "versions");
-                string jsonPath = Path.Combine(versionsDir, _currentInstance.VersionId,
-                    _currentInstance.VersionId + ".json");
+                string jsonPath = Path.Combine(versionsDir, _currentInstance.VersionId, _currentInstance.VersionId + ".json");
                 if (!File.Exists(jsonPath))
                 {
                     Log($"版本 json 不存在: {jsonPath}", $"Version json not found: {jsonPath}");
@@ -616,14 +694,12 @@ namespace Project.Launch.Views
                 var javas = await JavaDetector.DetectAllAsync();
                 Log($"检测到 {javas.Count} 个 Java", $"Detected {javas.Count} Java(s)");
                 foreach (var j in javas)
-                    Log($"  Java: {j.Path} (major={j.MajorVersion})",
-                        $"  Java: {j.Path} (major={j.MajorVersion})");
+                    Log($"  Java: {j.Path} (major={j.MajorVersion})", $"  Java: {j.Path} (major={j.MajorVersion})");
 
                 var matched = JavaDetector.Match(javas, requiredJava);
                 if (matched == null)
                 {
-                    Log($"未找到合适的 Java（需要 {requiredJava}）",
-                        $"No suitable Java (need {requiredJava})");
+                    Log($"未找到合适的 Java（需要 {requiredJava}）", $"No suitable Java (need {requiredJava})");
                     await ShowToastAsync($"Java 环境异常：需要 Java {requiredJava}", "Messages");
                     return;
                 }
@@ -633,24 +709,97 @@ namespace Project.Launch.Views
                 _currentInstance.JavaPath = matched.Path;
                 InstanceService.SetSelectedInstance(_currentInstance);
 
-                string playerName = App.PlayerName ?? "Steve";
-                string playerUuid = App.OfflineUuid
-                    ?? OfflineUuidGenerator.GenerateUuidString(playerName).Replace("-", "");
+                // ★ 读取选中账户（真身来自 accounts.json，不依赖 App 静态字段）
+                var selected = AccountService.GetSelectedAccountWithId();
+                if (selected == null)
+                {
+                    Log("未选择账户，拒绝启动", "No selected account, abort launch");
+                    await ShowToastAsync("请先登录账户", "Messages");
+                    return;
+                }
+
+                var (accountId, account) = selected.Value;
+
+                // ★ 微软账户：临近过期 / token 缺失 → 静默刷新
+                if (account.Type == "microsoft")
+                {
+                    // 提前 5 分钟视为过期，避免游戏启动过程中 token 恰好失效
+                    bool needRefresh =
+                        account.TokenExpireAt <= DateTime.UtcNow.AddMinutes(5)
+                        || string.IsNullOrEmpty(account.MinecraftAccessToken);
+
+                    if (needRefresh)
+                    {
+                        Log(
+                            $"正版凭证需要刷新（过期时间 {account.TokenExpireAt:yyyy-MM-dd HH:mm:ss}，当前 {DateTime.UtcNow:yyyy-MM-dd HH:mm:ss}）",
+                            $"Microsoft token requires refresh (expires {account.TokenExpireAt:yyyy-MM-dd HH:mm:ss}, now {DateTime.UtcNow:yyyy-MM-dd HH:mm:ss})");
+
+                        var refreshed = await RefreshMicrosoftAccountAsync(account);
+                        if (refreshed == null)
+                        {
+                            Log("正版凭证刷新失败，拒绝启动", "Microsoft token refresh failed, abort launch");
+                            await ShowToastAsync("正版凭证已失效，请重新登录", "Errors");
+                            return;
+                        }
+
+                        // 持久化 + 更新静态字段（头像等依赖 App.PlayerName 的地方保持同步）
+                        AccountService.UpdateMicrosoftTokens(refreshed);
+                        App.PlayerName = refreshed.Username;
+                        App.OfflineUuid = refreshed.Uuid;
+
+                        account = refreshed;
+                        accountId = $"microsoft_{refreshed.Uuid}";
+                        Log(
+                            $"正版凭证刷新成功，新过期时间 {account.TokenExpireAt:yyyy-MM-dd HH:mm:ss}",
+                            $"Microsoft token refreshed, new expiry {account.TokenExpireAt:yyyy-MM-dd HH:mm:ss}");
+                    }
+                }
+
+                // ★ 构造 LaunchAuthInfo
+                LaunchAuthInfo auth = account.Type == "microsoft"
+                    ? LaunchAuthInfo.ForMicrosoft(account.Username, account.Uuid, account.MinecraftAccessToken)
+                    : LaunchAuthInfo.ForOffline(account.Username, account.Uuid);
+
+                Log(
+                    $"以 {auth.UserType} 身份启动：{auth.PlayerName} ({auth.Uuid})",
+                    $"Launching as {auth.UserType}: {auth.PlayerName} ({auth.Uuid})");
 
                 await ShowToastAsync("正在启动游戏...", "Messages");
 
-                bool ok = await GameLauncher.LaunchAsync(
-                    _currentInstance, vj, matched, playerName, playerUuid);
+                bool ok = await GameLauncher.LaunchAsync(_currentInstance, vj, matched, auth);
 
-                if (ok)
-                    await ShowToastAsync("游戏已启动", "Messages");
-                else
-                    await ShowToastAsync("启动失败，查看日志", "Messages");
+                if (ok) await ShowToastAsync("游戏已启动", "Messages");
+                else await ShowToastAsync("启动失败，查看日志", "Messages");
             }
             catch (Exception ex)
             {
                 Log($"启动游戏异常: {ex.Message}", $"Start game exception: {ex.Message}");
                 await ShowToastAsync("启动失败", "Messages");
+            }
+        }
+
+        /// <summary>
+        /// 用 refresh_token 静默刷新微软账户的 Minecraft access_token。
+        /// 成功返回新 AccountInfo；失败返回 null（调用方应提示重新登录）。
+        /// </summary>
+        private async Task<AccountInfo?> RefreshMicrosoftAccountAsync(AccountInfo account)
+        {
+            if (string.IsNullOrEmpty(account.MicrosoftRefreshToken))
+            {
+                Log("refresh_token 为空，无法静默刷新", "refresh_token is empty, cannot silent refresh");
+                return null;
+            }
+
+            try
+            {
+                var flow = new MicrosoftAuthFlow();
+                var refreshed = await flow.RefreshAsync(account.MicrosoftRefreshToken);
+                return refreshed;
+            }
+            catch (Exception ex)
+            {
+                Log($"静默刷新异常: {ex.Message}", $"Silent refresh exception: {ex.Message}");
+                return null;
             }
         }
 
@@ -663,36 +812,22 @@ namespace Project.Launch.Views
         {
             try
             {
-                var topLevel = TopLevel.GetTopLevel(this);
-                if (topLevel == null) return;
-
-                var folders = await topLevel.StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
-                {
-                    Title = "选择 Minecraft 目录（.minecraft 根目录或隔离实例目录）",
-                    AllowMultiple = false
-                });
-
-                if (folders.Count < 1)
+                string? path = await PickFolderSafeAsync("选择 Minecraft 目录（.minecraft 根目录或隔离实例目录）");
+                if (string.IsNullOrEmpty(path))
                 {
                     Log("用户取消导入", "User cancelled import");
                     return;
                 }
 
-                var folder = folders[0];
-                string path = folder.Path.LocalPath;
-                Log($"用户选择目录: {path}", $"User selected directory: {path}");
-
                 var result = MinecraftDirectoryAnalyzer.Analyze(path);
                 if (!result.IsValid)
                 {
-                    Log("目录无效（未找到 versions/ 或 .minecraft/versions/）",
-                        "Invalid directory (no versions/ or .minecraft/versions/)");
+                    Log("目录无效（未找到 versions/ 或 .minecraft/versions/）", "Invalid directory (no versions/ or .minecraft/versions/)");
                     await ShowToastAsync("未找到有效的 Minecraft 目录", "Messages");
                     return;
                 }
 
-                Log($"分析结果: Layout={result.Layout}, Versions={string.Join(",", result.Versions)}",
-                    $"Analysis: Layout={result.Layout}, Versions={string.Join(",", result.Versions)}");
+                Log($"分析结果: Layout={result.Layout}, Versions={string.Join(",", result.Versions)}", $"Analysis: Layout={result.Layout}, Versions={string.Join(",", result.Versions)}");
 
                 string versionId = result.Versions[result.Versions.Count - 1];
 
@@ -726,11 +861,9 @@ namespace Project.Launch.Views
             try
             {
                 UpdateTitleBarGradient(_defaultStartColor, _defaultEndColor);
-
                 await ShowLoginDialog();
                 UpdateLoginStatus();
                 await RefreshAvatarAsync();
-
                 await SetTransparentTitleBarAsync();
             }
             catch (Exception ex)
@@ -739,17 +872,14 @@ namespace Project.Launch.Views
             }
         }
 
-        // ★ 主页"切换账户"按钮
         private async void OnSwitchAccountClicked(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
         {
             await ShowAccountManagerAsync();
         }
 
-        // ★ 账户管理窗口
         private async Task ShowAccountManagerAsync()
         {
             UpdateTitleBarGradient(_defaultStartColor, _defaultEndColor);
-
             var contentArea = this.FindControl<Grid>("ContentArea");
             if (contentArea != null) contentArea.IsVisible = false;
 
@@ -759,11 +889,7 @@ namespace Project.Launch.Views
             {
                 var win = new AccountManagerWindow();
                 await win.ShowDialog(this);
-
-                if (win.ShouldOpenLogin)
-                {
-                    await RunLoginWindowAsync();
-                }
+                if (win.ShouldOpenLogin) await RunLoginWindowAsync();
 
                 UpdateLoginStatus();
                 await RefreshAvatarAsync();
@@ -775,7 +901,6 @@ namespace Project.Launch.Views
             }
         }
 
-        // ★ 跑 LoginWindow 并处理结果
         private async Task RunLoginWindowAsync()
         {
             var loginWindow = new LoginWindow();
@@ -799,13 +924,9 @@ namespace Project.Launch.Views
                 }
             }
 
-            if (!App.IsLoggedIn)
-            {
-                _ = ShowCancelToastAsync();
-            }
+            if (!App.IsLoggedIn) _ = ShowCancelToastAsync();
         }
 
-        // ★ 登录窗
         private async Task ShowLoginDialog()
         {
             var contentArea = this.FindControl<Grid>("ContentArea");
@@ -907,17 +1028,14 @@ namespace Project.Launch.Views
 
                 if (launchImg != null)
                 {
-                    using var stream = AssetLoader.Open(new Uri(
-                        $"avares://Project.Launch/MainSrc/Views/imgs/Main/images/Buttons/{mainIcon}"));
+                    using var stream = AssetLoader.Open(new Uri($"avares://Project.Launch/MainSrc/Views/imgs/Main/images/Buttons/{mainIcon}"));
                     launchImg.Source = new Bitmap(stream);
                 }
-                if (launchTxt != null)
-                    launchTxt.Text = hasInstance ? "开始游戏" : "导入实例";
+                if (launchTxt != null) launchTxt.Text = hasInstance ? "开始游戏" : "导入实例";
 
                 if (expandImg != null)
                 {
-                    using var stream = AssetLoader.Open(new Uri(
-                        $"avares://Project.Launch/MainSrc/Views/imgs/Main/images/Buttons/{subIcon}"));
+                    using var stream = AssetLoader.Open(new Uri($"avares://Project.Launch/MainSrc/Views/imgs/Main/images/Buttons/{subIcon}"));
                     expandImg.Source = new Bitmap(stream);
                 }
             }
@@ -937,16 +1055,11 @@ namespace Project.Launch.Views
 
         private async Task RefreshAvatarAsync()
         {
-            if (!App.IsLoggedIn)
-            {
-                Log("未登录，跳过皮肤加载", "Not logged in, skip skin loading");
-                return;
-            }
+            if (!App.IsLoggedIn) { Log("未登录，跳过皮肤加载", "Not logged in, skip skin loading"); return; }
 
             var account = AccountService.GetSelectedAccount();
             Bitmap? skinBitmap = null;
 
-            // ★ 正版皮肤：尝试爬取网络皮肤
             if (account != null && account.Type == "microsoft" && !string.IsNullOrEmpty(account.SkinUrl))
             {
                 try
@@ -963,7 +1076,6 @@ namespace Project.Launch.Views
                 }
             }
 
-            // ★ 离线或下载失败：回退默认皮肤（UUID 判断）
             if (skinBitmap == null)
             {
                 string skinAssetPath = DefaultSkinSelector.GetSkinAssetPath(account?.Uuid ?? App.OfflineUuid);
@@ -981,17 +1093,12 @@ namespace Project.Launch.Views
 
             if (skinBitmap == null) return;
 
-            // 1. 更新 3D 皮肤投影
             try
             {
                 _fullSkinBitmap?.Dispose();
                 _fullSkinBitmap = skinBitmap;
-
                 var skinViewer = this.FindControl<Pivot3DControl>("SkinViewer");
-                if (skinViewer != null)
-                {
-                    skinViewer.Skin = _fullSkinBitmap;
-                }
+                if (skinViewer != null) skinViewer.Skin = _fullSkinBitmap;
                 Log("3D 皮肤视图已更新", "3D skin view updated");
             }
             catch (Exception ex)
@@ -999,14 +1106,13 @@ namespace Project.Launch.Views
                 Log($"更新 3D 皮肤视图失败: {ex.Message}", $"Failed to update 3D skin view: {ex.Message}");
             }
 
-            // 2. 更新 2D 头像
             var faceImg = this.FindControl<Image>("HomeFaceImage");
             var hatImg = this.FindControl<Image>("HomeHatImage");
             if (faceImg != null && hatImg != null)
             {
                 try
                 {
-                    if (_fullSkinBitmap != null) // 修复 CS8604 警告
+                    if (_fullSkinBitmap != null)
                     {
                         var (face, hat) = CropSkinFromBitmap(_fullSkinBitmap);
                         if (face != null && hat != null)
@@ -1026,28 +1132,167 @@ namespace Project.Launch.Views
             }
         }
 
-        private void Log(string zh, string en)
+        private void Log(string zh, string en) => LogHelper.Write(LauncherPaths.MainWindowLog, zh, en);
+
+        // ============================================================
+        // 目录选择（不能崩）
+        // ============================================================
+
+        /// <summary>上一次成功选中的目录，手动输入时作为默认值。</summary>
+        private string? _lastPickPath;
+
+        /// <summary>
+        /// 安全地选目录：
+        ///   1) Avalonia 的 Win32 选择器在「选中项已失效 / 非本地路径」时会直接抛
+        ///      ArgumentException("Directory must exist")，必须兜住；
+        ///   2) 即便选择器没抛，也要自己校验路径真实存在；
+        ///   3) 选择器不可用时退化成手动输入路径，保证用户仍能继续。
+        /// </summary>
+        private async Task<string?> PickFolderSafeAsync(string title)
         {
-            LogHelper.Write(LauncherPaths.MainWindowLog, zh, en);
+            try
+            {
+                var topLevel = TopLevel.GetTopLevel(this);
+                if (topLevel == null) return null;
+
+                var folders = await topLevel.StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
+                {
+                    Title = title,
+                    AllowMultiple = false
+                });
+
+                if (folders == null || folders.Count < 1)
+                {
+                    Log("用户取消目录选择", "User cancelled folder picking");
+                    return null;
+                }
+
+                string? path = null;
+                try
+                {
+                    path = folders[0].TryGetLocalPath();
+                }
+                catch (Exception ex)
+                {
+                    Log($"取本地路径失败: {ex.Message}", $"TryGetLocalPath failed: {ex.Message}");
+                }
+
+                path = path?.Trim().TrimEnd('\\', '/');
+
+                if (string.IsNullOrWhiteSpace(path) || !Directory.Exists(path))
+                {
+                    Log($"所选目录不可用: {path}", $"Picked folder unavailable: {path}");
+                    await ShowToastAsync("所选目录不可用，请重新选择", "Errors");
+                    return await PromptForLocalPathAsync(title);
+                }
+
+                Log($"用户选择目录: {path}", $"User selected directory: {path}");
+                _lastPickPath = path;
+                return path;
+            }
+            catch (Exception ex)
+            {
+                // 这里曾经直接把整个启动器带崩（async void + Avalonia 选择器内部异常）
+                Log($"文件夹选择器异常: {ex.Message}", $"Folder picker failed: {ex.Message}");
+                LogHelper.Write(LauncherPaths.AppLog,
+                    $"文件夹选择器异常: {ex}",
+                    $"Folder picker exception: {ex}");
+
+                await ShowToastAsync("无法打开文件夹选择器，改为手动输入", "Errors");
+                return await PromptForLocalPathAsync(title);
+            }
+        }
+
+        /// <summary>选择器不可用时的兜底：手动输入目录。</summary>
+        private async Task<string?> PromptForLocalPathAsync(string title)
+        {
+            var window = new Window
+            {
+                Title = title,
+                Width = 580,
+                Height = 220,
+                CanResize = false,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner,
+                Background = Brushes.White
+            };
+
+            var inputBox = new TextBox
+            {
+                Text = _lastPickPath ?? string.Empty,
+                PlaceholderText = @"例如 E:\Minecraft",
+                FontSize = 15
+            };
+
+            string? result = null;
+
+            var okButton = new Button
+            {
+                Content = "确定",
+                Width = 110,
+                Height = 36,
+                Classes = { "Miret" }
+            };
+            var cancelButton = new Button
+            {
+                Content = "取消",
+                Width = 110,
+                Height = 36,
+                Classes = { "Miret" }
+            };
+
+            okButton.Click += (_, _) => { result = inputBox.Text; window.Close(); };
+            cancelButton.Click += (_, _) => { result = null; window.Close(); };
+
+            var buttonRow = new StackPanel
+            {
+                Orientation = Avalonia.Layout.Orientation.Horizontal,
+                HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right,
+                Spacing = 12
+            };
+            buttonRow.Children.Add(cancelButton);
+            buttonRow.Children.Add(okButton);
+
+            var panel = new StackPanel { Margin = new Thickness(20), Spacing = 14 };
+            panel.Children.Add(new TextBlock
+            {
+                Text = "请输入 Minecraft 安装目录（.minecraft 文件夹）：",
+                FontSize = 13,
+                Foreground = new SolidColorBrush(Color.Parse("#666666"))
+            });
+            panel.Children.Add(inputBox);
+            panel.Children.Add(buttonRow);
+
+            window.Content = panel;
+            await window.ShowDialog(this);
+
+            string? path = result?.Trim().Trim('"').TrimEnd('\\', '/');
+            if (string.IsNullOrWhiteSpace(path)) return null;
+
+            if (!Directory.Exists(path))
+            {
+                await ShowToastAsync("目录不存在，请重新选择", "Errors");
+                return null;
+            }
+
+            Log($"用户手动输入目录: {path}", $"User entered directory: {path}");
+            _lastPickPath = path;
+            return path;
         }
 
         private async Task ShowToastAsync(string message, string sound = "Messages")
         {
             SoundService.Play(sound);
-
             var toast = this.FindControl<Border>("CancelToast");
             var toastText = this.FindControl<TextBlock>("ToastText");
             if (toast == null) return;
 
-            if (toastText != null)
-                toastText.Text = message;
+            if (toastText != null) toastText.Text = message;
 
             toast.IsVisible = true;
             toast.Opacity = 0;
 
             await Task.Delay(20);
             toast.Opacity = 1;
-
             await Task.Delay(2500);
 
             toast.Opacity = 0;
@@ -1063,11 +1308,10 @@ namespace Project.Launch.Views
             {
                 int width = bitmap.PixelSize.Width;
                 int height = bitmap.PixelSize.Height;
-                
-                // 动态计算比例（支持 64x64, 128x128, 256x256 等任意倍数）
+
                 int scale = width / 64;
                 if (scale < 1) return (null, null);
-                
+
                 int faceX = 8 * scale;
                 int faceY = 8 * scale;
                 int faceSize = 8 * scale;
@@ -1078,19 +1322,14 @@ namespace Project.Launch.Views
                 var hatCropped = new CroppedBitmap(bitmap, new PixelRect(hatX, hatY, faceSize, faceSize));
 
                 var faceBmp = new RenderTargetBitmap(new PixelSize(faceSize, faceSize), new Vector(96, 96));
-                using (var ctx = faceBmp.CreateDrawingContext())
-                    ctx.DrawImage(faceCropped, new Rect(0, 0, faceSize, faceSize));
+                using (var ctx = faceBmp.CreateDrawingContext()) ctx.DrawImage(faceCropped, new Rect(0, 0, faceSize, faceSize));
 
                 var hatBmp = new RenderTargetBitmap(new PixelSize(faceSize, faceSize), new Vector(96, 96));
-                using (var ctx = hatBmp.CreateDrawingContext())
-                    ctx.DrawImage(hatCropped, new Rect(0, 0, faceSize, faceSize));
+                using (var ctx = hatBmp.CreateDrawingContext()) ctx.DrawImage(hatCropped, new Rect(0, 0, faceSize, faceSize));
 
                 return (faceBmp, hatBmp);
             }
-            catch
-            {
-                return (null, null);
-            }
+            catch { return (null, null); }
         }
 
         private void UpdateTitleBarGradient(Color startColor, Color endColor)
@@ -1119,35 +1358,20 @@ namespace Project.Launch.Views
             bool useDark = avgLuminance > 0.5;
 
             var titleText = this.FindControl<TextBlock>("TitleText");
-            if (titleText != null)
-                titleText.Foreground = useDark ? new SolidColorBrush(Colors.Black) : new SolidColorBrush(Colors.White);
+            if (titleText != null) titleText.Foreground = useDark ? new SolidColorBrush(Colors.Black) : new SolidColorBrush(Colors.White);
 
             var minImg = this.FindControl<Image>("MinimizeImage");
             if (minImg != null)
             {
-                var path = useDark ? "avares://Project.Launch/MainSrc/Views/imgs/Main/images/Buttons/black-.png"
-                                   : "avares://Project.Launch/MainSrc/Views/imgs/Main/images/Buttons/white-.png";
-                try
-                {
-                    var uri = new Uri(path);
-                    using var stream = AssetLoader.Open(uri);
-                    minImg.Source = new Bitmap(stream);
-                }
-                catch { }
+                var path = useDark ? "avares://Project.Launch/MainSrc/Views/imgs/Main/images/Buttons/black-.png" : "avares://Project.Launch/MainSrc/Views/imgs/Main/images/Buttons/white-.png";
+                try { var uri = new Uri(path); using var stream = AssetLoader.Open(uri); minImg.Source = new Bitmap(stream); } catch { }
             }
 
             var closeImg = this.FindControl<Image>("CloseImage");
             if (closeImg != null)
             {
-                var path = useDark ? "avares://Project.Launch/MainSrc/Views/imgs/Main/images/Buttons/blackx.png"
-                                   : "avares://Project.Launch/MainSrc/Views/imgs/Main/images/Buttons/whitex.png";
-                try
-                {
-                    var uri = new Uri(path);
-                    using var stream = AssetLoader.Open(uri);
-                    closeImg.Source = new Bitmap(stream);
-                }
-                catch { }
+                var path = useDark ? "avares://Project.Launch/MainSrc/Views/imgs/Main/images/Buttons/blackx.png" : "avares://Project.Launch/MainSrc/Views/imgs/Main/images/Buttons/whitex.png";
+                try { var uri = new Uri(path); using var stream = AssetLoader.Open(uri); closeImg.Source = new Bitmap(stream); } catch { }
             }
         }
 
@@ -1166,8 +1390,7 @@ namespace Project.Launch.Views
 
         private void TitleBar_PointerPressed(object? sender, PointerPressedEventArgs e)
         {
-            if (e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
-                BeginMoveDrag(e);
+            if (e.GetCurrentPoint(this).Properties.IsLeftButtonPressed) BeginMoveDrag(e);
         }
 
         public void SetTitleBarGradient(Color start, Color end)

@@ -1,79 +1,77 @@
 # Kilim Minecraft Launcher — 完整交接文档（自包含）
 
-> **本文件是自包含的**：包含项目框架、用途定位、目录重构记录、潜在隐患、已知缺陷、下一步调研，以及**当前全部源码**。
+> **本文件是自包含的**：包含项目框架、用途定位、技术栈、架构分层、**2026-10-31 下载引擎重写全过程（含困难与解决方式）**、下载引擎核心用法、已知缺陷、下一步待办，以及**当前全部源码**。
 > 接手方只看这一个文件即可理解项目并继续开发。
 
 | 项 | 值 |
 |---|---|
 | 项目 | Kilim Minecraft Launcher（内部代号 `Project.Launch`） |
-| 仓库 | https://github.com/Zhouxuanyao2333/KilimMinecraftPrivateRepository （**私有**，2026-10 重建） |
-| 代码基线 | `master` 上的 `2d5b01c`（**文档的源码对应该提交**；文档本身随后单独提交） |
-| 文档生成 | 2026-10-25 |
+| 仓库 | https://github.com/Zhouxuanyao2333/KilimMinecraftPrivateRepository （**私有**） |
+| 文档生成 | 2026-10-31 |
 | 技术栈 | C# / .NET 10 + Avalonia 12.1.2 + SkiaSharp 3.119.4 + NAudio 2.2.1 |
 | 平台 | Windows x64 |
-| 源码目录 | **`MainSrc\`**（2026-10 由 `src\` 改名，见 [1.6](#16--目录重构记录一src--mainsrc)） |
-| 源码规模 | 67 个文件 / 约 11,900 行 / 约 460 KB |
+| 源码目录 | **`MainSrc\`** |
+| 源码规模 | 71 个文件 / 约 13,800 行（含空行）/ 约 300 KB（不含图片音效） |
+| 版本号 | `SetConstants.Version = "rc-6"` |
 
 ---
 
 # 目录
 
-- [第零部分：这份文档怎么用](#第零部分这份文档怎么用先读这个)
+- [第零部分：这份文档怎么用](#第零部分这份文档怎么用)
 - [第一部分：这是什么项目](#第一部分这是什么项目)
-  - [1.6 ⚠️ 目录重构记录一：src → MainSrc](#16--目录重构记录一src--mainsrc)
-  - [1.7 ⚠️ 目录重构记录二：图片资源分目录](#17--目录重构记录二图片资源分目录)
-  - [1.8 ⚠️ 潜在隐患清单](#18--潜在隐患清单改目录前必读)
 - [第二部分：环境、构建与运行](#第二部分环境构建与运行)
-- [第三部分：已实现功能详解](#第三部分已实现功能详解)
-- [第四部分：已知缺陷与待办](#第四部分已知缺陷与待办)
-- [第五部分：下一步需求 —— 下载功能](#第五部分下一步需求--下载功能)
+- [第三部分：2026-10-31 改造记录（困难与解决方式）](#第三部分2026-10-31-改造记录困难与解决方式)
+- [第四部分：下载引擎——设计原理与核心用法](#第四部分下载引擎设计原理与核心用法)
+- [第五部分：其余模块现状](#第五部分其余模块现状)
 - [第六部分：完整源码](#第六部分完整源码)
 - [第七部分：协作约定](#第七部分协作约定)
 
 ---
 
-# 第零部分：这份文档怎么用（先读这个）
+# 第零部分：这份文档怎么用
 
 ## 0.1 文档一定会过期 —— 这是设计前提
 
-**这个项目仍在快速迭代。本文档是一张"快照"，不是"事实来源"。**
+**这个项目仍在快速迭代。本文件是一张"快照"，不是"事实来源"。**
 
-> ### ⚠️ 需要改 / 查任何具体实现时，先向用户索要该文件的最新版本
->
-> - 本文档第六部分对应 `commit 2d5b01c`
-> - 用户在此之后改过的文件，**第六部分对应小节就已经失效**
-> - **不要根据本文档的代码去推断"当前实现是怎样的"**，也不要基于它做重构
-> - 正确做法：告诉用户"我需要 `MainSrc/Views/MainWindow.cs` 的最新内容"
+- 第六部分对应 **2026-10-31 的源码状态**；
+- 用户在此之后改过的文件，**第六部分对应小节就已经失数**；
+- **不要根据本文档的代码去推断"当前实现是怎样的"**，也不要基于它做重构；
+- 正确做法：直接读磁盘上的最新文件。
 
-相对稳定的部分（可放心参考）：**第一部分的框架与用途、1.6/1.7 的重构规则、1.8 的隐患清单、第二部分的环境陷阱、第七部分的协作约定**。
+相对稳定、可放心参考的部分：**第一部分的框架与用途、第二部分的构建与环境陷阱、第三部分的改造记录与根因分析、第四部分的下载引擎设计原理、第七部分的协作约定。**
 
-会随开发失效的部分：**第三部分的功能细节、第四部分的缺陷清单、第五部分的下载进度**。
+会随开发失效的部分：第五部分的功能细节、第六部分的完整源码。
 
 ## 0.2 源码内嵌策略（第六部分）
 
 | 类别 | 是否嵌入全文 |
 |---|---|
 | 根目录：`Program.cs`、`App.axaml(.cs)`、`.csproj`、`app.manifest`、`.gitignore`、`README.md` | ✅ 全文 |
-| `MainSrc\Views\`：四个窗口 + 两套样式表 | ✅ 全文 |
-| `MainSrc\Tools\`：全部 21 个内核文件 | ✅ 全文 |
-| `MainSrc\Tools\Auth\`：微软登录 5 个文件 | ✅ 全文 |
-| `MainSrc\Tools\Download\`：版本清单 2 个文件 | ✅ 全文 |
-| `MainSrc\ViewModel\`、`MainSrc\Codes\` | ✅ 全文 |
-| `MainSrc\LiquidGlassAvaloniaUI\`：玻璃库 14 个 `.cs` + 6 个 `.sksl` + csproj | ✅ 全文 |
-| 图片 / 音效 / 图标（约 79 个，约 2 MB） | ❌ 仅列清单（[6.8](#68-二进制资源清单不嵌入内容)） |
+| `MainSrc\Download\`：下载引擎 6 个文件 | ✅ 全文 |
+| `MainSrc\Auth\`：微软登录 9 个文件 | ✅ 全文 |
+| `MainSrc\Views\`：4 个窗口 + 2 套样式表（Styles/Glass）+ read.md | ✅ 全文 |
+| `MainSrc\Tools\JavaConfig\`：启动内核 9 个文件 | ✅ 全文 |
+| `MainSrc\Tools\Player3DConfig\`：3D 皮肤 3 个文件 | ✅ 全文 |
+| `MainSrc\Tools\{AnimSettings,AppConstants,LogsConfig,SoundControl}\`：5 个文件 | ✅ 全文 |
+| `MainSrc\Tools\LiquidGlassAvaloniaUI\`：玻璃库 13 个 `.cs` + 6 个 `.sksl` + csproj | ✅ 全文 |
+| 图片 / 音效 / 图标（约 140 个，约 3.6 MB） | ❌ 仅列清单（见 6.10） |
+| `HANDOVER.md`（本文件）、`GLASS_NEGATIVE_FINDINGS.md` | ❌ 不嵌入（它们本身就是文档） |
+| `Design\`（PSD/MP3/参考图） | ❌ 不嵌入 |
 
 ## 0.3 推荐阅读顺序
 
 **第一次接触本项目：**
 
 1. [1.1 一句话定位](#11-一句话定位) → [1.5 架构分层](#15-架构分层与调用关系) —— 建立全局印象
-2. [1.6](#16--目录重构记录一src--mainsrc) / [1.7](#17--目录重构记录二图片资源分目录) / [1.8](#18--潜在隐患清单改目录前必读) —— **目录刚被重构过，这三节能避免你踩坑**
-3. [2.2 构建运行](#22-构建与运行命令) + [2.3 环境陷阱](#23--环境陷阱务必先读) —— 动手前必读
-4. [6.3 `GameLauncher.cs`](#63-mainsrctools--内核工具层) —— 启动器的核心
-5. [6.2 `MainWindow.axaml` + `.cs`](#62-mainsrcviews--界面层) —— 界面结构与交互范式
-6. [3.8 液态玻璃](#38-液态玻璃子系统含历史根因修复) —— **踩坑最多、最反直觉**
+2. [2.3 环境陷阱](#23--环境陷阱务必先读) —— **动手前必读**（代理、输出目录、文件占用）
+3. [第三部分 改造记录](#第三部分2026-10-31-改造记录困难与解决方式) —— 理解"为什么代码长这样"
+4. [第四部分 下载引擎](#第四部分下载引擎设计原理与核心用法) —— 本项目最复杂、最值得读的子系统
+5. [6.3 `GameLauncher.cs`](#65-mainsrctoolsjavaconfig--启动内核) —— 启动器的核心
+6. [6.4 `MainWindow`](#64-mainsrcviews--界面层) —— 界面结构与交互范式
 
-**要做下载功能** → 直接读 [第五部分](#第五部分下一步需求--下载功能) + [6.5 `Tools\Download`](#65-mainsrctoolsdownload--版本清单下载功能-p1)。
+**要动下载功能** → 直接读 [第四部分](#第四部分下载引擎设计原理与核心用法) + [6.2 `MainSrc\Download`](#62-mainsrcdownload--下载引擎)。
 
 ---
 
@@ -83,30 +81,22 @@
 
 **Kilim Minecraft Launcher** 是一个用 **C# / .NET 10 + Avalonia 12 从零手写**的 Minecraft 启动器，主打：
 
-1. **不用 WebView**（原生渲染，无内嵌浏览器开销）
-2. **自研液态玻璃 UI**（SKSL 运行时着色器做折射 / 色散 / 模糊）
+1. **不用 WebView**（原生渲染，无内嵌浏览器开销）；
+2. **自研液态玻璃 UI**（SKSL 运行时着色器做折射 / 色散 / 模糊）；
+3. **原生下载引擎**（自研，对标 PCL 的失败兜底与失速治理）。
 
-## 1.2 用处与产品定位
+## 1.2 现状判断
 
-### 当前形态：**导入式启动器**
+| 模块 | 状态 |
+|---|---|
+| UI / 动画 / 液态玻璃 / 3D 皮肤 | ✅ 打磨得很细（外观完成度约 90%） |
+| 账户系统（离线 + 微软正版全链路） | ✅ 代码完整，正版登录可用 |
+| 游戏启动（导入式） | ✅ 可用（classpath、natives、新旧两代参数都处理了） |
+| **下载 / 安装** | ✅ **2026-10-31 重写完成**，实测平均 3.6 MB/s、0 失败 |
+| 设置页 / 工具页 | ⚪ 仍是占位文字 |
+| 正版 token 传入游戏进程 | ❌ **未打通**（见 5.6，目前正版账户等于按离线启动） |
 
-依赖用户机器上**已经装好的 Minecraft**：扫描 `.minecraft` 目录 → 识别版本 → 启动。**不从网络下载游戏文件**（下载功能刚开始做，见第五部分）。
-
-### 目标形态：Java 版 + 基岩版双线
-
-- 正版（Java）与基岩版两条线并行，**共用一套下载引擎**
-- 基岩版**为规避版权只支持"安装包下载"**（不重分发游戏本体），数据源走第三方站 MCAPPX
-- 完整约束见 [5.1](#51-用户的产品定位与硬约束重要)
-
-### ⚠️ 现状判断
-
-> **外壳完成度约 90%，内核完成度约 45%。**
->
-> UI / 动画 / 液态玻璃 / 3D 皮肤这些"看得见的部分"打磨得很细，
-> 但**功能内核缺了最关键的一块：下载与安装**（现已开始，见 [3.9](#39-版本清单模块--下载功能-p1)）。
->
-> 另外，"下载 → 用正版身份启动"这条主干**两头都还没接通**：入口的下载器只做了清单，出口的正版凭据仍未传给游戏进程
-> （见 [4.1 P0](#41--p0-级功能失效缺陷)）。
+> **一句话**：UI 和下载都已经是"能打"的水平，**"下载 → 用正版身份启动"这条主干的出口还差最后一跳**。
 
 ## 1.3 技术栈
 
@@ -117,69 +107,49 @@
 | 渲染 | SkiaSharp 3.119.4（3D 皮肤投影 + 液态玻璃着色器） |
 | 音频 | NAudio 2.2.1 |
 | 发布 | 单文件自包含（`PublishSingleFile` + 压缩），**未裁剪** |
-| 玻璃库 | `MainSrc\LiquidGlassAvaloniaUI`（**独立 csproj**，主项目排除其源码后以 `ProjectReference` 引用） |
-| 测试 | **无测试工程**（全项目只有两个 csproj） |
+| 玻璃库 | `MainSrc\Tools\LiquidGlassAvaloniaUI`，**独立 csproj**，主项目排除其源码后用 `ProjectReference` 引用 |
+| 测试 | **无测试工程、无 CI**（全项目只有两个 csproj） |
 | MVVM | **没有**（全部 `FindControl` + 命令式赋值，状态放在 `App` 的静态字段里） |
 
 ## 1.4 项目结构总览
 
 ```
-Project.Launch\                       ← 仓库根
-├── Program.cs                        程序入口（含崩溃日志兜底）
-├── App.axaml / App.axaml.cs          应用级资源（★ 含 2 处 avares StyleInclude）、启动时恢复登录态
-├── Project.Launch.csproj             主项目文件（★ 25 处路径，改动目录必须同步）
+Project.Launch\                        ← 仓库根
+├── Program.cs                        程序入口（崩溃日志兜底 + 启动代理探测）
+├── App.axaml / App.axaml.cs          应用级资源、启动时恢复登录态、★全局异常兜底
+├── Project.Launch.csproj             主项目文件（★路径集中，改目录必须同步）
 ├── app.manifest                      Windows 清单（透明窗口相关，勿删）
-├── .gitignore                        ★ 构建/发布产物忽略规则（见 2.5）
-├── README.md
+├── .gitignore                        构建/发布产物忽略规则
+├── README.md                         项目说明 + 隐私政策
+├── HANDOVER.md                       ★ 本文件
+├── GLASS_NEGATIVE_FINDINGS.md        液态玻璃的一次反向排查记录（历史资料）
+├── Design\                           美术素材（PSD / MP3 / 参考图，不入编译）
 │
-├── MainSrc\                          ★ 2026-10 由 src\ 改名（见 1.6）
-│   ├── Codes\                        【空】规划为"内核级主程序代码"，只有 read.md
-│   ├── Tools\                        ★ 内核工具层
-│   │   ├── Auth\                     微软正版登录全链路（MSA→XBL→XSTS→MC）
-│   │   ├── Download\                 ★ 版本清单模块（下载功能 P1）
-│   │   ├── GameLauncher.cs           ★ 启动器核心：拼命令行 + 起进程
-│   │   ├── JavaDetector.cs            Java 检测与版本匹配
-│   │   ├── MinecraftDirectoryAnalyzer.cs  目录布局识别（standard / isolated）
-│   │   ├── InstanceService.cs / InstanceData.cs     实例持久化
-│   │   ├── MinecraftVersionJson.cs   版本 JSON 数据模型
-│   │   ├── AccountService.cs / AccountData.cs       账户持久化
-│   │   ├── OfflineUuidGenerator.cs    离线 UUID（兼容 HMCL / Java）
-│   │   ├── MinecraftSkinModel.cs / Pivot3DControl.cs / Pivot3DRenderer.cs   3D 皮肤投影
-│   │   ├── DefaultSkinSelector.cs / SkinCropper.cs  默认皮肤判定 + 头像裁切
-│   │   ├── LauncherPaths.cs          所有路径的唯一来源
-│   │   ├── LogHelper.cs              双语日志
-│   │   ├── SoundService.cs / SoundConfig.cs  音效
-│   │   └── AnimationConfig.cs / InteractionConfig.cs  动画/交互参数（设置页预留出口）
-│   │
-│   ├── Views\                        ★ 界面层
-│   │   ├── MainWindow.axaml/.cs       主窗（5 Tab + 自绘标题栏 + 底部导航滑块）
-│   │   ├── LoginWindow.axaml/.cs      登录窗（离线 / 正版 / 第三方 三模式）
-│   │   ├── AccountManagerWindow.axaml/.cs  账户管理窗
-│   │   ├── Styles.axaml               主题色 + Miret 系列按钮样式
-│   │   ├── Glass.axaml                玻璃参数表（⚠️ 当前实际未被引用，见 3.8.5）
-│   │   └── imgs\                      ★ 图片资源（2026-10 重新分目录，见 1.7）
-│   │       ├── Main\images\
-│   │       │   ├── Blocks\            方块图标 ×16（当前未引用）
-│   │       │   ├── Buttons\           按钮/标题栏图标 ×15（**主要引用区**）
-│   │       │   ├── Launcher\          装饰图/背景图 + MainLogo.ico
-│   │       │   ├── Loaders\           加载器图标 ×12（当前未引用，为 P5 预留）
-│   │       │   └── Support\           社交链接图标（仅 github.png 被引用）
-│   │       └── skin\                  皮肤贴图 ×15（**未移动**）
-│   │
-│   ├── ViewModel\                    【预留】协调接口层，只有一个无人引用的演示文件
-│   │
-│   ├── Sound\                        6 个音效 wav + desktop.ini
-│   │
-│   ├── LiquidGlassAvaloniaUI\        ★ 液态玻璃库（vendored 第三方，MIT）
-│   │   ├── LiquidGlassBackdropProvider.cs  ★ 背景抓取引擎（历史根因修复在此）
-│   │   ├── LiquidGlassSurface.cs           公开控件（40 个 StyledProperty）
-│   │   ├── LiquidGlassDrawOperation.cs     着色器管线
-│   │   └── Assets\Shaders\*.sksl           6 个 SKSL 运行时着色器
-│   │
+├── MainSrc\                          ★ 源码根（2026-10 由 src\ 改名而来）
+│   ├── Auth\                         微软正版登录全链路（MSA→XBL→XSTS→MC）
+│   ├── Download\                     ★★ 下载引擎（本次改造重点）
+│   │   ├── SourcePolicy.cs           源排序 / 健康度冷卻 / 主机级并发门
+│   │   ├── DownloadEngine.cs         下载原语：看门狗 / 失速判据 / 校验 / 内存直写
+│   │   ├── GameInstaller.cs          安装调度：清单展开 / 换源 / 统计 / 日志
+│   │   ├── VersionService.cs         版本清单（元数据）
+│   │   ├── MinecraftManifest.cs      清单数据模型
+│   │   └── ProxyEnvironment.cs       ★ 系统代理探测与直连降级
+│   ├── Tools\
+│   │   ├── JavaConfig\               启动内核：GameLauncher / JavaDetector / 实例 / 版本 JSON
+│   │   ├── Player3DConfig\           3D 皮肤（SkiaSharp 顶点绘制）
+│   │   ├── LiquidGlassAvaloniaUI\    ★ 液态玻璃库（vendored 第三方，MIT）
+│   │   ├── AnimSettings\             动画参数
+│   │   ├── AppConstants\             版本号 / 应用名唯一来源
+│   │   ├── LogsConfig\               双语日志
+│   │   └── SoundControl\             音效
+│   ├── Views\                        界面层（MainWindow / LoginWindow / AccountManagerWindow / DownloadWindow + 样式）
+│   ├── imgs\                         ★ 图片资源（按用途分目录）
+│   ├── Sound\                        6 个音效 wav
+│   ├── Codes\                        【空】规划为"内核级主程序代码"，实际代码都在 Tools\ 与 Download\
 │   └── BuiltDebugRun\                ★ Debug 输出目录（**已 gitignore，绝不入库**）
 │
 ├── obj\                              ★ 已 gitignore
-└── publish\                          ★ 已 gitignore（历史曾误入库 132 MB 二进制）
+└── publish\                          ★ 已 gitignore
 ```
 
 > **运行时数据目录不在这里**：它在 **exe 同级的 `KilimLauncher\`**，即 `MainSrc\BuiltDebugRun\KilimLauncher\`。见 [2.4](#24-运行时数据目录)。
@@ -188,11 +158,14 @@ Project.Launch\                       ← 仓库根
 
 ```
                               Program.cs
-                                  │  构建 Avalonia App，崩溃写 crash.log
+                                  │  ① 写 startup.log
+                                  │  ② ProxyEnvironment.EnsureInitialized()  ← 启动即探测系统代理
+                                  │  ③ 构建 Avalonia App，崩溃写 crash.log
                                   ▼
                             App.axaml.cs
-                                  │  启动时读 accounts.json 恢复登录态
-                                  │  跳登录 → MainWindow；否则 MainWindow + LoginWindow
+                                  │  ① AvaloniaXamlLoader.Load
+                                  │  ② ★ InstallCrashGuards()：UI 线程未处理异常拦截
+                                  │  ③ 启动时读 accounts.json 恢复登录态
                                   ▼
         ┌─────────────────── MainWindow（主窗） ───────────────────┐
         │  5 Tab：下载(0) / 启动(1) / 主页(2) / 设置(3) / 工具(4)    │
@@ -200,38 +173,39 @@ Project.Launch\                       ← 仓库根
         └───────┬─────────────────────────────────┬───────────────┘
                 │                                 │
       ┌─────────▼──────────┐          ┌───────────▼─────────────┐
-      │  导入实例链路       │          │  启动游戏链路            │
+      │  下载链路 ★本次重写 │          │  启动游戏链路            │
       └─────────┬──────────┘          └───────────┬─────────────┘
                 │                                 │
-   MinecraftDirectoryAnalyzer.Analyze(path)        │
-     · 形态 A standard：versions/ 在根下           │
-     · 形态 B isolated：.minecraft/versions/ 下    │
+   VersionService.GetVersionManifestAsync          │
+     └ SourcePolicy 决定源顺序 + 健康度              │
                 │                                 │
-   InstanceService.SetSelectedInstance             │
-     → KilimLauncher\instances.json                │
+   DownloadWindow（线程数 + 进度 + 取消）           │
                 │                                 │
-                └────────────► MinecraftVersionJson.Load(json)
-                                        │
-                               JavaDetector.DetectAllAsync() / Match()
-                                        │
-                               OfflineUuidGenerator（离线 UUID）
-                                        │
-                               GameLauncher.LaunchAsync(...)  ★核心
-                                 · 拼 classpath（client.jar + libraries）
-                                 · 解压 natives
-                                 · 替换占位符（auth_* / assets_* / ...）
-                                 · --language xx_xx（按系统语言）
-                                 · Process.Start(java, args)
-                                 · 进程加入 _runningProcesses 跟踪
-                                 · stdout/stderr → instances\{id}\game.log
-                                        │
-                                  java.exe 启动 Minecraft
-
-  下载链路（进行中）：
-    【UI 未接】→ VersionService.GetVersionManifestAsync()
-                   · BMCLAPI 优先 → 官方源兜底
-                   → VersionManifest（Latest + Versions[]）
-                   ⚠️ 目前只在日志里验证过，UI 还没消费它
+   GameInstaller.InstallVanillaAsync  ★核心调度     │
+     · 下版本 json → 解析 libraries / client.jar    │
+     · 下 asset index → 展开数千个 object           │
+     · 逐文件：SourcePolicy 排序候选源               │
+                └→ DownloadEngine.DownloadAsync     │
+                     · 建连看门狗 8s                │
+                     · 逐读看门狗 15s               │
+                     · 失速判据 10s < 24KB/s        │
+                     · 小文件内存直写 + 边下边算 SHA1│
+                     · 失败分类 → 换源/重试/冷却     │
+                                            MinecraftVersionJson.Load(json)
+                                                     │
+                                            JavaDetector.DetectAllAsync() / Match()
+                                                     │
+                                            OfflineUuidGenerator（离线 UUID）
+                                                     │
+                                            GameLauncher.LaunchAsync(...)  ★核心
+                                              · 拼 classpath（client.jar + libraries）
+                                              · 解压 natives
+                                              · 替换占位符（auth_* / assets_* / ...）
+                                              · --language xx_xx（按系统语言）
+                                              · Process.Start(java, args)
+                                              · stdout/stderr → instances\{id}\game.log
+                                                     │
+                                               java.exe 启动 Minecraft
 
   账户链路（与上并行）：
     LoginWindow ─┬─ 离线：OfflineUuidGenerator → AccountService
@@ -248,232 +222,11 @@ Project.Launch\                       ← 仓库根
 
 **必须知道的架构事实：**
 
-1. **数据目录不在 `%APPDATA%`**，而在 **exe 同级的 `KilimLauncher\`**（见 [2.4](#24-运行时数据目录)）。装到 `Program Files` 会因无写权限而**静默失效**。
-2. **没有 ViewModel、没有绑定**：UI 状态由 `App` 的静态字段（`PlayerName` / `OfflineUuid` / `IsLoggedIn` / `LoginCheck`）+ 各窗口私有字段维护。
+1. **数据目录不在 `%APPDATA%`**，而在 **exe 同级的 `KilimLauncher\`**。装到 `Program Files` 会因无写权限而**静默失效**。
+2. **没有 ViewModel、没有绑定**：UI 状态由 `App` 的静态字段 + 各窗口私有字段维护。
 3. **玻璃库是 vendored 的**：源码在仓库里，但主项目**不编译它**（`<Compile Remove>`），而是引用它独立编译的 DLL。改它需要单独编译。
-4. **`MainSrc\Codes\` 是空目录**：规划为"内核级主程序代码"，实际代码都在 `MainSrc\Tools\`。
-5. **`Glass.axaml` 那套"玻璃参数表"当前是空转的**——真正的玻璃参数写在各窗口 XAML 里内联。见 [3.8.5](#385-已知的空转与死代码)。
-6. **所有图片/音效/样式都是 `avares://` 运行时加载**，路径写错**不会编译报错**，只会运行时静默失败。这是本项目最容易踩的坑，见 [1.8](#18--潜在隐患清单改目录前必读)。
-
-## 1.6 ⚠️ 目录重构记录一：src → MainSrc
-
-**2026-10，用户把 `src\` 整体改名为 `MainSrc\`。** 物理改名只是第一步——**代码里有 51 处路径需要同步修正**，否则会出现"能编译、能启动、但图标全不见"的现象。
-
-### 1.6.1 为什么会有 51 处
-
-Avalonia 的资源 URI 格式是：
-
-```
-avares://<程序集名>/<文件相对于项目根的路径，用正斜杠>
-```
-
-也就是说 **`avares://` 里的路径段 = 文件在磁盘上相对于 `.csproj` 的路径**。
-文件夹一改名，**所有 avares URI 都必须跟着改**，否则 `AssetLoader.Open()` 抛异常。
-
-### 1.6.2 实际改动清单（51 处）
-
-| 文件 | 处数 | 形态 |
-|---|---|---|
-| `Project.Launch.csproj` | **25** | 物理路径（反斜杠）：`src\...` → `MainSrc\...` |
-| `MainSrc\Views\MainWindow.axaml` | 11 | avares URI（XAML `Source=`） |
-| `MainSrc\Views\MainWindow.cs` | 8 | avares URI（C# 字符串，含 2 处插值拼接） |
-| `App.axaml` | **2** | avares URI —— **`StyleInclude` 的 `Styles.axaml` / `Glass.axaml`，最容易漏** |
-| `MainSrc\Tools\DefaultSkinSelector.cs` | 2 | avares URI（`skin/Steve.png`、`skin/Alex.png`） |
-| `MainSrc\Views\LoginWindow.axaml` | 1 | avares URI（`github.png`） |
-| `MainSrc\Views\LoginWindow.xaml.cs` | 1 | avares URI（`skin/Steve.png`） |
-| `MainSrc\Tools\SoundConfig.cs` | 1 | avares URI 前缀（`AssetRoot`，音效目录） |
-
-`csproj` 里那 25 处具体是：
-
-```
-<ApplicationIcon>                        程序图标
-<OutputPath>                             Debug 输出目录
-5 组 <Compile/AvaloniaXaml/AvaloniaResource/EmbeddedResource/None Remove>   排除玻璃库源码
-5 组 ... Remove  排除 BuiltDebugRun                                         防止 CS0579
-<ProjectReference Include>               玻璃库项目引用
-5 处 <AvaloniaXaml Update>               登记参与编译的 XAML
-<AvaloniaResource Include="...\imgs\**"> 图片资源
-<AvaloniaResource Include="...\Sound\**"> 音效资源
-<Content Include="...\MainLogo.ico">     任务栏图标
-<Compile Update> ×2                      文件分组
-```
-
-### 1.6.3 修改方式（可复用的流程）
-
-**不要手工逐个文件替换——用脚本按映射表改，改完逐条验证。** 本次用的流程：
-
-1. **全仓扫描**，用精确正则避免误伤（`src` 必须后面跟 `/` 或 `\`，且前面不能是字母）：
-
-   ```powershell
-   # 找 avares 引用
-   Get-ChildItem -Recurse -Include *.cs,*.axaml,*.csproj |
-     Where-Object { $_.FullName -notmatch '\\(bin|obj|BuiltDebugRun|publish)\\' } |
-     Select-String -Pattern '(?<![A-Za-z])src[\\/]|Project\.Launch/src/'
-   ```
-
-2. **按两类形态分别替换**：
-   - `Project.Launch/src/` → `Project.Launch/MainSrc/`（avares URI）
-   - `(?<![A-Za-z])src\` → `MainSrc\`（物理路径，正则）
-
-3. **验证 1：确认零残留**
-   ```powershell
-   # 替换后再扫一遍，必须 0 处
-   ```
-
-4. **验证 2：每条 avares 引用都必须在磁盘上有对应文件**
-   ```powershell
-   # 从代码里抠出 avares://Project.Launch/(...) 的路径段
-   # 转成 src\... → MainSrc\... 的物理路径，逐条 Test-Path
-   ```
-
-5. **验证 3：确认资源真的被打进程序集**（★ 关键，编译成功不代表资源在）
-   ```powershell
-   $dll = 'MainSrc\BuiltDebugRun\Project.Launch.dll'
-   $u = [System.Text.Encoding]::UTF8.GetString([IO.File]::ReadAllBytes((Resolve-Path $dll)))
-   $u.Contains('MainSrc/Views/Styles.axaml')      # 必须 True
-   $u.Contains('Project.Launch/src/Views/')       # 必须 False
-   ```
-   > ⚠️ **注意编码**：.NET 元数据的字符串堆是 **UTF-8**，不是 UTF-16。用 UTF-16 解码会搜不到任何东西。
-
-6. **验证 4：运行时冒烟测试** —— 启动一次，检查 `KilimLauncher\app.log` / `MainWindowLog.txt` 里有没有
-   `更新按钮图像失败` / `Failed to` / `avares` / `Exception`。
-
-### 1.6.4 本次结果
-
-- 51 处全部替换，**0 残留**
-- 21 个唯一 avares 路径**全部能在磁盘上找到**
-- 程序集资源清单已换成 `MainSrc/...`，旧 `Project.Launch/src/...` 已清除
-- 编译 0 错误；运行无崩溃、无资源加载错误
-
-## 1.7 ⚠️ 目录重构记录二：图片资源分目录
-
-用户把原本**扁平堆放**的 `src\Views\imgs\` 重新整理成了分层结构。
-
-### 1.7.1 目录前后对照
-
-**改造前（扁平，很乱）：**
-```
-imgs\
-├── black-.png  blackx.png  white-.png  whitex.png
-├── button-Start1..4.png  Download.png  Home.png  Launch.png
-├── ReLogin.png  Setting.png  Tool.png  warning.png
-├── github.png  show.png  show-64x.png  a7d21-in3zc.png
-├── cyan_glazed_terracotta.png  wildflowers.png  MainLogo.ico
-├── 微信图片_20260803115740_100_82.jpg
-├── hav-Background\   （6 个文件：button-choose1 / button-Start1~4 / github1.jpg）
-└── skin\             （15 个皮肤）
-```
-
-**改造后（分层）：**
-```
-imgs\
-├── Main\images\
-│   ├── Blocks\      16 个方块图标（Anvil / chest / Grass / RedstoneLamp…）
-│   ├── Buttons\     15 个：black- / blackx / white- / whitex /
-│   │                      button-Start1~4 / Download / Home / Launch /
-│   │                      ReLogin / Setting / Tool / warning
-│   ├── Launcher\    a7d21-in3zc.png / cyan_glazed_terracotta.png / Erics.jpg /
-│   │                MainLogo.ico / show-64x.png / show.png / wildflowers.png
-│   ├── Loaders\     12 个加载器图标（Fabric / forge / NeoForge / OptiFine / quilt…）
-│   └── Support\     discord.png / github.png / kookapp.png / mcmod.png
-└── skin\            15 个皮肤（**未移动，路径不变**）
-```
-
-**同时发生的变化：**
-- `hav-Background\` **整个目录已删除**（6 个文件，代码里本来也没引用）
-- `微信图片_20260803115740_100_82.jpg`（548 KB）→ 改名为 `Launcher\Erics.jpg`（体积相同）
-- 新增了 `Blocks\`（16）、`Loaders\`（12）、`Support\` 的 3 个（discord/kookapp/mcmod）—— **这些目前都还没被代码引用**
-
-### 1.7.2 路径映射规则（3 条，必须记住）
-
-```
-imgs/<按钮图标>        →  imgs/Main/images/Buttons/<文件名>
-imgs/github.png        →  imgs/Main/images/Support/github.png
-imgs/MainLogo.ico      →  imgs/Main/images/Launcher/MainLogo.ico
-imgs/skin/*            →  不变
-```
-
-### 1.7.3 实际改动清单（23 处）
-
-| 文件 | 处数 | 说明 |
-|---|---|---|
-| `MainSrc\Views\MainWindow.axaml` | 11 | 标题栏最小化/关闭（白/黑两态 ×2）、ReLogin、button-Start3/4、底部 5 个导航图标、warning |
-| `MainSrc\Views\MainWindow.cs` | 8 | `black-.png`×2、`blackx.png`×2、`white-.png`×2、`whitex.png`×2 —— **含 2 处动态拼接**（见下） |
-| `MainSrc\Views\LoginWindow.axaml` | 1 | `github.png` |
-| `Project.Launch.csproj` | 3 | `<ApplicationIcon>`、`AvaloniaResource` 的 `Exclude`、`<Content Include>` 三处的 `MainLogo.ico` |
-
-**★ 最容易漏的两类引用：**
-
-**① 运行时字符串拼接**（`MainWindow.cs`）—— 占位符在编译期完全无法校验：
-
-```csharp
-string mainIcon = hasInstance ? "button-Start1.png" : "button-Start3.png";
-string subIcon  = hasInstance ? "button-Start2.png" : "button-Start4.png";
-AssetLoader.Open(new Uri($"avares://Project.Launch/MainSrc/Views/imgs/Main/images/Buttons/{mainIcon}"));
-```
-
-改目录时必须把**前缀**改掉，并确认 `button-Start1~4.png` 四个目标文件都在新目录里。
-
-**② 目录级前缀**（`SoundConfig.cs`）—— 只写目录、文件名由调用方拼：
-
-```csharp
-public const string AssetRoot = "avares://Project.Launch/MainSrc/Sound/";
-```
-
-### 1.7.4 本次结果
-
-- 23 处全部替换，**0 处旧式扁平路径残留**
-- 17 个唯一资源路径**全部在磁盘上存在**；`{mainIcon}`/`{subIcon}` 的动态目标（`button-Start1~4.png`）已单独验证
-- 资源全部正确嵌入程序集；运行时无加载错误
-
-### 1.7.5 当前未被引用的资源（安全，别误删）
-
-| 目录 | 文件数 | 说明 |
-|---|---|---|
-| `Main\images\Blocks\` | 16 | 方块图标，应为未来"装饰/主题"预留 |
-| `Main\images\Loaders\` | 12 | 加载器图标，对应 [5.6 路线图 P5](#56-建议路线图)「加载器支持」 |
-| `Main\images\Support\` | 3 | `discord` / `kookapp` / `mcmod`（只有 `github.png` 在用） |
-| `Main\images\Launcher\` | 5 | `a7d21-in3zc` / `show` / `show-64x` / `wildflowers` / `cyan_glazed_terracotta` |
-
-## 1.8 ⚠️ 潜在隐患清单（改目录前必读）
-
-> 这些坑都是本次重构中**实际遇到或实际验证过**的。**动目录、改文件名之前，先读完这一节。**
-
-### 🔴 高危：会导致"静默失效"
-
-| # | 隐患 | 后果 | 怎么防 |
-|---|---|---|---|
-| 1 | **`avares://` 路径与磁盘物理路径强耦合** | 路径写错**不会编译报错**，运行时 `AssetLoader.Open` 抛异常 | 改完必须做 [1.6.3 验证 2/3](#163-修改方式可复用的流程) |
-| 2 | **多数加载点被 `try/catch` 包住，异常被吞掉** | 图标只是"不见了"，`app.log` 里最多一行 `更新按钮图像失败` | 每次改完**人工点一遍界面**：标题栏最小化/关闭（黑/白两态）、底部 5 个导航图标、登录/启动按钮（有/无实例两种图）、登录窗 GitHub 图标、exe 图标 |
-| 3 | **`App.axaml` 的 `StyleInclude` 也是 avares 引用** | 路径错了会**整个主题样式失效**（界面仍能跑，但样式全乱） | 改目录时先搜 `App.axaml` |
-| 4 | **运行时拼接的路径无编译期校验** | `{mainIcon}` / `AssetRoot` 这类前缀错了没人告诉你 | 见 [1.7.3](#173-实际改动清单23-处) 的两类引用 |
-
-### 🟠 中危：会导致构建异常或体积膨胀
-
-| # | 隐患 | 后果 | 怎么防 |
-|---|---|---|---|
-| 5 | **`BuiltDebugRun\` 在 `MainSrc\` 内部**（`<OutputPath>` 指向这里） | 主项目用默认 `**/*.cs` 通配，会把输出目录里生成的 `.cs` 吸进编译 → **`CS0579 程序集特性重复`（8 个错误）** | csproj 里已有 5 组 `<... Remove="MainSrc\BuiltDebugRun\**" />`。**如果以后再改 OutputPath，必须同步改这 5 行** |
-| 6 | **`.gitignore` 与 `<OutputPath>` 是联动的** | OutputPath 改了但 gitignore 没跟 → 构建产物入库。**这正是历史上把 `publish\` 132 MB 二进制提交进去的原因** | 改 OutputPath 时同时检查 `.gitignore` |
-| 7 | **`Exclude` / `<ApplicationIcon>` / `<Content>` 是精确路径，不走通配** | `AvaloniaResource Include="MainSrc\Views\imgs\**"` 会自动覆盖新子目录；但上面三处的 `MainLogo.ico` 路径要手工改 | 改 `imgs` 结构时搜 `MainLogo.ico` |
-| 8 | **旧输出目录里的残留不会被自动清理** | 改名后在 `BuiltDebugRun\` 里可能同时存在 `MainSrc\...` 和旧的 `src\...` 副本，容易误判 | 怀疑产物错乱时先 `dotnet clean` 或手工删输出目录 |
-
-### 🟡 低危：容易困惑
-
-| # | 隐患 | 说明 |
-|---|---|---|
-| 9 | **Git 历史在 2026-10 被重写过一次** | 为清除 132 MB 的 `publish\`，所有 commit SHA 都变了（旧 `c5cd9ee` → 新 `2d5b01c`）。**旧克隆、旧书签、旧链接全部失效**，需要重新克隆 |
-| 10 | **`rc-4.zip`（3.53 MB）与 `Design\`（3.3 MB）仍在历史里** | 合计约占仓库体积 90%。属于历史遗留产物，尚未清理 |
-| 11 | **`read.me` / `read.md` 混用** | `MainSrc\Tools\read.me` 是 `.me`，`Views`/`ViewModel`/`Codes` 下是 `.md`，不统一 |
-| 12 | **`MainSrc\Codes\` 是空目录** | Git 不跟踪空目录，别人克隆后可能看不到它 |
-
-### 🔵 与目录无关、但同样会静默失败的老隐患
-
-| # | 隐患 |
-|---|---|
-| 13 | **`accounts.json` 损坏会被静默清空**（解析失败后写回空 root，**所有账户被抹掉**，只留一行日志） |
-| 14 | **数据目录在 exe 同级** → 装到 `Program Files` 后所有保存**静默失效** |
-| 15 | **`JavaDetector` 的 `WaitForExit(5000)` 是死代码**（两流已 EOF），`java.exe` 挂起会无限卡住 |
-| 16 | **`SkinCropper` 全部异常用裸 `catch` 吞掉，无任何日志** |
+4. **`.NET` 会继承 Windows 系统代理** —— 这是本项目最容易"明明网络没问题却全部失败"的原因，已在 `ProxyEnvironment` 中处理。
+5. **所有图片/音效/样式都是 `avares://` 运行时加载**，路径写错**不会编译报错**，只会运行时静默失败。
 
 ---
 
@@ -483,716 +236,811 @@ public const string AssetRoot = "avares://Project.Launch/MainSrc/Sound/";
 
 | 项 | 要求 |
 |---|---|
-| OS | Windows 10/11 x64 |
-| SDK | **.NET 10 SDK**（实测 `10.0.401`；机器上也有 `9.0.317`，但主项目要 net10.0） |
-| 显示缩放 | 实测开发机为 **125%**（`RenderScaling = 1.25`）。涉及像素计算时注意 |
-| GPU | 需要支持 Skia 的 GPU 后端；无 GPU 时玻璃会退化 |
+| .NET SDK | **10.0.x**（本项目用 10.0.401 验证） |
+| OS | Windows x64（含 Win10/11） |
+| PowerShell | **注意：`pwsh -Command` 在本机实际是 PowerShell 5.1** —— 没有 `ForEach-Object -Parallel`，不支持 `if` 作表达式 |
+| 磁盘 | 下载一个完整版本约需 650 MB（1.20.1）/ 约 530 MB（26.3） |
 
 ## 2.2 构建与运行命令
 
-```bash
+```powershell
 # 构建（Debug）—— 输出到 MainSrc\BuiltDebugRun\
 dotnet build Project.Launch.csproj -c Debug
 
 # 强制完整重编（怀疑"改了没生效"时用）
-dotnet build Project.Launch.csproj -c Debug --no-incremental
+dotnet clean Project.Launch.csproj ; dotnet build Project.Launch.csproj -c Debug
 
 # 单独编译玻璃库（改过 LiquidGlassAvaloniaUI 之后）
-dotnet build MainSrc\LiquidGlassAvaloniaUI\LiquidGlassAvaloniaUI.csproj -c Debug
+dotnet build MainSrc\Tools\LiquidGlassAvaloniaUI\LiquidGlassAvaloniaUI.csproj
 
 # 运行
-MainSrc\BuiltDebugRun\Project.Launch.exe
+.\MainSrc\BuiltDebugRun\Project.Launch.exe
 
 # 发布单文件
 dotnet publish Project.Launch.csproj -c Release
-```
 
-**输出位置：** `MainSrc\BuiltDebugRun\Project.Launch.exe`
-（csproj 里为 Debug 配置设置了 `<OutputPath>MainSrc\BuiltDebugRun\</OutputPath>`，并关掉了 TFM/RID 子目录，所以 exe 和 dll 直接铺在根下。）
+# ★ 输出目录被占用时的规避（启动器正在运行时）
+dotnet build Project.Launch.csproj -c Debug -p:OutputPath="$env:TEMP\buildcheck\"
+```
 
 ## 2.3 ⚠️ 环境陷阱（务必先读）
 
-1. **编译前必须关掉正在运行的启动器**
-   否则报 `MSB3027 / MSB3021 文件被锁定`（实测会重试 10 次然后失败，并刷出 80+ 条 `MSB3026` 警告）。
-   **这不是代码错误。**
+### 🔴 陷阱 1：系统代理开着但代理客户端没运行 → 所有网络请求失败
 
-2. **绝不要在仓库根目录创建临时 csproj / 脚本**
-   主项目用默认 `**/*.cs` 通配，临时项目 `obj/` 下生成的 `AssemblyInfo.cs` 会被吸进主项目编译，
-   导致 `CS0579 程序集特性重复`（8 个错误）。排查脚本一律放 `%TEMP%`。
+Windows 的 WinINET 代理配置在注册表
+`HKCU\Software\Microsoft\Windows\CurrentVersion\Internet Settings`
+（`ProxyEnable` / `ProxyServer`）。**.NET 的 `HttpClient` 默认继承它**；而 `curl.exe` **不读**注册表。
 
-3. **`Border` 是 `Decorator`，只能有一个 Child**
-   多个子元素必须套 `Grid`，否则报 `AVLN3000`。
+所以会出现这种极具误导性的现象：
 
-4. **新增窗口必须在 csproj 的 `<AvaloniaXaml Update="...">` 里登记**，否则不参与 XAML 编译。
+- 启动器：`获取版本清单失败：由于目标计算机积极拒绝，无法连接。(127.0.0.1:7892)`
+- 同机 `curl`：官方源 200，一切正常
 
-5. **⚠️ 增量构建会静默"假装成功"**
-   只改了玻璃库的 `.cs`、然后 `dotnet build Project.Launch.csproj` 时，
-   MSBuild **有时不会重新编译玻璃库**，构建报告"成功"，但改动**没进产物**。
-   **验证方法：**
-   ```powershell
-   (Get-Item 'MainSrc\BuiltDebugRun\LiquidGlassAvaloniaUI.dll').LastWriteTime
-   # 或在 DLL 元数据里搜你的新方法名（记得用 UTF-8 解码）
-   $t = [System.Text.Encoding]::UTF8.GetString([IO.File]::ReadAllBytes((Resolve-Path 'MainSrc\BuiltDebugRun\LiquidGlassAvaloniaUI.dll')))
-   $t.Contains('你的新方法名')
-   ```
-   不确定时直接 `--no-incremental`。**记住：构建成功 ≠ 改动生效。**
+**已在代码中处理**：`ProxyEnvironment` 启动时探测本机代理端口是否在监听，不通则自动改直连；运行期若请求命中代理端点也会自动降级。见 [4.7](#47-代理自适应proxyenvironment)。
 
-6. **PowerShell 排查脚本的几个坑（本机实测）**
-   - 执行策略**禁止直接运行 `.ps1`** → 用 `Invoke-Expression ([IO.File]::ReadAllText($p,[Text.Encoding]::UTF8))`
-   - `Get-Content` 默认**不是 UTF-8**，读含中文的脚本会乱码 → 显式 `-Encoding UTF8`
-   - 中文引号 `"` `"` 出现在 PowerShell 双引号字符串里会**语法错误** → 用单引号
-   - `Select-String -SimpleMatch` **不会**按 `|` 拆分多模式（会被当成一个整字面量）→ 多模式时别加 `-SimpleMatch`
-   - `git check-ignore -q` 结果看**退出码**（0=已忽略），不看输出
+> 排查手法：`Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Internet Settings'` 看 `ProxyEnable`；
+> `Get-NetTCPConnection -LocalPort <端口> -State Listen` 看代理是否真的在跑。
 
-7. **文件锁排查**：进程可能跑在 `MainSrc\BuiltDebugRun\` 而不是 `bin\Debug\`，
-   用 `Get-Process Project.Launch | Select Path` 确认。
+### 🟠 陷阱 2：`BuiltDebugRun\` 在 `MainSrc\` 内部
+
+主项目用默认 `**/*.cs` 通配，会把输出目录里生成的 `.cs` 吸进编译 → `CS0579 程序集特性重复`（8 个错误）。
+csproj 里已有 5 组 `<... Remove="MainSrc\BuiltDebugRun\**" />`。**改 OutputPath 时必须同步改这 5 行**。
+
+### 🟠 陷阱 3：`.gitignore` 与 `<OutputPath>` 联动
+
+OutputPath 改了但 gitignore 没跟 → 构建产物入库。历史上曾把 `publish\` 132 MB 二进制提交进去。
+
+### 🟡 陷阱 4：`avares://` 路径与磁盘路径强耦合
+
+路径写错**不会编译报错**，只在运行时 `AssetLoader.Open` 抛异常；而多数加载点又被 `try/catch` 包住，
+表现为"图标就是不见了"，日志里最多一行。改目录时务必全局搜 `avares://`。
+
+### 🟡 陷阱 5：输出目录被运行中的 exe 锁住
+
+`MSB3027/MSB3021`（无法复制 apphost.exe，文件被占用）= 启动器还开着。
+关掉进程，或用 `-p:OutputPath=` 指到别的目录做编译验证。
 
 ## 2.4 运行时数据目录
 
-所有运行时数据在 **`<exe 所在目录>\KilimLauncher\`**（当前即 `MainSrc\BuiltDebugRun\KilimLauncher\`）：
+**位置**：`LauncherPaths.Root` = `exe 同级\KilimLauncher\`
 
-| 文件 / 目录 | 内容 | 由谁写 |
-|---|---|---|
-| `accounts.json` | 账户字典 + `SelectedAccount` + `LoginCheck`（**token 明文**） | `AccountService` |
-| `instances.json` | 已导入实例列表 + `SelectedInstanceId` | `InstanceService` |
-| `app.log` | 追加式日志，**永不轮转** | `LogHelper` |
-| `MainWindowLog.txt` | 每次启动主窗时截断重写 | `LogHelper.Reset` |
-| `startup.log` | 程序入口日志（追加） | `Program.Main` |
-| `crash.log` | 崩溃时完整 `ex.ToString()` | `Program.Main` catch |
-| `instances\<id>\natives\` | 解压的 natives（**从不清理**） | `GameLauncher` |
-| `instances\<id>\game.log` | 游戏 stdout+stderr（每次截断） | `GameLauncher` |
-| `current_skin.png` | 当前皮肤缓存（历史遗留） | — |
+| 文件 | 用途 |
+|---|---|
+| `accounts.json` | 账户（含正版 refresh/access token） |
+| `instances.json` | 已导入实例列表 + 当前选中实例 |
+| `instances\{实例Id}\natives\` | 解压出来的 natives |
+| `instances\{实例Id}\game.log` | 游戏进程 stdout/stderr |
+| `startup.log` | 程序入口日志 |
+| `app.log` | 应用级日志（**下载引擎的全部诊断信息都在这里**） |
+| `MainWindowLog.txt` | 主窗交互日志（**每次启动会重置**） |
+| `crash.log` | 崩溃日志（含被拦截的 UI 异常） |
 
-> ⚠️ **换输出目录 = 换了一套全新数据目录**。把 Debug 输出改到 `MainSrc\BuiltDebugRun\` 后，
-> 原来的 `accounts.json` / `instances.json` 不会自动搬过去 —— 这也是为什么日志里会出现"未找到账户"。
-> 需要的话手工把旧目录的 `KilimLauncher\` 复制过来。
-
-**只读、属于用户的：** `<RootPath>\versions\<id>\<id>.{json,jar}`、`<RootPath>\libraries\`、`<RootPath>\assets\`。
+⚠️ 所有写入都被 `try/catch` 包住 → 装到无写权限的目录（如 `Program Files`）会**静默失效**。
 
 ## 2.5 Git 仓库与忽略规则
 
-| 项 | 值 |
-|---|---|
-| 仓库 | `Zhouxuanyao2333/KilimMinecraftPrivateRepository`（私有） |
-| 分支 | `master`（跟踪 `origin/master`） |
-| 提交 / 标签 | 截至基线 `2d5b01c` 为 9 条提交；8 个标签（rc-0.1 / 0.12 / 0.13 / 3 / 4 / 4.2 / 5 / 6） |
-| `.git` 体积 | 约 6.7 MB |
-| 作者 | `Erics <Zhouxuanyao2333@outlook.com>` |
+`.gitignore` 忽略：`bin/`、`obj/`、`BuiltDebugRun/`、`publish/`、`.vscode/`、`.vs/`、`*.log`、`KilimLauncher/`、`*.tmp`。
 
-**`.gitignore` 关键条目（务必理解它们的联动关系）：**
-
-```gitignore
-bin/            # 任意层级的传统输出目录
-obj/            # 任意层级的中间目录
-BuiltDebugRun/  # ★ 与 csproj 的 <OutputPath> 对应
-publish/        # ★ 发布产物（历史曾误入库 132 MB）
-KilimLauncher/  # 运行时数据目录
-*.log
-```
-
-> **联动警告**：`<OutputPath>` 与 `.gitignore` 必须同步。历史上正是因为 `publish\` 没被忽略，
-> 132 MB 的 exe/dll/pdb 被提交进仓库 —— 后来不得不**重写全部 Git 历史**才清掉。
 
 ---
 
-# 第三部分：已实现功能详解
+# 第三部分：2026-10-31 改造记录（困难与解决方式）
 
-## 3.1 账户系统 ✅ 可用
+> 这一部分记录本次三个真实故障的**现象、取证方法、根因、修复、验证**。
+> 目的是让后来者不再重复踩坑，也保留"如何定位"的方法论。
 
-### 离线登录
+## 3.1 改造概览
 
-`LoginWindow` → `OfflineUuidGenerator`：
+| # | 故障现象 | 根因 | 修复落点 | 状态 |
+|---|---|---|---|---|
+| 1 | 下载开始很快，随后掉到数十 KB/s 且不恢复；装完"成功"但文件缺一半 | 镜像源坏 + 慢不触发回退 + 无 body 超时 + 信号量被僵尸连接占死 | `SourcePolicy.cs`（新）、`DownloadEngine.cs`、`GameInstaller.cs` 重写 | ✅ 已验证 |
+| 2 | 版本列表一直"获取失败"，但同机 curl 正常 | 系统代理开关开着、代理客户端没运行；.NET 继承 WinINET → 全打向死端口 | `ProxyEnvironment.cs`（新）+ 共享 HttpClient | ✅ 已验证 |
+| 3 | 选好下载目录后无响应并崩溃 | Avalonia 文件夹选择器抛 `Directory must exist`，砸在 `async void` 上终止进程 | `App.axaml.cs` 全局守卫 + `MainWindow.PickFolderSafeAsync` | ✅ 已验证 |
 
-- `MD5("OfflinePlayer:" + username)`
-- 设 `hash[6] = (hash[6] & 0x0F) | 0x30`（version 3）、`hash[8] = (hash[8] & 0x3F) | 0x80`（IETF variant）
-- **手动按大端序拼 hex，不经过 .NET `Guid`**（走 `Guid` 会字节序错位，与 Java 服务器不兼容；`Guid Generate()` 已标 `[Obsolete]`）
-- 账户 ID `offline_{username}`，`Uuid` 存**去横线**的 32 位 hex
-- 唯一校验是 `IsNullOrWhiteSpace`（无长度/字符集/冲突校验）
+## 3.2 困难一：下载速度从 MB/s 掉到数十 KB/s（本项目的头号问题）
 
-### 微软正版登录（7 阶段已实现，但**目前走不通**）
+### 3.2.1 现象
 
-| 阶段 | 文件 | 端点 / 要点 |
+- 点下载后，**头几十秒速度很高**（多线程拉满）；
+- 随后**掉到数十 KB/s** 并**长时间不恢复**；
+- 进度条几乎不动，但**界面报"安装成功"**；
+- `app.log` 里**看不到任何下载失败记录**。
+
+### 3.2.2 取证方法（这是本次最有价值的部分）
+
+因为"看起来像网络问题"，必须先分清**是网络差，还是代码路径选错**。用了四路并行取证：
+
+1. **现场对账**：直接检查真实下载产物目录（`E:\MinecraftDownloadTest\26.3`），按 `asset index` 与版本 JSON 逐项核对"应下 / 实有"。
+2. **传输层 A/B 实测**：同一批真实资源，用 `curl` 分别打官方源与 BMCLAPI，测聚合吞吐、成功数、状态码、302 链、节点 host 分布。
+3. **代码审计**：逐行审查调度、信号量、超时、重试、错误分类，答案必须能解释"先快后慢"。
+4. **原理对照**：按 PCL 公开的设计思路（失速掐断 / 源降级 / 连接纪律 / 小文件特化）核对"它为什么不会掉"。
+
+### 3.2.3 关键实测数据
+
+**现场对账（12 分钟那一次的真实结果）**
+
+| 项 | 结果 |
+|---|---|
+| `client.jar`（41 MB） | ✅ 完整，约 780 KB/s 完成 |
+| assets objects | **2190 / 5147** 完成，缺 2957 个 / 363 MB |
+| libraries | **8 / 114** 完成，缺 106 个 |
+| `.tmp` 残留 | 无（说明不是"半路崩"，而是**大量请求静默失败**） |
+
+**传输层 A/B（24 个真实 asset，并发 20）**
+
+| 源 | 完成 | 实收 | 墙钟 | 聚合吞吐 |
+|---|---|---|---|---|
+| 官方 `resources.download.minecraft.net` | **24/24** | 1.24 MB | 2.12 s | **571 KB/s** |
+| BMCLAPI `bmclapi2.bangbang93.com/assets` | **12/24** | 355 KB | 30.5 s | **11 KB/s** |
+
+**单连接采样**
+
+- 镜像：`0.6 ~ 63 KB/s`，多例 20~25 s 零字节；有的 200 响应把 1.33 MB **截断成 190 KB**；
+- 官方：`320 ~ 5957 KB/s`，**从不截断**。
+
+**BMCLAPI 的结构性变化（这是根因的核心）**
+
+它不再直连返回文件，而是 **302 重定向到签名节点**，且节点是**每请求随机分配**的：
+
+- 30 个请求落到 **16~18 个不同 host**；同一个 hash 连测 3 次得到 3 个不同节点；
+- 节点池里**9 个 host 结构性不可用**：`bmclapi.hurtmc.com`（DNS NXDOMAIN）、`bmclapi2/3.hurtmc.com`（间歇 NXDOMAIN）、`bmclapi3.sakura.sld.tw`（TLS 被 RST）、`1/14/15/16.749333.xyz`（0 成功）、`bmclapi21.sakura.sld.tw`（4/4 挂死 15s）；
+- 响应头 `X-RateLimit-Limit-short: 10`，且 **429 是按 URL 计**（10 次/60 s，`Retry-After=60`）；
+- 实测：并发 20 + 命中 429 后重试 → 24 个文件跑 **154.7 s、只完成 20 个、2 KB/s**。
+
+**并发梯度（证明"不是并发不够"）**
+
+| BMCLAPI 并发 | 聚合吞吐 | 成功率 |
 |---|---|---|
-| 1 申请设备代码 | `DeviceCodeAuthService` | `login.microsoftonline.com/consumers/oauth2/v2.0/devicecode`；scope `XboxLive.signin XboxLive.offline_access` |
-| 3 轮询授权 | `DeviceCodeAuthService.PollForTokenAsync` | `.../token`，`grant_type=urn:ietf:params:oauth:grant-type:device_code`；sleep-then-poll（符合 RFC 8628）；处理 `authorization_pending` / `slow_down`(+5s) / `access_denied` / `expired_token` |
-| 4 XBL | `XboxAuthService` | `user.auth.xboxlive.com/user/authenticate`；**`RpsTicket = "d=" + token`，前缀必须有** |
-| 5 XSTS | `XboxAuthService` | `xsts.auth.xboxlive.com/xsts/authorize`；`SandboxId=RETAIL`、`RelyingParty=rp://api.minecraftservices.com/`；**含 XErr 中文映射**（2148916233/235/236/237/238） |
-| 6a MC 认证 | `MinecraftAuthService` | `api.minecraftservices.com/authentication/login_with_xbox`；`identityToken = "XBL3.0 x={uhs};{xsts}"` |
-| 6b 拉 profile | `MinecraftAuthService` | `GET /minecraft/profile`；**404 → 抛"此微软账号没有购买 Minecraft"** |
-| 7 装配账户 | `MicrosoftAuthFlow` | 编排全流程，通过 `Progress` / `DeviceCodeReady` 事件回调 UI |
+| 1 | 1.5 KB/s | 14/24 |
+| 8 | 8.5 KB/s | 16/24 |
+| 20 | 9.9 KB/s | 24/48 |
+| 50 | **33.7 KB/s** | 23/48 |
+| 官方 50 | **1160 KB/s** | **48/48** |
 
-> ### ⚠️ 当前阻塞（两条，均未修）
-> 1. **`DeviceCodeAuthService.ClientId` 是占位测试 ID**（`7dddbcf7-…`），被 Mojang 拒绝。用户已申请自有 AppID，**等审批后替换该常量**即可打通。
-> 2. **`MicrosoftRefreshToken` 存了但从未被兑换**（全仓无 `grant_type=refresh_token`），`TokenExpireAt` 也从不读取 → **24 小时后必须重新走完整设备码登录**。
->
-> 另外：登录拿到的 `MinecraftAccessToken` 在启动游戏时**完全没被使用**（见 [4.1](#41--p0-级功能失效缺陷)）。
+→ **差距约 34 倍，且不是靠调并发能补上的。**
 
-### 账户持久化（`AccountService` + `accounts.json`）
+### 3.2.4 根因链（为什么"先快后慢且回不来"）
 
-- **原子写**：写 `.tmp` → `File.Move(overwrite: true)`
-- read-modify-write 收口在 `ModifyAccounts` 的单个 `lock` 内
-- `LoginCheck` 控制启动时是否跳过登录窗
-- **token 明文存储**（无 DPAPI）
-- ⚠️ **`accounts.json` 损坏会被静默清空**（解析失败后写回空 root，**所有账户被抹掉**）
-- ⚠️ `AccountManagerWindow.OnSelectAccount` 用的是**未加锁的** `LoadAccounts(); ...; SaveAccounts()` 组合
+**"先快"的真相**：任务清单第一个是 `client.jar`，它的 302 落到官方 CDN `piston-data.mojang.com`，实测 **6.9 MB/s**。所以开头那几十秒的高速度，来自**一个大文件走官方 CDN**，不是小文件并行快。
 
-## 3.2 游戏启动 ✅ 可用（导入式）
+**"后慢"的成因**：下载主体是 **数千个 asset 小文件**（占文件数 98%、字节 97%，平均约 94 KB，中位数仅 19.7 KB）。每个文件都先撞 BMCLAPI。五个致命点叠加：
 
-`GameLauncher.LaunchAsync`：
-
-- 兼容**新版** `arguments.jvm`/`arguments.game` 数组 **和** **旧版** `minecraftArguments` 字符串
-- **全量占位符替换**（`${classpath}` `${auth_player_name}` `${auth_uuid}` `${assets_index_name}` `${game_directory}` `${natives_directory}` …）
-- **rules 规则判定**：库与参数都做 OS 过滤（**仅判定 Windows**；`arch` / `features` 被忽略）
-- **natives 自动解压**：跳过 `META-INF/`，处理 `${arch}` 64/32，**扁平化**（子目录丢失、同名覆盖）
-- 两种目录布局分流：`standard` / `isolated`
-- **★ 新增：`--language` 参数** —— `GetMinecraftLanguage()` 读系统 UI 语言，映射成 Minecraft 语言码
-  （`zh-CN`/`zh-SG`/`zh-Hans*` → `zh_cn`；`zh-TW`/`zh-HK`/`zh-Hant*` → `zh_tw`；其它把 `-` 换成 `_` 并小写；异常兜底 `en_us`）
-- **★ 新增：进程跟踪** —— 进程加入 `List<Process> _runningProcesses`（启动加入、退出移除，`lock` 保护）
-- 用 `psi.ArgumentList` 传参（**引号处理正确**，含空格路径没问题）
-- 输出重定向到 `instances/{id}/game.log`
-
-### ⚠️ 仍存在的缺陷
-
-| 缺陷 | 后果 |
-|---|---|
-| `${auth_access_token}` 硬编码 `"0"`、`${user_type}` 硬编码 `"legacy"`、`${auth_session}` 硬编码 `"0"` | **正版账号实际以离线身份进服，进不了正版服务器** |
-| 无 `-Xmx/-Xms` 内存设置，`InstanceInfo` 没有内存/JVM 参数字段 | 无法调内存 |
-| 分辨率写死 925×530 | 无法自定义窗口 |
-| 缺库**静默跳过**，无完整性校验 | 启动失败原因不明 |
-| **进程只被加入列表，没有对外的停止/查询接口**，也不回传退出码到 UI | 无法从界面感知"游戏已退出/崩溃" |
-| `${version_type}`、`${quickPlay*}` 未在替换表内 | 会**字面量进入命令行** |
-| `MainClass` 无空值校验；natives 目录从不清理 | — |
-
-## 3.3 Java 检测 ✅ 可用
-
-`JavaDetector.DetectAllAsync` 从 4 个来源收集候选（`HashSet` 去重，**未做路径规范化**）：
-
-1. `JAVA_HOME\bin\java.exe`
-2. `PATH` 逐段找 `java.exe`
-3. 7 个常见 JDK 厂商目录（Java / Adoptium / Microsoft / Zulu / BellSoft / Corretto），各扫一层
-4. `InstanceService.GetSelectedInstance()?.JavaPath`
-
-执行 `java -version` 解析主版本（兼容 `1.8.0_x` → 8 与 `17.0.9` → 17，stdout/stderr 都读）。
-`Match()`：**优先精确匹配**，否则取**最小且 > 要求**的。
-
-> ⚠️ `proc.WaitForExit(5000)` 是**死代码**（两流已 EOF）→ `java.exe` 挂起会**无限卡住**；
-> `Match()` **无上界**（需 Java 8 时可能选中 Java 21）；顺序执行，慢。
-
-## 3.4 实例管理 ✅ 可用
-
-`MinecraftDirectoryAnalyzer.Analyze(path)` 自动识别：
-
-- **形态 A（standard）**：`<path>\versions` 存在 → 用户选的是 `.minecraft` 根目录
-- **形态 B（isolated）**：`<path>\.minecraft\versions` 存在 → 隔离实例
-- 都不像 → `Layout` 为空，`IsValid = false`
-
-扫出所有"**目录名 == 同名 `.json`**"的版本（**不检查 jar**），排序后存 `instances.json`。
-
-> ### 🔴 两个已确认缺陷
-> 1. **`isolated` 布局的实例永远无法启动** —— 见 [4.1 P0-1](#41--p0-级功能失效缺陷)
-> 2. **版本排序用 `StringComparer.OrdinalIgnoreCase`**，与注释"新版本靠后"相反：
->    `"1.20.1"` 排在 `"1.9"` **前面**（`'2' < '9'`），而 UI 取 `Versions[^1]`
->    → **实测会挑中更旧的 `1.9`**
-
-## 3.5 UI 交互 ✅ 完成度较高
-
-### 主窗（`MainWindow`）
-
-- 960×560，`WindowDecorations="None"`，`CanResize="False"`（**固定尺寸**）
-- `TransparencyLevelHint="AcrylicBlur"` + `Background="Transparent"`，根 `Grid` 半透明灰 `#D9E0E0E0`
-- Win11 圆角；自绘标题栏 35px，可拖动（`TitleBar_PointerPressed` → `BeginMoveDrag`）
-
-### 五个 Tab
-
-| index | 底部按钮 | 内容面板 | 状态 |
+| # | 代码位置（改造前） | 问题 | 后果 |
 |---|---|---|---|
-| 0 | `DownloadTabButton` | `DownloadPanel` | 版本选择器可用；**版本列表 UI 尚未接线** |
-| 1 | `LaunchTabButton` | `LaunchPanel` | 3D 皮肤 + 启动按钮 |
-| 2 | `HomeTabButton` | `HomePanel` | 登录态 + 头像 + 切换账户（**默认**） |
-| 3 | `SettingsTabButton` | `SettingsPanel` | 纯占位"暂时无设置功能" |
-| 4 | `ToolsTabButton` | `ToolsPanel` | 纯占位"暂时无工具功能" |
+| 1 | `GameInstaller.ResolveMirrors` | **镜像永远排第一**（`yield mirror; yield official;`） | 每个文件都先去撞坏源 |
+| 2 | `GameInstaller.DownloadWithFallbackAsync` | 回退判据**只看 HTTP 错误码**，`404/403` 才换源 | **"慢但返回 200"被当成成功**，永不回退 |
+| 3 | `DownloadEngine.DownloadOnceAsync` | 15 s 超时**只覆盖"等响应头"**；body 读用外层 `ct`；`HttpClient.Timeout = Infinite` | 涓流/挂死连接**永不报错**，无限期占住槽位 |
+| 4 | `GameInstaller.InstallVanillaAsync` | `SemaphoreSlim` 包住**整个** `DownloadOnceAsync`（含 15 s TTFB 等待 + 302 第二跳 + 全部 body + SHA1 回读） | 槽位被僵尸连接**逐个吃掉**，有效并发单调递减 |
+| 5 | `GameInstaller.DownloadWithFallbackAsync` | `429` 映射成 `RateLimited`，但只对 `NotFound/Forbidden` 提前退出 | 429 落进**同 URL 3 次重试 + 退避**，把 60 s 配额打满 |
 
-底栏 `BottomNavBar` 520×52，每列 104 DIP（= `AnimationConfig.TabStep`），玻璃滑块 `TabSlider` 96×44。
+**量化对上了你的观感**：
+> 15 s TTFB × 3 次重试 ≈ 46 s/文件；20 并发 ÷ 平均 94 KB ≈ **41 KB/s** —— 正是"数十 KB/s"。
 
-### 标题栏两态机制（改 UI 必读）
+**为什么"回不来"**：没有失速判据，也没有源健康记忆。每卡死一个连接就永久少一个槽位，
+20 → 18 → … → 2，吞吐单调下坡，且**没有任何机制能自愈**。
 
-- **态 A 渐变**：`UpdateTitleBarGradient(...)` —— 主窗未登录时、弹出模态窗时。默认色 `#CCFF6B9D` → `#CCB366FF`
-- **态 B 透明**：`SetTransparentTitleBarAsync()` —— 登录完成后。实现是"图标淡出 → 200ms → 换黑图 → 淡入"，背景/字色由 XAML `BrushTransition` 0.4s 补间
-- ⚠️ 两个时长不一致（0.2 vs 0.4），图标与背景并非同步收尾
-- 亮度判定 `GetLuminance` 是标准 WCAG 相对亮度，`useDark = avgLuminance > 0.5`
+### 3.2.5 为什么 PCL 不会掉（五条原理）
 
-### 滑块动画范式（可复用）
+把 PCL 的做法提炼成**不依赖其源码**的原理，这也是本次改造的设计依据：
 
-`LoginWindow.AnimateSliderTo` / `MainWindow.AnimateTabSliderTo` / `AnimateEditionSliderTo` 用**同一套手写 16ms `DispatcherTimer` 缓动**：
-
-```
-位移：cubic ease-in-out
-缩放：梯形曲线 —— 0 → riseEnd(0.25) smoothstep 升到峰值 → 平台 → fallStart(0.75) → 1 smoothstep 降回 1.0
-     并做缩放中心补偿 xComp = -(scale-1)*halfW
-模糊：三角曲线 blurCurve = 1 - |2p - 1|，写入控件 BlurRadius
-参数全部来自 AnimationConfig，改那里即可统一调整手感
-```
-
-### 其他 UI 事实
-
-- **Toast**：右下角 `CancelToast`，2.5s 自动隐藏，**无重入保护**
-- **音效**：全工程只有 **2 处** `Play` 调用（登录窗 `"Open"`、主窗 Toast `"Messages"`）；
-  `Errors` / `BigError` / `Messages2` / **`DownloadDone`** 配了却**从未被调用**
-- **头像**：按 UUID 推算 Steve/Alex 后裁切脸+帽子两层。⚠️ **正版账号也不拉真实皮肤**（`AccountInfo.SkinUrl` 只写不读）
-- ⚠️ **`SwitchPanelAsync` / `ShowToastAsync` 无并发保护**，快速连点会竞态
-- ⚠️ **登录窗与账户管理窗设了 `WindowDecorations=None` 但都没绑拖动逻辑 → 无法用鼠标拖动**
-- ⚠️ 头像裁切逻辑在 `MainWindow` 与 `LoginWindow` 里**各写了一份**，未复用 `SkinCropper`
-
-## 3.6 3D 皮肤投影 ✅ 可用
-
-- `MinecraftSkinModel`：手工定义头/身/手臂/腿 + overlay 顶点与 UV；支持 **Classic（4 宽臂）/ Slim（3 宽臂）**
-  UV 表已核对官方 1.8+ 布局，**是正确的**（含 Slim 手臂背面偏移 51/43 这类刁钻处）
-- `Pivot3DControl`：`ICustomDrawOperation` + SkiaSharp `DrawVertices`
-  - 伪 3D 投影 + **画家算法排序**（无 z-buffer）+ 2D 投影背面剔除
-  - 手写 yaw/pitch 旋转，`cameraDist=60`，`scale = viewH*0.78/32`
-  - 光照 `0.6 + 0.4 * max(0, n·l)`，光源**跟随相机**（法线已修正为朝外，**不要改回去**）
-- **皮肤类型自动检测**：按 64 宽比例缩放后，看 `(54*ratio, 20*ratio)` 起 `12*ratio` 行像素是否全透明 → Slim/Classic
-- 自动旋转（33ms）+ 鼠标拖拽（俯仰限 ±30°，灵敏度 `InteractionConfig.PivotSensitivity`）
-- 默认皮肤判定 `DefaultSkinSelector`：取 UUID 第 8/16/24/32 位 hex 异或判奇偶
-- 头像裁切 `SkinCropper`：支持 64×32 / 64×64 / 128×128
-
-> ⚠️ **64×32 旧版皮肤 3D 渲染错误**（overlay 面采样越界），而仓库**自带 2 张 64×32 皮肤**；
-> **256×256 不一致**（`SkinCropper` 拒绝、`Pivot3DControl` 接受），仓库自带 1 张；
-> `SKShader.CreateImage` **每面每帧新建**（约 2160 次/秒）且 `Equals => false` 放弃缓存；
-> `BitmapToSkImage` 未检查 `Bitmap.Format`；`SkinCropper` 裸 `catch` 吞异常无日志。
-
-## 3.7 液态玻璃子系统 —— 含历史根因修复
-
-> **这一节最重要。** 这个子系统曾有一个极其反直觉的 bug，排查了很久。
-> 动玻璃相关代码之前**务必读完**，否则会重复走一遍所有弯路。
-
-### 3.7.1 它是什么
-
-`MainSrc\LiquidGlassAvaloniaUI\` 是一个 **vendored 第三方库**（上游 MIT 项目 `KaranocaVe/LiquidGlassAvaloniaUI`）。
-
-它**不是**普通的效果库，而是**手写的背景采样渲染器**：
-
-```
-抓取窗口背景 → 存成 SKImage 快照 → 每个 LiquidGlassSurface 用 SKSL 着色器采样它
-```
-
-公开 API：
-
-| API | 说明 |
-|---|---|
-| `LiquidGlassSurface`（`: ContentControl`） | 40 个 StyledProperty 的玻璃控件 |
-| `LiquidGlassInteractiveSurface` | 带按压缩放形变 + 径向高光 |
-| `LiquidGlassBackdrop.IsExcludedFromCapture` | 附加属性：把某个 Visual 排除出快照 |
-| `LiquidGlassDiagnostics.Snapshot` / `.Reset()` | **25 个运行时计数器** |
-| `UseLiquidGlassPerformanceDefaults()` | AppBuilder 扩展：设 `UseRegionDirtyRectClipping` / `MaxDirtyRects` / Skia GPU 预算 |
-
-宿主实际参数（三个滑块几乎相同）：
-
-| 参数 | `LoginModeSlider` | `TabSlider` | `EditionSlider` |
+| # | 原理 | 具体准则 | 改造前本项目 |
 |---|---|---|---|
-| 尺寸 / 圆角 | 114×36 / 6 | 96×44 / **22** | 114×36 / 6 |
-| `RefractionHeight` | 4 | 4 | 4 |
-| `RefractionAmount` | 40 | 40 | 40 |
-| `BlurRadius`（静止） | 0 | 0 | 0 |
-| `Vibrancy` | 0.86 | 0.86 | 0.86 |
-| `ChromaticAberration` | True | True | True |
-| `HighlightEnabled` | True | **False** | True |
+| 1 | **失速即掐断** | 不能"等到报错才换源"。判据是**速率**：约 5 秒内收不到 1 KB 就掐断；同时每一次读取都单独计时（逐读看门狗），而不是只给整个请求一个总超时 | ❌ 只有"首字节超时"，body 读零超时 |
+| 2 | **坏源要降级、不能被丢弃或反复首选** | 源出问题后要**降级为单线程 / 进入冷却**，而不是简单剔除；同时**全源兜底重试只做一次**，避免无限重试 | ❌ 无记忆，每个文件都重新首选坏源 |
+| 3 | **连接要有纪律** | 全局连接数设上限；小文件**每文件只允许 1 条连接**；对 bmclapi 这类有频控的源要**禁止追加连接 + 启动间隔 ≥100ms** | ❌ 20~128 并发无差别打 |
+| 4 | **小文件要特化** | 小文件（<1MB~4MB）**不分片**、**全程内存缓冲、一次落盘**；避免"流式小写 + 每次 flush"在小文件上被 IO/杀软放大 | ❌ 流式写 + 下完再整文件回读校验 |
+| 5 | **并发要闭环** | 并发数不该是"用户填死的控制变量"，而应是"上限"：维护一个**只升不降的速度下限**（近期均速 × 0.85），速度够就停止加连接，不够才加 | ❌ 固定并发，无反馈 |
 
-> 库默认值是 `RefractionHeight=12`、`BlurRadius=2.0`、`Vibrancy=1.5`、`ChromaticAberration=false`。
-> **宿主把前三项都调弱了**（`Vibrancy` 从"加饱和"翻成"去饱和"）。
+> 结论：**PCL 的高速不是"线程多"，而是"坏源活不过 5 秒"**。
+> 这也解释了为什么单纯把并发从 20 调到 50 只能从 9.9 KB/s 抬到 33.7 KB/s —— 治标不治本。
 
-### 3.7.2 🎯 历史根因：背景快照是一张全透明的空图（已修复）
+### 3.2.6 解决方案
 
-#### 症状（用户原话）
+按"收益 / 成本"排序落地：
 
-1. **登录滑块**：只有最左边（离线登录）才有色散；动画时也只有它才有"毛玻璃层次感"；
-   "像是把 LoginWindow 砍成四份，最左边那四分之一才有动画"；
-   "玻璃一半过了那个四分之一线，左边还是模糊色散，**中间直接隔开**，右边啥都没有"
-2. **底部导航滑块**：**只有"从任意位置移动到下载"才有动画**；启动→工具、工具→设置、下载→启动都没有
-3. **下载页的基岩版/Java版选择器反而完全正常**
-4. **怎么调参都没用**
+**P0-1 失速判据（这是"回不来"的唯一解）** → `DownloadEngine`
+- 建连/首字节 8 s 超时；
+- **逐读 15 s 看门狗**（每次 `ReadAsync` 单独计时，PCL 的动态超时基线）；
+- **失速判据**：10 s 窗口内平均速率 < **24 KB/s** 即判失速、立刻换源；
+- 收到字节即清零失败计数（区分"慢但能下"与"连不上"）。
 
-#### 真因
+**P0-2 治源：镜像不再无条件第一** → 新增 `SourcePolicy`
+- 候选源按偏好 + 健康度排序；默认 `Auto` = **官方优先**（实测差 30~50 倍）；
+- 连续失败进入**冷却**（镜像 2 次 → 60 s；官方 3 次 → 20 s，失败越多冷却越久，上限 5 min）；
+- 冷却中的源排到最后但**不丢弃**（避免"两个源都冷却"时无源可用）；
+- 主机级并发门：镜像 **8**、官方 **32**（对应 PCL 对 bmclapi 的限频纪律）。
 
-库里的 `LiquidGlassVisualRenderer` 是**手写的视觉树遍历器**，负责把窗口背景画进 `RenderTargetBitmap`。实测它**在真实窗口下一个像素都没画进去**：
+**P0-3 错误语义修正** → `GameInstaller` + `DownloadEngine`
+- 失速 / 404 / 403 / 429 / DNS → **立刻换源**，不在坏源上耗时间；
+- `429` 读 `Retry-After`，做**源级冷却**，禁止原地立即重试；
+- 只有 `Transient`（5xx/连接中断）在同源重试一次；
+- **全源都失败 → 再整体降级重试一轮**（PCL 的 `Retried` 语义）；
+- 磁盘错误（空间不足 / 无权限）→ `Fatal`，换源无用，直接失败。
+
+**P0-4 小文件特化** → `DownloadEngine`
+- < 4 MB 走内存缓冲，**一次落盘**（PCL `<1MB` / PCL-CE `<4MB` 同思路）；
+- **边下边算 SHA1**（`IncrementalHash`），省掉"下完再整文件回读"；
+- 失败尝试的字节**回滚**，测速不再虚高。
+
+**P1 真实完成率与诊断** → `GameInstaller` / `DownloadWindow`
+- 返回 `InstallResult`（总数/成功/跳过/失败），**不再无条件报 100%**；
+- 失败按 (源, 失败类型) 聚合写 `app.log`，最多打印 50 条明细；
+- 结束写一行源健康状态。
+
+### 3.2.7 验证结果
+
+**A/B 基准（同一台机器、同一批真实资源）**
+
+| 指标 | 改造前 | 改造后 |
+|---|---|---|
+| 平均吞吐 | 11 KB/s（BMCLAPI 实测）/ 数十 KB/s | **3,630 KB/s** |
+| 峰值吞吐 | ~34 KB/s（BMCLAPI 天花板） | **12,395 KB/s** |
+| 67 秒内完成文件 | 数十个 | **1337 个，0 失败** |
+| 结束报告 | 无条件"安装成功 100%" | 真实成功/跳过/失败计数 |
+
+**坏源逃生验证**（把偏好强制成 `MirrorFirst`，模拟改造前必踩的路径）：
+速度一度掉到 0~247 KB/s，但**健康度冷却触发后自动切到官方源，速度回到 1~2 MB/s，全程 0 失败** —— 不再"掉下去回不来"。
+
+## 3.3 困难二：版本列表一直"获取失败"（系统代理死端口）
+
+### 3.3.1 现象
+
+界面显示「获取版本列表失败，请检查网络连接」；`app.log`：
 
 ```
-快照位图 336×193 = 64,848 像素
-alpha = 0 的像素：64,848          ← 全部
-任一通道非零的像素：0
-存出来的 PNG 只有 347 字节（纯空图）
+获取版本清单失败（official：https://piston-meta.mojang.com/...）: 由于目标计算机积极拒绝，无法连接。 (127.0.0.1:7892)
+获取版本清单失败（mirror：https://bmclapi2.bangbang93.com/...）: 由于目标计算机积极拒绝，无法连接。 (127.0.0.1:7892)
+所有源均无法获取版本清单。
 ```
 
-**玻璃着色器采样的就是这张空图** → 采样透明 → 位移透明 → 输出透明 → **玻璃什么都没画**。
+### 3.3.2 取证
 
-#### 一个机制解释全部症状
-
-| 症状 | 机制 |
+| 检查 | 结果 |
 |---|---|
-| 看不到折射/模糊，**却能"看到玻璃下的文字"** | 玻璃画的是全透明，你看到的是**下层真实 UI** |
-| **调参完全无效** | 参数作用在透明像素上，数学上恒为透明 |
-| **"只有最靠左的位置有效果"** | 手写遍历输出**整体偏移 `+origin`**，存活比例 = `(W−ox)(H−oy)/(W·H)`，**越靠左 origin 越小、存活越多** |
-| **"中间一条硬竖缝"** | **那条线就是存活区域的边界**——左边还有内容可采样，右边全透明 |
-| **"只有移动到下载才有动画"** | 下载是导航栏**最左**一格（index 0）→ origin 最小 |
-| **"下载页选择器反而正常"** | 它在页面**左上角** → 同样 origin 最小 |
+| 注册表 `ProxyEnable` | **1**，`ProxyServer = 127.0.0.1:7892` |
+| `Get-NetTCPConnection -LocalPort 7892 -State Listen` | **无监听**（代理客户端已退出） |
+| `curl` 直连官方源 | **200，1.04 s**（正常） |
+| `curl` 直连 BMCLAPI | **302，0.25 s**（正常） |
 
-> 旁证：无头复刻实验测到同一机制存活比例 2.9%（该组 origin 较小），与公式精确吻合；
-> 真机样本 origin=(432,507)、位图 336×193 → 公式给出**负数** → 存活 0% → 与实测 0.00% 一致。
+→ 网络本身没问题；**是 .NET 把请求发给了已死的本地代理端口**。
+`curl` 不读 WinINET 注册表，所以"curl 好、启动器坏"。
 
-#### 修复
+### 3.3.3 解决方案：`ProxyEnvironment`（新增）
 
-**改动一处** —— `LiquidGlassBackdropProvider.Capture`，弃用手写遍历，改用 **Avalonia 自带的 `RenderTargetBitmap.Render(Visual)`**：
+三个层次：
+
+1. **启动探测**：读系统代理；若指向本机（loopback）且端口**无监听** → 直接改用直连并写日志；
+2. **每请求实时生效**：`AdaptiveProxy : IWebProxy` 每次询问 `ProxyEnvironment.IsEnabled`，禁用代理对后续请求立即生效（无需重建 `HttpClient`）；
+3. **运行时兜底**：请求失败信息里命中"代理端点 / 连接被拒 / 本机代理建连超时" → 禁用代理并**立刻直连重试一次**。
+
+同时把 `DownloadEngine.SharedClient` 作为全项目唯一 `HttpClient`（连接池与代理策略统一），`VersionService` 改用它。
+
+### 3.3.4 验证（复现坏状态）
+
+临时把 `ProxyEnable` 改回 1（端口仍无人监听），跑新代码：
+
+```
+[网络] 系统代理 127.0.0.1:7892 未在监听（代理客户端可能没启动），已自动改为直连
+[成功获取版本清单（official），共 921 个版本]
+```
+
+验证后已把注册表还原。
+
+## 3.4 困难三：选好下载目录后窗口无响应并崩溃
+
+### 3.4.1 现象
+
+双击版本 → 选择目录 → **没有开始下载，整个窗口无响应然后进程退出**。
+
+### 3.4.2 取证（`crash.log` 给得答案）
+
+```
+System.ArgumentException: Directory must exist (Parameter 'fileSystemInfo')
+   at Avalonia.Platform.Storage.FileIO.BclStorageItem..ctor(FileSystemInfo)
+   at Avalonia.Platform.Storage.FileIO.BclStorageFolder..ctor(DirectoryInfo)
+   at Avalonia.Win32.Win32StorageProvider.OpenFolderPickerAsync(...)
+   at Project.Launch.Views.MainWindow.OnVersionListDoubleTapped(...)
+```
+
+时间线对得上：07:44:50 选中版本 → **07:45:20 用户删掉了旧的 `26.3` 目录**（目标文件夹被清空）→ 07:46:00 崩溃。
+
+即：**文件夹对话框返回的路径在 Avalonia 构造 `BclStorageFolder` 时已不存在**，
+Avalonia 直接抛异常；而 `OnVersionListDoubleTapped` 是 **`async void`**，未捕获异常回到 Dispatcher → 进程终止。
+
+### 3.4.3 解决方案（两层）
+
+**① 单个 UI 事件出错不再拖垮整个程序**（`App.axaml.cs` → `InstallCrashGuards()`）
+- `Dispatcher.UIThread.UnhandledException`：记录到 `app.log` + `crash.log`，并 `e.Handled = true`；
+- `AppDomain.CurrentDomain.UnhandledException`：记 `crash.log`；
+- `TaskScheduler.UnobservedTaskException`：记日志 + `SetObserved()`。
+
+**② 选目录全程防御**（`MainWindow.PickFolderSafeAsync`）
+- `OpenFolderPickerAsync` 整个包进 `try/catch`（**异常正是在这里抛出**）；
+- 用 `TryGetLocalPath()` 取路径，而不是 `.Path.LocalPath`；
+- 去首尾空格、去掉结尾 `\` / `/`，再 `Directory.Exists` 复核；
+- 路径无效 → 提示并**退化成手动输入路径**（`PromptForLocalPathAsync`，代码构建的简易窗口）；
+- 两个调用点都替换：版本下载、导入实例。
+
+## 3.5 本次改造的文件清单
+
+| 文件 | 类型 | 说明 |
+|---|---|---|
+| `MainSrc\Download\SourcePolicy.cs` | **新增** | 源排序 / 健康度冷却 / 主机级并发门 |
+| `MainSrc\Download\ProxyEnvironment.cs` | **新增** | 系统代理探测 + 直连降级 + `AdaptiveProxy` |
+| `MainSrc\Download\DownloadEngine.cs` | **重写** | 看门狗 / 失速判据 / 错误分类 / 内存直写 / 边下边算 SHA1 |
+| `MainSrc\Download\GameInstaller.cs` | **重写** | 换源调度 / 全源重试 / 真实统计 / 失败聚合日志 |
+| `MainSrc\Download\VersionService.cs` | 重写 | 元数据走源策略 + 代理降级 |
+| `MainSrc\Views\DownloadWindow.axaml.cs` | 修改 | 真实结果 / 失败计数 / 不再把缺文件当成功 |
+| `MainSrc\Views\MainWindow.cs` | 修改 | 安全选目录 + 手动输入兜底 + 失败提示带计数 |
+| `App.axaml.cs` | 修改 | 全局异常兜底 |
+| `Program.cs` | 修改 | 启动即探测代理 |
+| `Project.Launch.csproj` | 修改 | 增加"非项目源码目录"排除规则（若目录已删除，这 6 行可一并移除） |
+
+## 3.6 遗留待办（按收益排序）
+
+1. **正版 token 传入游戏进程**（`GameLauncher` 的 `${auth_access_token}` 现在写死 `"0"`）——「下载 → 正版启动」主干唯一断点。
+2. **大文件 Range 分片**：`client.jar` 仍单连接（官方 CDN 实测 6.9 MB/s，暂不是瓶颈，但换到慢源就撑不住）。
+3. **自适应并发闭环**（速度下限只升不降，见 3.2.5 原理 5）：目前是固定并发 + 主机级上限。
+4. **`.tmp` 跨进程续传**：中断后大文件从 0 开始。
+5. **natives / classifiers 从未下载**：`GameLauncher` 只解压"磁盘上已存在的" natives jar，`InstallVanillaAsync` 也只收集 `downloads.artifact`。旧版本（含 `natives` 字段）会因此启动失败。
+6. **设置页 / 工具页**仍是占位。
+7. **无测试、无 CI**：下载引擎至少应补一个"用本地 HTTP 桩做失速/换源"的集成测试。
+
+---
+
+
+# 第四部分：下载引擎——设计原理与核心用法
+
+> 这是本项目最复杂、也最值得读的子系统。本篇讲**怎么用**和**为什么这么设计**；
+> 完整实现见 [6.2 `MainSrc\Download`](#62-mainsrcdownload--下载引擎)。
+
+## 4.1 分层与职责
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│ VersionService            元数据（版本清单）                    │
+│   · 走 SourcePolicy 的源顺序 + 健康度                          │
+│   · 单次 10s 超时；代理故障自动直连重试                         │
+├──────────────────────────────────────────────────────────────┤
+│ GameInstaller             安装调度（"装一个版本"的业务）          │
+│   · 展开清单（client.jar / libraries / asset index / objects）  │
+│   · 逐文件：源排序 → 换源 → 全源重试一轮 → 统计 → 聚合日志        │
+│   · 全局并发门 + 进度/测速 + InstallResult                      │
+├──────────────────────────────────────────────────────────────┤
+│ SourcePolicy              源策略（"该用哪个源、还能不能用"）       │
+│   · 候选源排序（偏好 + 冷却）                                   │
+│   · 健康度：连续失败计数 / 冷却时间                              │
+│   · 主机级并发门（镜像 8 / 官方 32）                             │
+│   · 官方 ↔ 镜像 URL 映射                                       │
+├──────────────────────────────────────────────────────────────┤
+│ DownloadEngine            下载原语（"怎么把一个文件下对"）         │
+│   · 建连看门狗 / 逐读看门狗 / 失速判据                          │
+│   · 错误分类（404/403/429/5xx/DNS/失速/校验/磁盘）              │
+│   · 小文件内存直写 + 边下边算 SHA1 + 原子落盘                    │
+│   · 共享 HttpClient（含自适应代理）                             │
+├──────────────────────────────────────────────────────────────┤
+│ ProxyEnvironment          网络环境（"能不能直连"）               │
+│   · 系统代理探测 / 直连降级 / AdaptiveProxy                     │
+└──────────────────────────────────────────────────────────────┘
+```
+
+**职责边界（重要）**：
+- `DownloadEngine` **只管一个 URL 的一次下载**，不关心"源好不好"、"要不要重试"；
+- `SourcePolicy` **只管源的选择与健康度**，不碰网络；
+- `GameInstaller` 负责把两者拼成"多源失败兜底"的业务流程。
+
+## 4.2 装一个版本的完整时序
+
+```
+GameInstaller.InstallVanillaAsync(version, targetPath, maxConcurrency, progress, ct)
+│
+├─ 1. SourcePolicy.Reset()                    清空上次运行的冷却/失败计数
+├─ 2. 下载 版本 json（Meta）                   失败 → 抛异常（无法继续）
+├─ 3. 解析 → 收集 FileTask：
+│       client.jar（Meta）
+│       libraries（Maven，按 rules 过滤 OS）
+├─ 4. 下载 asset index（Meta）→ 展开 objects（Assets，数千个）
+│       失败 → 只记日志、跳过 assets（不整体失败）
+├─ 5. 统计 totalFiles / totalBytes
+├─ 6. 启动进度线程（每 500ms 采样 GlobalBytesDownloaded 算速度）
+├─ 7. 为每个文件建 Task，用全局 SemaphoreSlim(maxConcurrency) 控并发
+│       每文件：
+│         a) 已存在且 SHA1 通过 → 跳过（计入 skipped）
+│         b) candidates = SourcePolicy.GetCandidates(officialUrl, kind)
+│         c) 逐源尝试（冷却中的源跳过；若全冷却则被迫全试）
+│              · 成功 → ReportSuccess → 计数完成
+│              · 失败 → ReportFailure → 按错误类型决定"同源重试一次"或"立刻换源"
+│         d) 两轮（第二轮 = PCL 的"全源降级重试一次"）
+│         e) 仍失败 → 计入 failed + 聚合失败类型
+├─ 8. Task.WhenAll → 停进度线程
+├─ 9. 写聚合日志（失败分布 + 源健康状态）
+└─ 10. 返回 InstallResult { TotalFiles, CompletedFiles, FailedFiles, SkippedFiles, Success }
+```
+
+## 4.3 错误分类与处置矩阵
+
+`DownloadFailureKind` 是整条链路的"共同语言"：
+
+| 类型 | 触发条件 | `GameInstaller` 的处置 | `SourcePolicy` 的影响 |
+|---|---|---|---|
+| `NotFound` | 404 / 410 | **立刻换源**，不在本 URL 重试 | 不惩罚源（是单文件问题） |
+| `Forbidden` | 401 / 403 / 451 | **立刻换源** | 不惩罚源 |
+| `RateLimited` | 429 | 读 `Retry-After` → **换源** | **该源冷却** `max(10s, Retry-After)`，上限 5 min |
+| `Transient` | 5xx / 连接中断 / 长度不符 | **同源重试 1 次**，再换源 | 连续失败累计，达阈值进冷却 |
+| `Corrupt` | SHA1 不匹配 | 换源重下 | 连续失败累计 |
+| `Stall` | 建连超时 / 逐读无数据 / 低于速率下限 | **立刻换源** | 连续失败累计 |
+| `Dns` | NXDOMAIN（`HttpRequestError.NameResolutionError`） | **立刻换源**（不重试） | 连续失败累计 |
+| `Fatal` | 磁盘空间不足 / 无权限 | **直接失败**（换源无用） | 不影响源 |
+
+> 设计要点：**"能换源就换源，不能换源才重试"**。这是与改造前最大的语义差别 ——
+> 改造前所有非 404/403 的错误都会在同一个坏 URL 上重试 3 次。
+
+## 4.4 关键参数表（要调手感只看这张表）
+
+| 参数 | 值 | 位置 | 说明 |
+|---|---|---|---|
+| `ConnectTimeoutMs` | 8000 | `DownloadEngine` | 建连 + 等响应头（含 302 第二跳） |
+| `ReadIdleTimeoutMs` | 15000 | `DownloadEngine` | **逐读**无数据超时（每次 `ReadAsync` 单独计时） |
+| `MinSpeedBytesPerSec` | 24576（24 KB/s） | `DownloadEngine` | 失速速率下限 |
+| `SpeedWindowMs` | 10000 | `DownloadEngine` | 失速判定的观测窗口 |
+| `SmallFileThreshold` | 4 MB | `DownloadEngine` | 小于此走内存缓冲、一次落盘 |
+| `BufferSize` | 81920 | `DownloadEngine` | 读缓冲 |
+| `MaxAttemptBytes` | 4 GB | `DownloadEngine` | 单文件兜底上限 |
+| `MirrorConcurrency` | 8 | `SourcePolicy` | 镜像主机级并发上限（PCL 对 bmclapi 的纪律） |
+| `OfficialConcurrency` | 32 | `SourcePolicy` | 官方源并发上限 |
+| `MirrorFailThreshold` | 2 | `SourcePolicy` | 镜像连续失败几次进冷却 |
+| `OfficialFailThreshold` | 3 | `SourcePolicy` | 官方连续失败几次进冷却 |
+| `MirrorCooldown` | 60 s | `SourcePolicy` | 镜像冷却基数（失败越多越久） |
+| `OfficialCooldown` | 20 s | `SourcePolicy` | 官方冷却基数 |
+| `MaxCooldown` | 5 min | `SourcePolicy` | 冷却上限 |
+| `PerSourceAttempts` | 2 | `GameInstaller` | 单个源上对 `Transient` 的最大尝试次数 |
+| `MaxFailureLogLines` | 50 | `GameInstaller` | 失败明细日志上限 |
+| `AttemptTimeout` | 10 s | `VersionService` | 版本清单单源单次超时 |
+
+## 4.5 公开 API 与调用示例
+
+### 4.5.1 装一个完整版本（UI 用法）
 
 ```csharp
-// 位图取【整窗客户区】尺寸，原点固定 (0,0)，不需要任何手写平移
-PixelSize fullPx = new(
-    Math.Max(1, (int)Math.Ceiling(topLevel.ClientSize.Width  * scaling)),
-    Math.Max(1, (int)Math.Ceiling(topLevel.ClientSize.Height * scaling)));
+using Project.Launch.Download;
 
-state.ScratchBitmap.Render(topLevel);   // ← 用 Avalonia 真正的渲染器
-pixelSize = fullPx;
-PixelPoint originInPixels = new(0, 0);
+var progress = new Progress<DownloadProgress>(p =>
+{
+    statusText.Text = p.State;              // "正在下载游戏文件..." / "部分文件失败（N 个）"
+    bar.Value       = p.Percentage;         // 0~100
+    speedText.Text  = $"{p.SpeedBytesPerSec / 1024} KB/s";
+    filesText.Text  = $"{p.CompletedFiles}/{p.TotalFiles}（失败 {p.FailedFiles}）";
+});
+
+using var cts = new CancellationTokenSource();
+
+InstallResult result = await GameInstaller.InstallVanillaAsync(
+    version:        versionEntry,   // 来自 VersionManifest.Versions
+    targetPath:     @"E:\Minecraft",
+    maxConcurrency: 32,
+    progress:       progress,
+    ct:             cts.Token);
+
+if (result.Success) { /* 只有真正全部成功才当成功 */ }
+else
+{
+    // 例：共 3663 个文件：成功 3650，跳过（已存在）13，失败 13
+    Log($"安装未完成：{result.Summary}");
+}
 ```
 
-**为什么不用手动排除玻璃控件**：抓取期间 `s_captureDepth > 0` → `IsCapturing == true` →
-`LiquidGlassSurface.Render` 与两个 overlay 都会提前 return → 玻璃天然不出现在快照里，也不会递归。
+**返回的 `InstallResult`**：
 
-**验证数据：**
-
-| 指标 | 修复前 | 修复后 |
-|---|---|---|
-| 快照不透明占比 | **0.00%**（64848/64848 像素 alpha=0） | **100.00%** |
-| 快照 PNG | 347 B（空图） | 24,550 B（完整画面） |
-| CPU（15s 窗口） | 约 0.64 核 | **约 0.48 核**（更快） |
-| 崩溃 | — | 无 |
-
-### 3.7.3 快照机制原理（修好后仍需理解）
-
-- **触发**：`EnsureSnapshot` 每次 `Render` 时调用；场景失效（`SceneInvalidated`）也触发
-- **节流**：间隔下限 33ms（约 30fps）；`state.CaptureQueued` 做请求合并
-- **裁剪区**：所有订阅者 `TransformedBounds` 的并集 ∩ 客户区，**按设备像素对齐**
-- **膨胀量** `GetBackdropInflate`：本组合 = `max(32, 80+0+6)` = **86 DIP**
-- **去重**：配置相同且 **8×8 采样哈希**相同时跳过发布
-- **滤镜缓存**：`FilteredKey` 含 crop 四元组，LRU 上限 8
-- **发布顺序**：先 `Volatile.Write` 新快照，**再** `RequestDispose` 旧的
-- **订阅者失效**：发布后对所有订阅者 `InvalidateVisual()`
-
-### 3.7.4 同时做的库健壮性补强
-
-除根因修复外，另加两处（**不是根因**，但补了真实缺口）：
-
-1. **`LiquidGlassSurface` 订阅渲染变换变化**
-   `RenderTransform`（递归到 `TransformGroup` 子变换）的 `Changed` → 通知 `EnsureSnapshot`。
-   原因：`TranslateTransform.X` 这类改动由**合成器**处理，`Visual.RenderTransformChanged` 只更新合成视觉变换、
-   **不重新录制绘制树**，因此**不触发 `SceneInvalidated`**，玻璃库唯一的"按位置重抓"入口就此失效。
-2. **`EnsureSnapshot` 增加"控件跑出上次抓取覆盖区"触发条件**
-   原检测（`needsClipGrowthCapture`）**只在 `SceneInvalidated` 处理器内部**，事件不来就是死代码。
-
-### 3.7.5 已知的空转与死代码
-
-| 项 | 状态 |
+| 属性 | 含义 |
 |---|---|
-| **`MainSrc\Views\Glass.axaml`** 全部资源 + `Button.Glass` | **零使用**（真正参数写在各窗口 XAML 内联） |
-| `Styles.axaml` 的 `MiretAcrylic` / `LarMiret` | **零使用**（只有 `Miret` 在用） |
-| **`LiquidGlassVisualRenderer.cs`（153 行）** | **根因修复后已成死代码**，且本身有缺陷（见下） |
-| `RenderVisualWithClip` / `GetExcludedRoots` | 同上，已无调用者 |
-| `UseLiquidGlassPerformanceDefaults()` | **宿主从未调用** |
-| `LiquidGlassDiagnostics` 25 个计数器 | **从未被任何 App 代码读取**（见 3.7.6） |
-| `TintColor` / `SurfaceColor` | 在 `GammaPower == 1.0`（默认）时**被静默忽略** |
-| `DepthEffect` / `ProgressiveBlur*` / `AdaptiveLuminance*` / `InnerShadow*` / `BackdropZoom` / `BackdropOffset` | 全部 `false`/默认值，**当前均不参与渲染** |
-| 哈希去重 | 只采样 **8×8 = 64 像素**，细进度条/光标这类变化会被误判"没变" |
+| `TotalFiles` / `TotalBytes` | 本次清单的规模 |
+| `CompletedFiles` | 成功（含跳过） |
+| `SkippedFiles` | 已存在且 SHA1 通过而跳过 |
+| `FailedFiles` | 失败 |
+| `DownloadedBytes` | 实际下载字节（含跳过文件的大小） |
+| `Success` | `TotalFiles > 0 && CompletedFiles == TotalFiles && FailedFiles == 0` |
+| `Summary` | 一行中文摘要，可直接写日志/提示 |
 
-> **`LiquidGlassVisualRenderer` 的缺陷**（虽是死代码，也请知道）：
-> 递归里遇到 `ClipToBounds == true` 的视觉时执行 `totalTransform = Matrix.Identity; clipRect = rect;`
-> ——**就地改写剔除基准**，会让同一父级中排在它之后的兄弟子树用错误基准做 `Intersects` 剔除。
-> 官方 `ImmediateRenderer` 只重设 clip、**不重设 transform**。这正是"内容整体偏移 `+origin`"的来源。
-
-### 3.7.6 出问题时怎么排查（强烈建议）
-
-这次能挖出根因，靠的是**把库自己抓到的快照落盘 + 读它的计数器**。以后再遇到玻璃问题，**先做这两件事，不要先调参**：
-
-**① 接上计数器**（`LiquidGlassDiagnostics.Snapshot` 是公开 API）：
-
-```
-发布 CapturesPublished / 请求 CaptureQueueRequests / 节流 SkippedByCadence
-脏矩形抑制 SkippedByDirtyRect / 哈希跳过 SkippedByHash / 空裁剪 SkippedEmptyClip
-重入 SkippedReentrant / 无订阅者 SkippedNoSubscribers
-场景失效 RendererInvalidations / 脏矩形可用性 DirtyRectAvailable/Unavailable
-订阅者失效 SubscriberInvalidations / 滤镜命中 FilterCacheHits/Misses
-```
-
-判读：`CapturesPublished` 持续增长 = 抓取健康；`空裁剪` 不为 0 = 有帧没抓成，快照会停在旧位置。
-
-**② 把快照落盘**（几行代码）：
+### 4.5.2 只下单个文件（带 SHA1 校验）
 
 ```csharp
-// 在 LiquidGlassBackdropProvider.Capture 里 Render 之后
-state.ScratchBitmap.Save(某路径 + ".png");
-// 然后统计：不透明像素占比、内容包围盒
+DownloadAttemptResult r = await DownloadEngine.DownloadAsync(
+    url:          "https://resources.download.minecraft.net/00/0056c1a9...",
+    localPath:    @"E:\Minecraft\assets\objects\00\0056c1a9...",
+    expectedSha1: "0056c1a9...",     // 可空：为空则只校验完整长度
+    ct:           ct);
+
+if (r.IsSuccess)
+    Console.WriteLine($"OK，{r.BytesReceived} 字节");
+else
+    Console.WriteLine($"{r.Kind}: {r.Message}");   // 用 Kind 决定后续动作
 ```
 
-- **不透明占比 ≈ 0%** → 快照是空图（本次的根因）
-- 占比正常但**内容整体偏移** → 遍历器的变换问题
-- 都正常 → 问题在采样矩阵 / 着色器 / 滤镜裁剪
+> ⚠️ **单文件下载不做镜像回退**。它只打你给的这一个 URL。
+> 要"多源兜底"请用 `GameInstaller`，或自己按 `SourcePolicy.GetCandidates` 迭代。
 
-**③ 参数解释不了的事，别用参数去解释**
+### 4.5.3 校验本地已有文件（断点续传的基础）
 
-`RefractionHeight=4` 意味着折射**只发生在离边缘 4 DIP 的窄带内**，内部 100% 原样透传；
-`BlurRadius=0` 表示静止态**没有模糊**。所以在平坦的 `#D8D8D8` 轨道上，
-**即使一切正常，静止态也几乎看不见玻璃效果**——这是参数决定的，不是 bug。
-（想要更明显的观感：`RefractionHeight` 调到 `10~12`、`BlurRadius` 静止值调到 `1~2`。）
+```csharp
+bool ok = await DownloadEngine.VerifySha1Async(localPath, expectedSha1, ct);
+if (!ok) File.Delete(localPath);   // 坏文件要删掉，否则会一直被当成"已存在"
+```
 
-## 3.8 版本清单模块 —— 下载功能 P1
+### 4.5.4 手动控制源顺序
 
-`MainSrc\Tools\Download\`，**下载功能的第一步，目前只做到"拿到清单"**。
+```csharp
+// 默认 Auto：官方优先；官方连续失败后自动切镜像
+SourcePolicy.Preference = SourcePreference.Auto;
 
-| 文件 | 内容 |
+// 强制镜像优先（国内无代理用户可能更快，但实测当前 BMCLAPI 的 assets 节点池很差）
+SourcePolicy.Preference = SourcePreference.MirrorFirst;
+
+// 强制官方优先
+SourcePolicy.Preference = SourcePreference.OfficialFirst;
+
+// 诊断：看当前各源健康状态
+Log(SourcePolicy.DescribeHealth());   // "mirror:Assets: 连续失败 2，冷却剩余 58s; ..."
+```
+
+### 4.5.5 拉版本清单
+
+```csharp
+VersionManifest? manifest = await VersionService.GetVersionManifestAsync(ct);
+// manifest.Latest.Release / manifest.Versions[]
+// VersionEntry { VersionId, Type, Url, ReleaseTime, IconPath, IconBitmap }
+```
+
+## 4.6 源策略与健康度（`SourcePolicy`）
+
+### 4.6.1 候选源怎么排
+
+1. 以**官方 URL** 为准（所有 `FileTask` 都记官方 URL），用 `ToMirror()` 派生镜像 URL；
+2. 按 `Preference` 决定谁先；
+3. **冷却中的源沉底**（但仍保留在列表里）；
+4. 若两个源都在冷却 → 全都保留（避免无源可用）。
+
+**URL 映射规则**：
+
+| 官方 | 镜像（BMCLAPI） |
 |---|---|
-| `MinecraftManifest.cs` | `version_manifest_v2` 数据模型：`VersionManifest{ Latest, Versions[] }`、`LatestVersions{ Release, Snapshot }`、`VersionEntry{ Id, Type, Url, ReleaseTime, ReleaseTimeStr }` |
-| `VersionService.cs` | `GetVersionManifestAsync()` —— **BMCLAPI 优先 → 官方源兜底**；复用静态 `HttpClient`（15s 超时）；成功/失败都写 `app.log` |
+| `resources.download.minecraft.net/...` | `bmclapi2.bangbang93.com/assets/...` |
+| `libraries.minecraft.net/...` | `bmclapi2.bangbang93.com/maven/...` |
+| `piston-meta.mojang.com/...` | `bmclapi2.bangbang93.com/...` |
+| `piston-data.mojang.com/...` | `bmclapi2.bangbang93.com/...` |
+| `launchermeta.mojang.com/...`、`launcher.mojang.com/...` | 同上 |
 
-**实测**：成功获取 **920 个版本**（日志原文：`成功获取版本清单(https://bmclapi2.bangbang93.com/...)，共 920 个版本`）。
+### 4.6.2 健康度是怎么算的
 
-> ⚠️ **当前状态**：UI 还没有消费它 —— `DownloadPanel` 里仍然只有"版本列表（待接入）"。
-> 也就是说这个模块**目前只在日志里验证过**，没有接到界面上。
->
-> ⚠️ 另注：清单里**没有** `latest` 之外的版本 JSON 下载、没有 jar/库/资源下载、没有校验、没有断点续传。
+- **分桶键** = `Id + ":" + Kind`，即 `mirror:Assets`、`mirror:Maven`、`official:Meta` 各自独立。
+  （因为 **maven 的镜像和 assets 的镜像质量完全不同**：实测 maven 走 `mirrors.cernet.edu.cn` 是好的，assets 的 sakura 节点池很差。）
+- 成功一次 → `FailCount` 清零、冷却清除；
+- 失败 → `FailCount++`；达阈值 → 冷却（失败越多，冷却越久，上限 5 min）；
+- `NotFound` / `Forbidden` / `Fatal` **不惩罚源**（是单文件或磁盘问题）。
 
----
+### 4.6.3 主机级并发门
 
-# 第四部分：已知缺陷与待办
+`AcquireAsync(source, ct)` 返回一个 `IDisposable`，**必须 `using`**：
 
-> 状态基于 `commit 2d5b01c` 逐条实测核对。
+```csharp
+using (await SourcePolicy.AcquireAsync(source, ct))
+{
+    result = await DownloadEngine.DownloadAsync(source.Url, localPath, sha1, ct);
+}
+```
 
-## 4.1 🔴 P0 级（功能失效）
+镜像 8 / 官方 32 的上限用于**避免把唯一国内镜像打成 403/429**（PCL 的对应做法是
+"禁止对 bmclapi 追加第 2 条连接 + 每次启动 Sleep(100)"）。
 
-| # | 问题 | 状态 | 位置 |
-|---|---|---|---|
-| 1 | **`isolated` 布局的实例永远无法启动** | ❌ **未修** | `MinecraftDirectoryAnalyzer` 把形态 B 的版本目录算成 `<path>\.minecraft\versions`，但**消费方全部硬编码** `Path.Combine(RootPath, "versions")`（`MainWindow.cs:596`、`GameLauncher.cs:29`）—— 而这个路径**不存在正是分析器判定形态 B 的原因**。结果：弹"版本文件缺失"，`GameLauncher` 根本不会被调用。<br>**铁证**：`AnalysisResult` 算出的 `VersionsDir`/`LibrariesDir`/`AssetsDir`/`GameDirectory` **四个字段全项目零消费** |
-| 2 | **正版账号以离线身份启动** | ❌ **未修** | `GameLauncher.ReplacePlaceholders` 里 `${auth_access_token}`→`"0"`、`${user_type}`→`"legacy"`、`${auth_session}`→`"0"`。`MicrosoftAuthFlow` 认真写进 `accounts.json` 的 4 个凭据字段**无人读取** → **登录成功只等于拿到用户名 + UUID** |
-| 3 | **正版登录走不通** | ❌ **未修** | `DeviceCodeAuthService.ClientId` 仍是占位 `7dddbcf7-…`，被 Mojang 拒绝。等自有 AppID 审批 |
+## 4.7 代理自适应（`ProxyEnvironment`）
 
-## 4.2 🟠 P1 级（明显错误）
+**为什么需要**：Windows 的 WinINET 代理是"全局开关"，用户关掉代理客户端后开关**常常还留着**。
+.NET 默认继承它 → 所有请求被送去一个没人监听的端口 → 表现成"网络全挂了"。
 
-| # | 问题 | 状态 |
+**三层保护**：
+
+| 层 | 时机 | 行为 |
 |---|---|---|
-| 4 | **版本排序 Ordinal → 默认选中旧版本**（实测 `1.9` 胜过 `1.20.1`） | ❌ 未修 |
-| 5 | **无 `inheritsFrom` 建模** → Forge / NeoForge / Fabric / OptiFine **全部不支持** | ❌ **仍未修**（`MinecraftVersionJson` 里没有该字段） |
-| 6 | **无刷新令牌流程** → 24 小时后必须重新设备码登录 | ❌ 未修 |
-| 7 | **登录窗 / 账户管理窗无法用鼠标拖动** | ❌ 未修 |
-| 8 | **64×32 旧版皮肤 3D 渲染错误**（仓库自带 2 张） | ❌ 未修 |
-| 9 | **`accounts.json` 损坏会被静默清空**（**所有账户被抹掉**） | ❌ 未修 |
-| 10 | **无 `-Xmx/-Xms` 内存设置**，无每实例 JVM 参数 | ❌ 未修 |
-| 11 | 进程只加入 `_runningProcesses` **无对外停止/查询接口**，不回传退出码 | ⚠️ **部分改善**（已有跟踪，但不可控） |
+| 启动探测 | `Program.Main` / `DownloadEngine` 静态构造 | 代理指向本机且端口无监听 → 直接禁用代理 |
+| 每请求 | `AdaptiveProxy.GetProxy` | 实时读取 `ProxyEnvironment.IsEnabled`，禁用后立即走直连 |
+| 运行时兜底 | 请求失败时 | 失败信息命中"代理端点 / 连接被拒 / 本机代理建连超时" → 禁用代理 + **直连重试一次** |
 
-## 4.3 🟡 P2 级（健壮性 / 安全）
+**日志关键字**：`[网络] ...`（在 `app.log` 里）
 
-| # | 问题 |
+## 4.8 扩展指南
+
+### 加一个镜像源
+
+目前 `ToMirror()` 是"官方 → BMCLAPI"的单映射。要支持多镜像：
+
+1. 把 `ToMirror` 改成返回 `IEnumerable<string>`（多个镜像 URL）；
+2. `GetCandidates` 里为每个镜像构造 `DownloadSource`（`Id` 用 `mirror:名称`，健康度自动分桶）；
+3. 其余逻辑无需改动（换源、冷却、并发门都是按 `DownloadSource` 工作的）。
+
+### 加一种错误分类
+
+1. `DownloadFailureKind` 加枚举值；
+2. `DownloadEngine` 里识别并返回它；
+3. `SourcePolicy.ReportFailure` 里决定是否惩罚源；
+4. `GameInstaller.DownloadOneAsync` 里决定"重试 / 换源 / 直接失败"。
+
+### 给大文件加 Range 分片（待办）
+
+落点在 `DownloadEngine.DownloadCoreAsync`：在拿到 `Content-Length` 后判断
+`contentLength > SmallFileThreshold 且支持 Range` → 走分片分支：
+
+- 预分配文件（`FileStream.SetLength`）；
+- 每片独立 `HttpRequestMessage` + `Range: bytes=a-b`；
+- 用 `RandomAccess.WriteAsync(handle, buffer, offset, ct)` 并发写同一个文件；
+- 严格校验 `206` + `Content-Range` 三元组；
+- 每片独立看门狗（复用现有 `ReadWithIdleTimeoutAsync`）；
+- 单片失败只重切该片，不要整体重来。
+
+### 调手感
+
+只改 [4.4 参数表](#44-关键参数表要调手感只看这张表) 里的常量即可，不要散落在业务代码里。
+
+## 4.9 不变式与常见误用
+
+**必须遵守的不变式：**
+
+1. `DownloadEngine.GlobalBytesDownloaded` = **已提交 + 在途**；失败尝试会**回滚**。
+   它只用于测速/进度，业务判断请用 `InstallResult`。
+2. **全局门 → 主机门** 的获取顺序固定（先 `SemaphoreSlim` 后 `SourcePolicy.AcquireAsync`），
+   两者都必须释放（`using` / `finally`）。
+3. `DownloadEngine.DownloadAsync` **内部已含建连/逐读/失速三重超时**，
+   **外层不要再包 `CancellationTokenSource.CancelAfter` 做整体超时**（会误杀大文件）。
+4. 小文件（<4 MB）走内存直写；大文件走 `localPath + ".tmp"` 再 `File.Move`。
+   **失败路径会删除 `.tmp`**，所以**不要**在外部假设 `.tmp` 一定存在。
+5. 已有文件必须 **SHA1 校验通过** 才算"已存在"；坏文件要先删再下。
+
+**常见误用：**
+
+| 误用 | 后果 |
 |---|---|
-| 12 | **token 明文存储**（无 DPAPI） |
-| 13 | **数据写在 exe 同级** → 装到 `Program Files` 后所有保存**静默失效** |
-| 14 | **`app.log` 无轮转**；natives 目录从不清理 |
-| 15 | **`SwitchPanelAsync` / `ShowToastAsync` 无并发保护** |
-| 16 | **`SkinCropper` 裸 `catch` 无日志**；`RenderTargetBitmap` 在 `Task.Run` 线程池线程上创建（非支持用法） |
-| 17 | **`JavaDetector` 的 `WaitForExit(5000)` 是死代码**；`Match()` 无上界 |
-| 18 | **`rules[].features` 与 `RuleOs.Arch/Version` 被忽略** → feature-gated 参数被无条件加入 |
-| 19 | **`Pivot3DControl` 每面每帧新建 `SKShader`**（约 2160 次/秒）；`Equals => false` 放弃缓存 |
-| 20 | **`BitmapToSkImage` 未检查 `Bitmap.Format`** |
-| 21 | **无测试工程**；全仓**无 TODO / FIXME / NotImplementedException 标记** → 所有缺口都是"静默遗漏" |
-| 22 | **`VersionService` 只拉清单**，UI 未接线；无版本 JSON / jar / 库 / 资源下载，无校验、无断点续传 |
-| 23 | **`DownloaDone` 等 4 个音效配置了却从未调用**（`DownloadDone` 显然是给下载功能预留的） |
+| 给 `HttpClient` 设 `Timeout = 15s` | 大文件被腰斩（本项目已改为 `InfiniteTimeSpan` + 逐读看门狗） |
+| 在 `GameInstaller` 外自己重试循环 | 会和源健康度打架，冷却失效 |
+| `NotFound` 也重试 3 次 | 白等（实测最坏 90 s/文件） |
+| 用 `File.Exists` 判断"已下载" | 坏文件永远修不好 |
+| 直接 `new HttpClient()` | 连接池失效、不走代理策略；请用 `DownloadEngine.SharedClient` |
 
-## 4.4 ⚪ 死代码 / 遗留（清理项）
+## 4.10 排查手册（看哪条日志）
 
-| 项 | 位置 |
+`MainSrc\BuiltDebugRun\KilimLauncher\app.log`：
+
+| 日志关键字 | 含义 |
 |---|---|
-| `LiquidGlassVisualRenderer.cs`、`RenderVisualWithClip`、`GetExcludedRoots`、`IsExcludedFromCapture` | 根因修复后**已无调用者** |
-| `Glass.axaml` 全部资源 + `Button.Glass`；`MiretAcrylic` / `LarMiret` | 零使用 |
-| `MsProgressPanel` / `MsProgressText` | 声明并 `FindControl` 了却**从不设为可见** |
-| `LoginWindow` 的 `OFFSET_OFFLINE` / `OFFSET_THIRD`；`Close(bool isLogin)` 的参数 | 未使用 / 无效 |
-| `MainWindow.SetTitleBarGradient`（public）；`ViewModel\TestWindowButton.cs` | 无调用者 |
-| `MainWindow._httpClient`、`LoginWindow._httpClient` | 声明后从未使用 |
-| `InteractionConfig` / `SoundConfig` / `AnimationConfig` | 可变静态字段，**无持久化、无 UI** |
-| `imgs\Main\images\Blocks\`（16）、`Loaders\`（12）、`Support\` 的 3 个 | 资源存在但**代码未引用** |
-| `LoginWindow.axaml` 底部红字 **"请更换仓库不要露全部代码"**、硬编码 `rc-5`；主窗标题硬编码 `KilimMinecraftLauncherDemo` | **交付前必须清掉的开发期痕迹** |
-| `Pivot3DControl` 在 `Tools\` 但 namespace 是 `Project.Launch.Views` | 命名不一致 |
-| `read.me` 与 `read.md` 混用 | 不统一 |
+| `[网络] ...` | 代理决策（用/不用代理、何时切的直连） |
+| `成功获取版本清单（official/mirror...）` | 元数据走的是哪个源 |
+| `开始下载 <版本>：N 个文件，约 M MB，并发 X，源偏好 Y` | 安装开始 |
+| `下载结束：共 N 个文件：成功 A，跳过（已存在）B，失败 C` | 安装结果（**这是唯一可信的完成度**） |
+| `下载结束但仍有 N 个文件失败。失败类型分布：mirror/Stall×12，official/Transient×3` | 失败归因（按 源/错误类型 聚合） |
+| `失败文件: assets/objects/xx/yyy <- mirror: Stall ...` | 单文件明细（最多 50 条） |
+| `源健康状态: ...` | 结束时各源的失败计数与冷却 |
+| `UI 线程未处理异常（已拦截，程序继续运行）: ...` | 界面事件里的异常（已被全局守卫兜住） |
 
-## 4.5 已排除的排查方向（**勿重复踩坑**）
+**复现 A/B 的最小实验**（不改代码即可判断"是不是源的问题"）：
 
-以下假设都**看起来很有道理**，但被硬证据**逐一证伪**：
+```powershell
+# 官方源：24 个真实 asset，并发 20
+curl.exe --parallel --parallel-max 20 -sL -o NUL -w "%{http_code} %{size_download}\n" <url1> <url2> ...
 
-| 假设 | 证伪方式 |
-|---|---|
-| 快照刷新时机 / 抓取没触发 | 真实 App 计数器：抓取持续发生（发布 242→534，约 20~50 次/秒），`脏矩形抑制=0`、`哈希跳过=0`、`空裁剪=0` |
-| 控件位置测量错误 | 诊断打印的全局 AABB 随动画**平滑正确变化**（TabSlider 432→312→224） |
-| 变换事件不被感知 | 独立探针证明 `TranslateTransform.Changed` / `ScaleTransform.Changed` 触发、`TransformGroup` 冒泡 |
-| DPI 问题（120% / 125%） | 用户实测 100% / 150% 均无效；映射公式中 `scaling` 分子分母**完全对消** |
-| 滤镜结果图比采样范围小 → Clamp 硬缝 | 数值推导：余量 88 DIP ≥ 需求最坏 80 DIP；`crop` 恒等于整张快照 |
-| `WithPixelOrigin` 的 localMatrix 写错 | 用真实 SkiaSharp **双向反证**：现在的写法是对的，改成"看起来对"的写法反而会坏 |
-| 宿主玻璃参数配置导致 | `LoginModeSlider`（坏）与 `EditionSlider`（好）参数**逐项完全相同** |
-| 着色器本身能产生竖直分界 | 主透镜**左右严格对称**；唯一不对称来自坐标域错误，表现是"错位重影"而非"平坦" |
+# 同一个文件对比两个源
+curl.exe -sL -o NUL --max-time 30 -w "official: %{http_code} ttfb=%{time_starttransfer} size=%{size_download}\n" `
+  "https://resources.download.minecraft.net/<p>/<hash>"
+curl.exe -sL -o NUL --max-time 30 -w "mirror  : %{http_code} ttfb=%{time_starttransfer} size=%{size_download}\n" `
+  "https://bmclapi2.bangbang93.com/assets/<p>/<hash>"
+```
 
-> **教训**：上面每一条听起来都对，我们花了大量时间在这几条上。
-> 真正的突破点是**把快照本身落盘看了一眼**——发现它是全透明的。
-> **下次遇到渲染问题，先拿到中间产物看一眼，再谈推理。**
+判据：**`size` 小于预期 = 被截断；`ttfb` > 10 s = 该源当天不可用**。
 
 ---
 
-# 第五部分：下一步需求 —— 下载功能
+# 第五部分：其余模块现状
 
-> 前人已做过扎实的产品调研，**结论仍然有效**。P1 阶段（版本清单）**已开始实现**（见 [3.8](#38-版本清单模块--下载功能-p1)）。
+## 5.1 账户系统 ✅
 
-## 5.1 用户的产品定位与硬约束（重要）
+- **离线登录**：用户名 → `OfflineUuidGenerator`（`MD5("OfflinePlayer:"+name)`，置 version 3、IETF variant，手拼大端 hex，兼容 HMCL / Java 服务端）；
+- **微软正版**：`MicrosoftAuthFlow` 七阶段
+  `设备代码 → 轮询 → XBL → XSTS → MC token → profile → AccountInfo`；
+  设备代码流用 `consumers` 端点 + `XboxLive.signin XboxLive.offline_access`；
+  XSTS 有 `XErr` 人类可读错误映射（无 Xbox 账号 / 地区不支持 / 未成年需家庭组…）；
+- **持久化**：`AccountService` → `accounts.json`，**原子写**（写 `.tmp` 再 `File.Move` 覆盖）；
+- **第三方登录**：UI 有入口，后端未实现（占位）。
 
-- 启动器要引入**基岩版版本管理**，但**为规避版权只支持"安装包下载"**（不重分发游戏本体）
-- 正版（Java）与基岩版两条线并行，**共用一套下载引擎**
-- 基岩版数据源走第三方站 **MCAPPX**，站长的硬性约束：
-  1. **下载不走他们的服务器**，全部走微软官方 CDN
-  2. **其下载服务一律禁止调用**（会触发机器人挑战返回 403）
-     → 启动器**绝不能热链 mcappx 的任何下载链接**
-  3. **唯一要求：公开项目必须标注来源 `mcappx.com`**（建议做进"关于"页 + 下载页脚注）
-  4. 数据源对部分区域屏蔽，可向他们申请访问权限
-     - ⚠️ **实测该数据接口在用户本机请求超时**（`data.mcappx.com` 30s 无响应，文档站正常）—— **印证区域屏蔽**
+## 5.2 游戏启动 ✅（导入式）
 
-## 5.2 Java 版下载源（已调研确认）
+`GameLauncher.LaunchAsync` 已实现：
+拼 classpath（`client.jar` + `libraries`，按 `rules` 过滤 OS）、解压 natives、
+**新旧两代参数格式**（`arguments.game/jvm` 与 `minecraftArguments`）、
+`features` 规则（要求 feature=true 的一律拒绝）、进程保活列表防 GC、
+3 秒闪退检测并回读 `game.log` 尾部写入 `app.log`。
 
-**官方**
-- 清单：`https://piston-meta.mojang.com/mc/game/version_manifest_v2.json` ✅ **已实现**
-- 版本 JSON：`https://piston-meta.mojang.com/v1/packages/{hash}/{id}.json`
-- client.jar：版本 JSON 内 `downloads.client.url`
-- 库：`https://libraries.minecraft.net/{maven路径}`（group 的 `.` 换成 `/`）
-- 资源：`https://resources.download.minecraft.net/{hash前2位}/{hash}`
+**占位符现状**（关键）：
 
-**镜像**
-- **BMCLAPI**（`bmclapi2.bangbang93.com`）：国内事实标准，覆盖全部端点，字符串替换域名即可 ✅ **已作为默认源**
-- **MCBBS 镜像已废弃**（站点关闭），不要使用
+| 占位符 | 值 |
+|---|---|
+| `${auth_player_name}` | 账户用户名 |
+| `${auth_uuid}` | 离线/正版 UUID |
+| **`${auth_access_token}`** | **固定 `"0"`** ← 正版未打通 |
+| `${auth_session}` | 固定 `"0"` |
+| `${user_type}` | 固定 `"legacy"` |
+| `${version_name}` / `${game_directory}` / `${assets_root}` | 正确 |
+| `${resolution_width/height}` | 固定 925×530 |
 
-**关键字段**：`downloads.client.url/sha1`、`assetIndex.url/sha1`、`libraries[]`（需按 OS/arch 过滤）
+## 5.3 Java 检测 ✅
 
-## 5.3 基岩版下载源（MCAPPX 数据源）
+`JAVA_HOME` / `PATH` / 6 个常见 JDK 目录 / 已保存路径 → 四路扫描，
+`java -version` 解析兼容 `1.8.0_x` 与 `21.0.1`，
+匹配策略：**精确版本 → 最小且 ≥ 要求的版本**。
 
-```
-https://data.mcappx.com/v2/bedrock.json     （v1 已停止更新）
-文档：https://www.mcappx.com/dev-docs/data-source/
-```
+> 已知小缺陷：`WaitForExit(5000)` 在 `ReadToEndAsync` 之后是死代码；`java.exe` 挂起会卡住。
 
-```
-From_mcappx.com
- └─ "1.21.100.24"                        ← 版本号
-     ├─ Type        Release / Beta / Preview
-     ├─ BuildType   UWP / GDK            ← ★ 决定走哪条下载链
-     ├─ ID          安装包ID
-     ├─ Date        发布时间
-     └─ Variations[]
-         ├─ Arch          x64 / x86 / arm
-         ├─ ArchivalStatus 3=有官方记录 2=无记录 1=未发布 0=已丢失
-         ├─ OSbuild       最低 Windows 构建号（如 19041）
-         ├─ MetaData[]    ★ UWP 存 UpdateID(GUID)，GDK 存 msixvc 直链
-         └─ MD5           校验值（**只有 MD5，没有 SHA**）
-```
+## 5.4 实例管理 ✅
 
-**路线 A：GDK（msixvc 直链，最省事，建议先行）**
-- `MetaData` 直接是完整直链；**可切换 CDN 域名提速**：
-  `assets1.xboxlive.cn` / `d1.xboxlive.cn` / `assets2.xboxlive.cn` / `d2.xboxlive.cn`（**快**）
-  `*.xboxlive.com`（中国大陆**慢**）
-- ⚠️ **msixvc 是原始 Xbox 分发包，不是 zip，无法解压**，只能整体用 `Add-AppxPackage` 安装
+- `MinecraftDirectoryAnalyzer` 识别两种布局：
+  `standard`（`versions/` 在 `.minecraft` 根下）/ `isolated`（`versions/` 在 `.minecraft/` 下）；
+- `InstanceService` → `instances.json`（原子写），记录 `RootPath / Layout / VersionId / JavaPath`。
 
-**路线 B：UWP（UpdateID → FE3 解析，麻烦且成功率低）**
-- 需调微软 SOAP API：`https://fe3cr.delivery.mp.microsoft.com/ClientWebService/client.asmx/secured`
-  用 `GetExtendedUpdateInfo2`，请求 `FileUrl` + `FileDecryption` 两种 infoType
-- ⚠️ **文档明确警告：大量 UpdateID 已失效**（所有 Beta、早期 Preview、少数正式版）
-  → **必须有兜底**（退回打开 Microsoft Store 页面）
+## 5.5 UI 交互 ✅
 
-**安装注意事项**
-- GDK 依赖 **Xbox Gaming Services** 服务（缺失则装完也跑不起来）
-- UWP 需先装"框架包"，否则 `Add-AppxPackage` 失败
-- 装旧版会被拒绝，需 `-ForceUpdateFromAnyVersion`（甚至先卸载）
-- **多版本共存涉及改包身份 → 签名失效、需开发者模式** → **建议 v1 只做单版本模式**
+- 主窗 5 Tab：下载 / 启动 / 主页 / 设置 / 工具，默认停在**主页（index=2）**；
+- 自绘标题栏两态（渐变 ↔ 透明），图标黑/白自动切换按梯度亮度计算；
+- **滑块动画范式**：EaseInOut + 梯形缩放 + 三角形模糊，参数全在 `AnimationConfig`；
+- 底部导航 / 版本选择器 / 登录三模式都用同一套滑块动画。
 
-## 5.4 建议架构（三段式，Java / 基岩共用）
+## 5.6 ⚠️ 已知缺陷（除 3.7 待办外）
 
-```
-① 数据层  拉清单 + 本地缓存（按 CreationTime 判断是否刷新）   ← P1 已完成清单部分
-          区域屏蔽/超时 → 用缓存 + 明确提示，不能崩
-② 解析层  Java: 版本 JSON（含 inheritsFrom 继承链）            ← 未做；注意 inheritsFrom 尚未建模
-          基岩: GDK 直链 / UWP → FE3 SOAP（失败兜底 Store）    ← 未做
-③ 下载层  DownloadEngine（★ 共用）                             ← 未做
-          HttpClient + 并发 + Range 断点续传 + 校验 + 进度/速度/取消/重试
-④ 安装层  基岩: Add-AppxPackage（提权/依赖/错误码）             ← 未做
-```
+| 级别 | 问题 |
+|---|---|
+| 🔴 | 正版 token 未传给游戏进程（`${auth_access_token}` 写死 `"0"`） |
+| 🟠 | `accounts.json` 解析失败会静默返回空并**随后覆盖写回** → 抹掉全部账户 |
+| 🟠 | `natives/classifiers` 从未下载（`GameLauncher` 只解压已存在的 natives jar） |
+| 🟠 | `SkinCropper` / `CropSkinFromBitmap` 用裸 `catch` 吞异常，无日志 |
+| 🟡 | `Glass.axaml` 是空转的：真实玻璃参数内联在各窗口 XAML |
+| 🟡 | `avares://` 路径写错不编译报错，多处加载点 `try/catch` 吞掉 |
+| 🟡 | 数据目录在 exe 同级，装到 `Program Files` 后所有保存静默失效 |
+| ⚪ | `MainSrc\Codes\` 空目录；`read.md` / `read.me` 混用 |
 
-**下载引擎要点**
-- `SocketsHttpHandler`：`MaxConnectionsPerServer` 拉高（资源小文件可 32–64 并发）、`AutomaticDecompression = GZip | Deflate`
-- 断点续传：`.part` 临时文件 + HTTP `Range`；大文件可分段并行
-- 校验：Java 用 **SHA1**，基岩用 **MD5**
-- 多镜像回退：每资源配镜像列表（BMCLAPI → 官方，或反序）
-- 进度：`CancellationTokenSource` + `IProgress<double>`，直接接现有 UI
+## 5.7 液态玻璃子系统
 
-### 🎯 与现有架构的衔接（好消息）
+vendored 第三方库（作者 KaranocaVe，MIT），在 `MainSrc\Tools\LiquidGlassAvaloniaUI\`，
+**独立 csproj、独立编译**，主项目 `<Compile Remove>` 排除源码后 `ProjectReference` 引用。
 
-> 下载器把版本装进一个 **standard 布局目录**（`versions/` + `libraries/` + `assets/`）后，
-> `MinecraftDirectoryAnalyzer.Analyze` **直接就能扫出来**，`GameLauncher` **完全不用改**。
->
-> → **"下载安装新版本" = 新建目录 → 下载 → 调 `SetSelectedInstance` 注册**，与现有"导入"走同一条下游链路。
->
-> → 基岩版不能用 `InstanceInfo`（没有 `.minecraft/versions/json/Java`），需新建 `BedrockInstance` 实体。
->
-> ⚠️ 注意：**standard 布局这条路是自洽的**，所以下载功能可以先做，不必先修 [4.1 的 P0-1](#41--p0-级功能失效缺陷)。
+机制：`LiquidGlassSurface.Render()`
+→ `LiquidGlassBackdropProvider.EnsureSnapshot()` 抓窗口背景快照
+→ `LiquidGlassDrawOperation` 用 SKSL 着色器做折射/色散/模糊/高光。
 
-## 5.5 待产品决策（用户尚未拍板）
+**历史坑**：曾出现"背景快照是一张全透明空图"导致玻璃完全不可见，排查记录见 `GLASS_NEGATIVE_FINDINGS.md`。
 
-1. **基岩版先做 GDK 还是 UWP？**（建议 GDK 先行，UWP 后置 + Store 兜底）
-2. **只下载，还是下载+安装一条龙？**（后者要处理提权、依赖、错误码）
-3. **单版本还是多版本共存？**（建议 v1 单版本）
-4. **区域屏蔽只做缓存容错，还是去找站长申请访问权限？**
-5. **镜像策略**：BMCLAPI 优先 + 官方回退，还是启动时测速自动选最快？
-6. **Mod 下载**（Modrinth / CurseForge）是否进近期规划？
+## 5.8 3D 皮肤
 
-## 5.6 建议路线图
-
-1. **P1 版本清单** —— ✅ **已开始**（`Tools\Download` 可拉 920 个版本）；**还差接到 UI**
-2. **P2 原版安装**：版本 JSON（含 `inheritsFrom`）→ client.jar → libraries → assets，
-   SHA1 校验 + 并发 + 断点续传 + BMCLAPI 优先
-3. **P3 安装进度 UI**：速度 / 进度条 / 取消 / 重试 / 镜像设置
-4. **P4 Java 运行时自动下载**（1.17+ 必备）
-5. **P5 加载器**（Fabric / Forge / NeoForge）—— `imgs\Main\images\Loaders\` 的 12 个图标已就位
-6. **P6 Mod 下载**（Modrinth API v2 无需 key；CurseForge 需申请 key）
-
-## 5.7 可参考的实现
-
-- **MinecraftLaunch**（Blessed-Flight）：C# 启动器库，与本项目技术栈一致，**强烈建议翻源码参考**镜像与下载实现
-- **CmlLib.Core**：老牌 C# 启动器库
-- **HMCL**：镜像列表与测速切换的标杆
-- `Downloader`（Bezzad）NuGet：现成分段下载组件
-
-## 5.8 下载页 UI 骨架现状
-
-`MainWindow.axaml` 的 `DownloadPanel` 已完成骨架：
-
-- **左上角**：基岩版 / Java版 切换器（240×44 灰轨道 + `LiquidGlassSurface` 滑块 `EditionSlider`）
-- **下方安全区**：白色圆角卡片（`CornerRadius=12` + `DropShadowEffect`），内含 `BedrockPanel` / `JavaPanel` 两个占位面板（目前只显示"版本列表（待接入）"）
-- 切换逻辑在 `MainWindow.cs` 的 `InitializeEditionSelector` / `SelectEdition` / `AnimateEditionSliderTo`
-
-**页面里仍然没有的**：版本列表控件（无 ListBox / ItemsControl / ScrollViewer）、版本数据源绑定、
-"下载/安装"按钮、进度条。`MainWindow._httpClient` 声明后未使用。
+`Pivot3DControl`（`ICustomDrawOperation` + SkiaSharp `DrawVertices`）+
+`MinecraftSkinModel`（盒子模型 / UV 映射）+ `Pivot3DRenderer`。
+支持鼠标拖拽旋转，灵敏度与方向反转在 `InteractionConfig`。
 
 # 第六部分：完整源码
 
-> **本部分由脚本从仓库真实文件直接生成**，与 `commit 2d5b01c` 的工作区逐字一致，不存在手抄误差。
->
-> ⚠️ 只要用户在此之后又改过代码，**对应小节立即失效**。需要查/改具体实现时，
-> 请直接向用户索要该文件的最新版本，不要依据本文档推断当前实现。详见第零部分 0.1。
->
-> 二进制资源（图片 / 音效 / 图标）不嵌入，清单见 6.8。
+> **生成方式**：本节由脚本从磁盘直接读取源码生成（见 7.5），未手工搬运。
+> 如果它与磁盘上的文件不一致，**以磁盘为准**，并重新生成本节。
+
+## 6.0 规模统计
+
+| 分组 | 文件数 | 行数 |
+|---|---|---|
+| 6.1 根目录 | 7 | 398 |
+| 6.2 MainSrc\Download —— 下载引擎 | 6 | 1665 |
+| 6.3 MainSrc\Auth —— 微软正版登录 | 9 | 1093 |
+| 6.4 MainSrc\Views —— 界面层 | 11 | 4070 |
+| 6.5 MainSrc\Tools\JavaConfig —— 启动内核 | 9 | 1098 |
+| 6.6 MainSrc\Tools\Player3DConfig —— 3D 皮肤 | 3 | 760 |
+| 6.7 MainSrc\Tools 其余（AnimSettings / AppConstants / LogsConfig / SoundControl） | 5 | 316 |
+| 6.8 MainSrc\Tools\LiquidGlassAvaloniaUI —— 液态玻璃库（vendored, MIT） | 20 | 4413 |
+| 6.9 MainSrc\Codes | 1 | 4 |
+| **合计** | **71** | **约 13817** |
 
 ## 6.1 根目录
 
-工程入口、应用级 XAML、项目文件、清单与忽略规则。
-
 ### `Program.cs`
-
-<!-- 49 行 / 1.4 KB -->
 
 ```csharp
 using System;
@@ -1201,6 +1049,9 @@ using System.Threading;
 using Avalonia;
 using Project.Launch.Tools;
 
+using Project.Launch.Tools.JavaConfig;
+using Project.Launch.Tools.LogsConfig;
+using Project.Launch.Download;
 namespace Project.Launch
 {
     class Program
@@ -1212,6 +1063,10 @@ namespace Project.Launch
             {
                 LogHelper.Write(LauncherPaths.StartupLog,
                     "程序入口执行", "Program entry executed");
+
+                // 启动即探测系统代理：代理客户端没运行（但注册表仍开着代理）时自动改直连，
+                // 否则所有请求都会被送去一个没人监听的本地端口，表现为「获取版本列表失败」
+                ProxyEnvironment.EnsureInitialized();
 
                 BuildAvaloniaApp()
                     .StartWithClassicDesktopLifetime(args);
@@ -1248,8 +1103,6 @@ namespace Project.Launch
 
 ### `App.axaml`
 
-<!-- 13 行 / 0.6 KB -->
-
 ```xml
 <Application xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
@@ -1268,8 +1121,6 @@ namespace Project.Launch
 
 ### `App.axaml.cs`
 
-<!-- 63 行 / 2.1 KB -->
-
 ```csharp
 using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
@@ -1278,6 +1129,9 @@ using Project.Launch.Views;
 using System;
 using Project.Launch.Tools;
 
+using Project.Launch.Auth;
+using Project.Launch.Tools.JavaConfig;
+using Project.Launch.Tools.LogsConfig;
 namespace Project.Launch
 {
     public partial class App : Application
@@ -1290,6 +1144,57 @@ namespace Project.Launch
         public override void Initialize()
         {
             AvaloniaXamlLoader.Load(this);
+
+            InstallCrashGuards();
+        }
+
+        /// <summary>
+        /// 全局异常兜底。
+        /// 之前 MainWindow 的 async void 事件处理器里一旦抛异常（例如文件夹选择器内部报错），
+        /// 异常会回到 Dispatcher 并终止整个进程 —— 用户看到的是「窗口无响应然后崩溃」。
+        /// 这里把 UI 线程上的未处理异常记录后吞掉，保证单个交互出错不会带走整个启动器。
+        /// </summary>
+        private static void InstallCrashGuards()
+        {
+            Avalonia.Threading.Dispatcher.UIThread.UnhandledException += (_, e) =>
+            {
+                try
+                {
+                    LogHelper.Write(LauncherPaths.AppLog,
+                        $"UI 线程未处理异常（已拦截，程序继续运行）: {e.Exception}",
+                        $"Unhandled UI exception (suppressed): {e.Exception}");
+
+                    System.IO.File.AppendAllText(LauncherPaths.CrashLog,
+                        $"{DateTime.Now:yyyy-MM-dd HH:mm:ss}\n[UI-Thread Suppressed]\n{e.Exception}\n\n");
+                }
+                catch { }
+
+                // 标记为已处理：避免单个事件处理器异常把整个应用带崩
+                e.Handled = true;
+            };
+
+            AppDomain.CurrentDomain.UnhandledException += (_, e) =>
+            {
+                try
+                {
+                    System.IO.File.AppendAllText(LauncherPaths.CrashLog,
+                        $"{DateTime.Now:yyyy-MM-dd HH:mm:ss}\n[AppDomain]\n{e.ExceptionObject}\n\n");
+                }
+                catch { }
+            };
+
+            System.Threading.Tasks.TaskScheduler.UnobservedTaskException += (_, e) =>
+            {
+                try
+                {
+                    LogHelper.Write(LauncherPaths.AppLog,
+                        $"未观察的任务异常: {e.Exception?.GetBaseException().Message}",
+                        $"Unobserved task exception: {e.Exception?.GetBaseException().Message}");
+                }
+                catch { }
+
+                e.SetObserved();
+            };
         }
 
         public override void OnFrameworkInitializationCompleted()
@@ -1338,8 +1243,6 @@ namespace Project.Launch
 
 ### `Project.Launch.csproj`
 
-<!-- 88 行 / 4 KB -->
-
 ```xml
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
@@ -1371,11 +1274,24 @@ namespace Project.Launch
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Remove="MainSrc\LiquidGlassAvaloniaUI\**" />
-    <AvaloniaXaml Remove="MainSrc\LiquidGlassAvaloniaUI\**" />
-    <AvaloniaResource Remove="MainSrc\LiquidGlassAvaloniaUI\**" />
-    <EmbeddedResource Remove="MainSrc\LiquidGlassAvaloniaUI\**" />
-    <None Remove="MainSrc\LiquidGlassAvaloniaUI\**" />
+    <!-- ★ 排除「非项目源码目录」：若在项目内放置第三方/参考资料源码，
+         默认通配（**/*.cs、**/*.resx）会把它们吸进本项目编译与资源处理，
+         导致构建失败或类型冲突。该目录删除后，下面这 6 行可一并移除。 -->
+    <Compile Remove="pclsource\**" />
+    <AvaloniaXaml Remove="pclsource\**" />
+    <AvaloniaResource Remove="pclsource\**" />
+    <EmbeddedResource Remove="pclsource\**" />
+    <None Remove="pclsource\**" />
+    <Content Remove="pclsource\**" />
+
+    <!-- ★ 玻璃库已搬到 MainSrc\Tools\LiquidGlassAvaloniaUI\（2026-10 架构调整）
+         必须排除它的源码与 obj，否则会被主项目的 **/*.cs 通配吸进来，
+         与主项目自己的 obj/AssemblyInfo.cs 撞成 CS0579（程序集特性重复） -->
+    <Compile Remove="MainSrc\Tools\LiquidGlassAvaloniaUI\**" />
+    <AvaloniaXaml Remove="MainSrc\Tools\LiquidGlassAvaloniaUI\**" />
+    <AvaloniaResource Remove="MainSrc\Tools\LiquidGlassAvaloniaUI\**" />
+    <EmbeddedResource Remove="MainSrc\Tools\LiquidGlassAvaloniaUI\**" />
+    <None Remove="MainSrc\Tools\LiquidGlassAvaloniaUI\**" />
 
     <!-- ★ 新增：排除输出目录，防止生成的 .cs 被重复编译导致 CS0579 错误 -->
     <Compile Remove="MainSrc\BuiltDebugRun\**" />
@@ -1399,7 +1315,7 @@ namespace Project.Launch
 
     <PackageReference Include="SkiaSharp" Version="3.119.4" />
 
-    <ProjectReference Include="MainSrc\LiquidGlassAvaloniaUI\LiquidGlassAvaloniaUI.csproj" />
+    <ProjectReference Include="MainSrc\Tools\LiquidGlassAvaloniaUI\LiquidGlassAvaloniaUI.csproj" />
   </ItemGroup>
 
   <ItemGroup>
@@ -1408,6 +1324,7 @@ namespace Project.Launch
     <AvaloniaXaml Update="MainSrc\Views\LoginWindow.axaml" />
     <AvaloniaXaml Update="MainSrc\Views\MainWindow.axaml" />
     <AvaloniaXaml Update="MainSrc\Views\AccountManagerWindow.axaml" />
+    <AvaloniaXaml Update="MainSrc\Views\DownloadWindow.axaml" />
 
     <!-- 样式：作为 AvaloniaResource 读，避免被当独立 XAML 编译 -->
     <AvaloniaResource Include="MainSrc\Views\Styles.axaml" />
@@ -1425,15 +1342,12 @@ namespace Project.Launch
     <Compile Update="MainSrc\Views\MainWindow.cs">
       <DependentUpon>MainWindow.axaml</DependentUpon>
     </Compile>
-    <Compile Update="MainSrc\ViewModel\TestWindowButton.cs" />
     <Compile Update="App.axaml.cs" />
   </ItemGroup>
 </Project>
 ```
 
 ### `app.manifest`
-
-<!-- 19 行 / 0.9 KB -->
 
 ```xml
 <?xml version="1.0" encoding="utf-8"?>
@@ -1457,8 +1371,6 @@ namespace Project.Launch
 ```
 
 ### `.gitignore`
-
-<!-- 35 行 / 0.9 KB -->
 
 ```text
 # ============================================================
@@ -1498,8 +1410,6 @@ project.nuget.cache
 ```
 
 ### `README.md`
-
-<!-- 57 行 / 4.2 KB -->
 
 ```markdown
 # Kilim Minecraft Launcher
@@ -1560,24 +1470,2852 @@ Policy Updates
 We may update this policy at any time. Continued use of the Launcher constitutes acceptance of the updated policy.
 ```
 
-## 6.2 MainSrc\Views —— 界面层
 
-四个窗口（主窗 / 登录 / 账户管理）+ 两套样式表。`MainWindow` 与 `LoginWindow` 是理解 UI 的核心。
+## 6.2 MainSrc\Download —— 下载引擎
 
-### `MainSrc\Views\MainWindow.axaml`
+### `MainSrc\Download\DownloadEngine.cs`
 
-<!-- 777 行 / 41.9 KB -->
+```csharp
+using System;
+using System.Buffers;
+using System.IO;
+using System.Net;
+using System.Net.Http;
+using System.Net.Sockets;
+using System.Security.Cryptography;
+using System.Threading;
+using System.Threading.Tasks;
+
+namespace Project.Launch.Download
+{
+    /// <summary>
+    /// 下载失败类型 —— 决定「换源 / 重试 / 冷却 / 直接失败」。
+    /// 分类依据：HTTP 语义 + 网络错误类型 + 磁盘错误，避免"重试不该重试的错误"。
+    /// </summary>
+    public enum DownloadFailureKind
+    {
+        None = 0,
+        /// <summary>404 / 410：本文件在该源不存在，立刻换源，不在本 URL 重试。</summary>
+        NotFound,
+        /// <summary>401 / 403 / 451：立刻换源。</summary>
+        Forbidden,
+        /// <summary>429：按 Retry-After 冷却该源，禁止原地重试。</summary>
+        RateLimited,
+        /// <summary>5xx / 连接中断 / 读写异常：同源退避重试一次后换源。</summary>
+        Transient,
+        /// <summary>SHA1 校验失败：换源重下。</summary>
+        Corrupt,
+        /// <summary>建连超时 / 逐读无数据 / 速度低于下限：失速，立刻换源。</summary>
+        Stall,
+        /// <summary>DNS 解析失败（NXDOMAIN）：立刻换源。</summary>
+        Dns,
+        /// <summary>磁盘写入失败 / 空间不足：换源也没用，直接失败。</summary>
+        Fatal
+    }
+
+    /// <summary>单次下载尝试的结果。</summary>
+    public sealed class DownloadAttemptResult
+    {
+        public bool IsSuccess { get; private init; }
+        public DownloadFailureKind Kind { get; private init; }
+        public TimeSpan? RetryAfter { get; private init; }
+        public string Message { get; private init; } = "";
+        public long BytesReceived { get; private init; }
+
+        public static DownloadAttemptResult Ok(long bytes) => new()
+        {
+            IsSuccess = true,
+            Kind = DownloadFailureKind.None,
+            BytesReceived = bytes
+        };
+
+        public static DownloadAttemptResult Fail(
+            DownloadFailureKind kind, string message, TimeSpan? retryAfter = null, long bytes = 0) => new()
+        {
+            IsSuccess = false,
+            Kind = kind,
+            Message = message,
+            RetryAfter = retryAfter,
+            BytesReceived = bytes
+        };
+
+        public override string ToString() =>
+            IsSuccess ? $"OK ({BytesReceived:N0} B)" : $"{Kind}: {Message}";
+    }
+
+    /// <summary>
+    /// 下载原语。核心是 PCL 的三件套：
+    ///   1) 建连/首字节超时（8s）
+    ///   2) 逐读看门狗（每次 ReadAsync 单独 15s 超时）
+    ///   3) 失速判据（10s 窗口内低于 24KB/s 即掐断，比常见的 1KB/s 判据更严格）
+    /// 另外：小文件内存直写（PCL IsNoSplit &lt;1MB / CE &lt;4MB），边下边算 SHA1（省掉整文件回读）。
+    /// </summary>
+    public static class DownloadEngine
+    {
+        /// <summary>累计已成功接收的字节（失败尝试会回滚，避免「重试重复计入」导致测速虚高）。</summary>
+        public static long GlobalBytesDownloaded;
+
+        /// <summary>小于该阈值走内存缓冲，一次落盘（PCL-CE SmallFileThreshold = 4MB）。</summary>
+        private const int SmallFileThreshold = 4 * 1024 * 1024;
+
+        private const int BufferSize = 81920;
+
+        /// <summary>建连 + 等响应头超时。</summary>
+        private const int ConnectTimeoutMs = 8000;
+
+        /// <summary>逐读无数据超时（PCL 的动态超时基线 = max(平均建连, 15s)）。</summary>
+        private const int ReadIdleTimeoutMs = 15000;
+
+        /// <summary>速度下限：低于它就判定失速换源（实测镜像涓流 0.6~63 KB/s）。</summary>
+        private const long MinSpeedBytesPerSec = 24 * 1024;
+
+        /// <summary>测速判失速的窗口。</summary>
+        private const int SpeedWindowMs = 10000;
+
+        private const long MaxAttemptBytes = 4L * 1024 * 1024 * 1024; // 4GB 兜底
+
+        private static readonly HttpClient _http = CreateClient();
+
+        /// <summary>全项目共用的 HttpClient（元数据请求也复用它：共享连接池与代理策略）。</summary>
+        public static HttpClient SharedClient => _http;
+
+        private static HttpClient CreateClient()
+        {
+            // 启动时先探测系统代理是否可用（代理客户端没开时直接走直连）
+            ProxyEnvironment.EnsureInitialized();
+
+            var handler = new SocketsHttpHandler
+            {
+                AutomaticDecompression = DecompressionMethods.All,
+                MaxConnectionsPerServer = 256,
+                PooledConnectionLifetime = TimeSpan.FromMinutes(15),
+                ConnectTimeout = TimeSpan.FromSeconds(8),
+                EnableMultipleHttp2Connections = true,
+                // 每个请求实时询问 ProxyEnvironment：代理挂掉可立即切直连
+                UseProxy = true,
+                Proxy = new AdaptiveProxy(),
+                // 保持默认 HTTP/1.1：实测强制 h2 对「每文件换 host」的 BMCLAPI 零收益
+            };
+
+            return new HttpClient(handler)
+            {
+                // 总超时交给逐读看门狗，不用全局 Timeout（PCL 也是按读超时，不用整体超时）
+                Timeout = Timeout.InfiniteTimeSpan
+            };
+        }
+
+        // ============================================================
+        // 公开入口
+        // ============================================================
+
+        public static async Task<DownloadAttemptResult> DownloadAsync(
+            string url,
+            string localPath,
+            string? expectedSha1,
+            CancellationToken ct)
+        {
+            DownloadAttemptResult result = await AttemptAsync(url, localPath, expectedSha1, ct)
+                .ConfigureAwait(false);
+
+            // 系统代理端点连不上（例如代理客户端被关掉但注册表还开着）→ 立刻切直连重试一次
+            if (!result.IsSuccess && ProxyEnvironment.LooksLikeDeadProxy(result.Message))
+            {
+                ProxyEnvironment.DisableAfterFailure(
+                    $"请求命中系统代理端点（{result.Message}），已改用直连重试");
+
+                result = await AttemptAsync(url, localPath, expectedSha1, ct).ConfigureAwait(false);
+            }
+
+            return result;
+        }
+
+        /// <summary>一次完整尝试。失败时回滚本次已计入的字节，避免测速虚高。</summary>
+        private static async Task<DownloadAttemptResult> AttemptAsync(
+            string url,
+            string localPath,
+            string? expectedSha1,
+            CancellationToken ct)
+        {
+            DownloadAttemptResult result = await DownloadCoreAsync(url, localPath, expectedSha1, ct)
+                .ConfigureAwait(false);
+
+            if (!result.IsSuccess && result.BytesReceived > 0)
+                Interlocked.Add(ref GlobalBytesDownloaded, -result.BytesReceived);
+
+            return result;
+        }
+
+        /// <summary>校验本地已有文件（PCL 的「已有本地文件复用」）。</summary>
+        public static async Task<bool> VerifySha1Async(string filePath, string expectedSha1, CancellationToken ct = default)
+        {
+            try
+            {
+                if (!File.Exists(filePath)) return false;
+                using var sha1 = IncrementalHash.CreateHash(HashAlgorithmName.SHA1);
+                await using var fs = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read,
+                    81920, FileOptions.Asynchronous | FileOptions.SequentialScan);
+                byte[] buffer = ArrayPool<byte>.Shared.Rent(BufferSize);
+                try
+                {
+                    int read;
+                    while ((read = await fs.ReadAsync(buffer.AsMemory(0, buffer.Length), ct).ConfigureAwait(false)) > 0)
+                        sha1.AppendData(buffer, 0, read);
+                }
+                finally
+                {
+                    ArrayPool<byte>.Shared.Return(buffer);
+                }
+
+                string actual = Convert.ToHexString(sha1.GetHashAndReset()).ToLowerInvariant();
+                return actual.Equals(expectedSha1, StringComparison.OrdinalIgnoreCase);
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        // ============================================================
+        // 核心实现
+        // ============================================================
+
+        private static async Task<DownloadAttemptResult> DownloadCoreAsync(
+            string url,
+            string localPath,
+            string? expectedSha1,
+            CancellationToken ct)
+        {
+            long received = 0;
+            string? tempPath = null;
+            byte[]? buffer = null;
+            Stream? dest = null;
+            bool committed = false;
+
+            try
+            {
+                string? dir = Path.GetDirectoryName(localPath);
+                if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
+
+                // ---------- 1) 请求（建连/首字节看门狗） ----------
+                HttpResponseMessage response;
+                using (var connectCts = CancellationTokenSource.CreateLinkedTokenSource(ct))
+                {
+                    connectCts.CancelAfter(ConnectTimeoutMs);
+                    try
+                    {
+                        response = await _http
+                            .GetAsync(url, HttpCompletionOption.ResponseHeadersRead, connectCts.Token)
+                            .ConfigureAwait(false);
+                    }
+                    catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+                    {
+                        return DownloadAttemptResult.Fail(DownloadFailureKind.Stall,
+                            $"建连/首字节超时（{ConnectTimeoutMs}ms）");
+                    }
+                    catch (HttpRequestException ex)
+                    {
+                        return ClassifyHttpException(ex);
+                    }
+                }
+
+                using (response)
+                {
+                    // ---------- 2) 状态码分类 ----------
+                    var status = (int)response.StatusCode;
+
+                    if (status == 404 || status == 410)
+                        return DownloadAttemptResult.Fail(DownloadFailureKind.NotFound, $"HTTP {status}");
+
+                    if (status == 401 || status == 403 || status == 451)
+                        return DownloadAttemptResult.Fail(DownloadFailureKind.Forbidden, $"HTTP {status}");
+
+                    if (status == 429)
+                        return DownloadAttemptResult.Fail(DownloadFailureKind.RateLimited,
+                            "HTTP 429（限流）", ParseRetryAfter(response));
+
+                    if (status >= 500)
+                        return DownloadAttemptResult.Fail(DownloadFailureKind.Transient, $"HTTP {status}");
+
+                    if (!response.IsSuccessStatusCode)
+                        return DownloadAttemptResult.Fail(DownloadFailureKind.Transient, $"HTTP {status}");
+
+                    // ---------- 3) 选择缓冲：小文件进内存，大文件进 .tmp ----------
+                    long? contentLength = response.Content.Headers.ContentLength;
+                    bool useMemory = contentLength is null || contentLength.Value <= SmallFileThreshold;
+
+                    if (useMemory)
+                    {
+                        dest = new MemoryStream(contentLength is > 0 and <= int.MaxValue
+                            ? (int)contentLength.Value
+                            : 0);
+                    }
+                    else
+                    {
+                        tempPath = localPath + ".tmp";
+                        dest = new FileStream(tempPath, FileMode.Create, FileAccess.Write, FileShare.None,
+                            BufferSize, FileOptions.Asynchronous | FileOptions.SequentialScan);
+                    }
+
+                    // ---------- 4) 读循环（逐读看门狗 + 失速判据 + 边下边算 SHA1） ----------
+                    using var hasher = IncrementalHash.CreateHash(HashAlgorithmName.SHA1);
+
+                    Stream stream;
+                    try
+                    {
+                        stream = await response.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
+                    }
+                    catch (HttpRequestException ex)
+                    {
+                        return ClassifyHttpException(ex, received);
+                    }
+
+                    buffer = ArrayPool<byte>.Shared.Rent(BufferSize);
+
+                    long windowStart = Environment.TickCount64;
+                    long windowBytes = 0;
+
+                    while (true)
+                    {
+                        int read;
+                        try
+                        {
+                            read = await ReadWithIdleTimeoutAsync(stream, buffer, ct).ConfigureAwait(false);
+                        }
+                        catch (ReadIdleTimeoutException)
+                        {
+                            return DownloadAttemptResult.Fail(DownloadFailureKind.Stall,
+                                $"逐读无数据超过 {ReadIdleTimeoutMs}ms", null, received);
+                        }
+                        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+                        {
+                            throw;
+                        }
+                        catch (Exception ex) when (ex is IOException or HttpRequestException or ObjectDisposedException)
+                        {
+                            return DownloadAttemptResult.Fail(DownloadFailureKind.Transient,
+                                $"传输中断: {ex.Message}", null, received);
+                        }
+
+                        if (read <= 0) break;
+
+                        await dest.WriteAsync(buffer.AsMemory(0, read), ct).ConfigureAwait(false);
+                        hasher.AppendData(buffer, 0, read);
+
+                        received += read;
+                        windowBytes += read;
+                        Interlocked.Add(ref GlobalBytesDownloaded, read);
+
+                        if (received > MaxAttemptBytes)
+                            return DownloadAttemptResult.Fail(DownloadFailureKind.Fatal,
+                                "单文件超过 4GB 上限", null, received);
+
+                        // 失速判据：窗口内平均速率低于下限就掐断，立刻换源
+                        long elapsed = Environment.TickCount64 - windowStart;
+                        if (elapsed >= SpeedWindowMs)
+                        {
+                            long rate = windowBytes * 1000 / Math.Max(elapsed, 1);
+                            if (rate < MinSpeedBytesPerSec)
+                            {
+                                return DownloadAttemptResult.Fail(DownloadFailureKind.Stall,
+                                    $"速度过慢断开：{rate / 1024} KB/s（下限 {MinSpeedBytesPerSec / 1024} KB/s）",
+                                    null, received);
+                            }
+
+                            windowStart = Environment.TickCount64;
+                            windowBytes = 0;
+                        }
+                    }
+
+                    // 大小一致性（有 Content-Length 时）
+                    if (contentLength is > 0 && received != contentLength.Value)
+                    {
+                        return DownloadAttemptResult.Fail(DownloadFailureKind.Transient,
+                            $"下载不完整：收到 {received:N0} / 期望 {contentLength.Value:N0} B", null, received);
+                    }
+
+                    // ---------- 5) SHA1 校验（不需要回读文件） ----------
+                    if (!string.IsNullOrEmpty(expectedSha1))
+                    {
+                        string actual = Convert.ToHexString(hasher.GetHashAndReset()).ToLowerInvariant();
+                        if (!actual.Equals(expectedSha1, StringComparison.OrdinalIgnoreCase))
+                        {
+                            return DownloadAttemptResult.Fail(DownloadFailureKind.Corrupt,
+                                $"SHA1 不匹配：期望 {expectedSha1}，实际 {actual}", null, received);
+                        }
+                    }
+
+                    // ---------- 6) 落盘 ----------
+                    if (dest is MemoryStream ms)
+                    {
+                        await dest.FlushAsync(ct).ConfigureAwait(false);
+                        // 小文件：一次写盘，避免流式小写触发多次杀软扫描
+                        await File.WriteAllBytesAsync(localPath, ms.ToArray(), ct).ConfigureAwait(false);
+                    }
+                    else
+                    {
+                        await dest.FlushAsync(ct).ConfigureAwait(false);
+                        await dest.DisposeAsync().ConfigureAwait(false);
+                        dest = null;
+                        File.Move(tempPath!, localPath, overwrite: true);
+                        tempPath = null;
+                    }
+
+                    committed = true;
+                    return DownloadAttemptResult.Ok(received);
+                }
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (HttpRequestException ex)
+            {
+                return ClassifyHttpException(ex, received);
+            }
+            catch (IOException ex)
+            {
+                // 区分「网络流中断」与「磁盘写失败」
+                return DownloadAttemptResult.Fail(
+                    IsDiskError(ex) ? DownloadFailureKind.Fatal : DownloadFailureKind.Transient,
+                    ex.Message, null, received);
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                return DownloadAttemptResult.Fail(DownloadFailureKind.Fatal, ex.Message, null, received);
+            }
+            catch (Exception ex)
+            {
+                return DownloadAttemptResult.Fail(DownloadFailureKind.Transient,
+                    $"{ex.GetType().Name}: {ex.Message}", null, received);
+            }
+            finally
+            {
+                if (buffer != null) ArrayPool<byte>.Shared.Return(buffer);
+
+                if (dest != null)
+                {
+                    try { await dest.DisposeAsync().ConfigureAwait(false); } catch { }
+                }
+
+                if (!committed && tempPath != null)
+                {
+                    try { if (File.Exists(tempPath)) File.Delete(tempPath); } catch { }
+                }
+            }
+        }
+
+        // ============================================================
+        // 逐读看门狗（每次读取单独计时，与整体请求超时解耦）
+        // ============================================================
+
+        private sealed class ReadIdleTimeoutException : Exception
+        {
+            public ReadIdleTimeoutException() : base("read idle timeout") { }
+        }
+
+        private static async Task<int> ReadWithIdleTimeoutAsync(Stream stream, byte[] buffer, CancellationToken ct)
+        {
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            cts.CancelAfter(ReadIdleTimeoutMs);
+
+            try
+            {
+                return await stream.ReadAsync(buffer.AsMemory(0, buffer.Length), cts.Token).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+            {
+                // 是我们自己的看门狗触发，不是用户取消
+                throw new ReadIdleTimeoutException();
+            }
+        }
+
+        // ============================================================
+        // 错误分类
+        // ============================================================
+
+        private static DownloadAttemptResult ClassifyHttpException(HttpRequestException ex, long received = 0)
+        {
+            // .NET 8+ 的结构化错误类型：DNS 失败要「立刻换源」，不能当 Transient 重试
+            switch (ex.HttpRequestError)
+            {
+                case HttpRequestError.NameResolutionError:
+                    return DownloadAttemptResult.Fail(DownloadFailureKind.Dns,
+                        $"DNS 解析失败: {ex.Message}", null, received);
+                case HttpRequestError.SecureConnectionError:
+                case HttpRequestError.ConnectionError:
+                    return DownloadAttemptResult.Fail(DownloadFailureKind.Transient,
+                        $"连接失败: {ex.Message}", null, received);
+            }
+
+            // 兼容没有 HttpRequestError 的路径
+            for (Exception? inner = ex.InnerException; inner != null; inner = inner.InnerException)
+            {
+                if (inner is SocketException se && se.SocketErrorCode == SocketError.HostNotFound)
+                    return DownloadAttemptResult.Fail(DownloadFailureKind.Dns,
+                        $"DNS 解析失败: {ex.Message}", null, received);
+            }
+
+            return DownloadAttemptResult.Fail(DownloadFailureKind.Transient, ex.Message, null, received);
+        }
+
+        private static bool IsDiskError(IOException ex)
+        {
+            // 磁盘满 / 路径非法 / 文件被占用 视为不可恢复（换源无用）
+            string msg = ex.Message ?? "";
+            return ex is DirectoryNotFoundException
+                   || msg.Contains("space", StringComparison.OrdinalIgnoreCase)
+                   || msg.Contains("空间", StringComparison.OrdinalIgnoreCase)
+                   || msg.Contains("denied", StringComparison.OrdinalIgnoreCase)
+                   || msg.Contains("另一个程序", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static TimeSpan? ParseRetryAfter(HttpResponseMessage response)
+        {
+            var retryAfter = response.Headers.RetryAfter;
+            if (retryAfter is null) return null;
+
+            if (retryAfter.Delta is TimeSpan delta) return delta;
+
+            if (retryAfter.Date is DateTimeOffset date)
+            {
+                TimeSpan wait = date - DateTimeOffset.UtcNow;
+                return wait > TimeSpan.Zero ? wait : TimeSpan.Zero;
+            }
+
+            return null;
+        }
+    }
+}
+```
+
+### `MainSrc\Download\GameInstaller.cs`
+
+```csharp
+using System;
+using System.Collections.Concurrent;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Text.Json;
+using System.Threading;
+using System.Threading.Tasks;
+
+using Project.Launch.Tools.JavaConfig;
+using Project.Launch.Tools.LogsConfig;
+
+namespace Project.Launch.Download
+{
+    /// <summary>下载进度（UI 消费）。</summary>
+    public class DownloadProgress
+    {
+        public string State { get; set; } = "";
+        public double Percentage { get; set; }
+        public long SpeedBytesPerSec { get; set; }
+        public int TotalFiles { get; set; }
+        public int CompletedFiles { get; set; }
+        public int FailedFiles { get; set; }
+    }
+
+    /// <summary>安装结果 —— 不再「无条件报告 100% 完成」。</summary>
+    public sealed class InstallResult
+    {
+        public int TotalFiles { get; set; }
+        public int CompletedFiles { get; set; }
+        public int FailedFiles { get; set; }
+        public int SkippedFiles { get; set; }
+        public long TotalBytes { get; set; }
+        public long DownloadedBytes { get; set; }
+
+        public bool Success => TotalFiles > 0 && CompletedFiles == TotalFiles && FailedFiles == 0;
+
+        public string Summary =>
+            $"共 {TotalFiles} 个文件：成功 {CompletedFiles}，跳过（已存在）{SkippedFiles}，失败 {FailedFiles}";
+    }
+
+    /// <summary>
+    /// 安装调度 —— 对齐 PCL 的核心行为：
+    ///   1) 每个文件按「源健康度」顺序尝试，坏源冷却后不再被首选
+    ///   2) 失速 / 404 / 403 / 429 / DNS 失败 → 立刻换源，不在坏源上反复重试
+    ///   3) 全部源都失败 → 再整体降级重试一轮（PCL 的 Retried 语义）
+    ///   4) 真实统计成功/失败，失败聚合写日志
+    /// </summary>
+    public static class GameInstaller
+    {
+        /// <summary>单个源上对「可恢复错误」的最大尝试次数。</summary>
+        private const int PerSourceAttempts = 2;
+
+        /// <summary>失败明细日志最多打印多少条。</summary>
+        private const int MaxFailureLogLines = 50;
+
+        private sealed class FileTask
+        {
+            public required string OfficialUrl { get; init; }
+            public required DownloadSourceKind Kind { get; init; }
+            public required string LocalPath { get; init; }
+            public required string DisplayPath { get; init; }
+            public string? Sha1 { get; init; }
+            public long Size { get; init; }
+        }
+
+        // ============================================================
+        // 入口
+        // ============================================================
+
+        public static async Task<InstallResult> InstallVanillaAsync(
+            VersionEntry version,
+            string targetPath,
+            int maxConcurrency,
+            IProgress<DownloadProgress> progress,
+            CancellationToken ct)
+        {
+            SourcePolicy.Reset();
+
+            if (maxConcurrency < 1) maxConcurrency = 1;
+            if (maxConcurrency > 128) maxConcurrency = 128;
+
+            string targetVersionsDir = Path.Combine(targetPath, "versions");
+            string targetLibrariesDir = Path.Combine(targetPath, "libraries");
+            string targetAssetsDir = Path.Combine(targetPath, "assets");
+            string targetVersionDir = Path.Combine(targetVersionsDir, version.VersionId);
+            Directory.CreateDirectory(targetVersionDir);
+
+            var result = new InstallResult();
+            long startBytes = Interlocked.Read(ref DownloadEngine.GlobalBytesDownloaded);
+
+            // ---------- 1) 版本 json ----------
+            progress.Report(new DownloadProgress { State = "正在获取版本配置...", Percentage = 2 });
+
+            string jsonPath = Path.Combine(targetVersionDir, version.VersionId + ".json");
+            var jsonDownload = await DownloadOneAsync(
+                new FileTask
+                {
+                    OfficialUrl = version.Url,
+                    Kind = DownloadSourceKind.Meta,
+                    LocalPath = jsonPath,
+                    DisplayPath = version.VersionId + ".json"
+                },
+                gate: null, ct).ConfigureAwait(false);
+
+            if (!jsonDownload.ok)
+                throw new InvalidOperationException($"下载版本 JSON 失败：{jsonDownload.error}");
+
+            var vj = MinecraftVersionJson.Load(jsonPath);
+            if (vj == null) throw new InvalidOperationException("版本 JSON 解析失败");
+
+            // ---------- 2) 收集文件清单 ----------
+            progress.Report(new DownloadProgress { State = "正在解析文件清单...", Percentage = 5 });
+
+            var tasks = new List<FileTask>();
+
+            // client.jar（走 piston-data，官方 CDN 实测 6.9MB/s）
+            if (vj.Downloads?.Client != null && !string.IsNullOrEmpty(vj.Downloads.Client.Url))
+            {
+                tasks.Add(new FileTask
+                {
+                    OfficialUrl = vj.Downloads.Client.Url,
+                    Kind = DownloadSourceKind.Meta,
+                    LocalPath = Path.Combine(targetVersionDir, version.VersionId + ".jar"),
+                    DisplayPath = version.VersionId + ".jar",
+                    Sha1 = vj.Downloads.Client.Sha1,
+                    Size = vj.Downloads.Client.Size
+                });
+            }
+
+            // libraries
+            foreach (var lib in vj.Libraries)
+            {
+                if (!IsLibraryAllowed(lib)) continue;
+                var artifact = lib.Downloads?.Artifact;
+                if (artifact == null || string.IsNullOrEmpty(artifact.Path) || string.IsNullOrEmpty(artifact.Url))
+                    continue;
+
+                tasks.Add(new FileTask
+                {
+                    OfficialUrl = artifact.Url,
+                    Kind = DownloadSourceKind.Maven,
+                    LocalPath = Path.Combine(targetLibrariesDir, artifact.Path.Replace('/', Path.DirectorySeparatorChar)),
+                    DisplayPath = artifact.Path,
+                    Sha1 = artifact.Sha1,
+                    Size = artifact.Size
+                });
+            }
+
+            // ---------- 3) asset index（必须先下，才能展开 objects） ----------
+            if (vj.AssetIndex != null && !string.IsNullOrEmpty(vj.AssetIndex.Url))
+            {
+                string indexPath = Path.Combine(targetAssetsDir, "indexes", vj.AssetIndex.Id + ".json");
+
+                var indexDownload = await DownloadOneAsync(
+                    new FileTask
+                    {
+                        OfficialUrl = vj.AssetIndex.Url,
+                        Kind = DownloadSourceKind.Meta,
+                        LocalPath = indexPath,
+                        DisplayPath = "assets/indexes/" + vj.AssetIndex.Id + ".json",
+                        Sha1 = vj.AssetIndex.Sha1
+                    },
+                    gate: null, ct).ConfigureAwait(false);
+
+                if (indexDownload.ok && File.Exists(indexPath))
+                {
+                    foreach (var asset in await ParseAssetObjectsAsync(indexPath, targetAssetsDir).ConfigureAwait(false))
+                        tasks.Add(asset);
+                }
+                else
+                {
+                    LogHelper.Write(LauncherPaths.AppLog,
+                        $"asset index 下载失败: {indexDownload.error}",
+                        $"asset index download failed: {indexDownload.error}");
+                }
+            }
+
+            result.TotalFiles = tasks.Count;
+            result.TotalBytes = tasks.Sum(t => t.Size);
+
+            LogHelper.Write(LauncherPaths.AppLog,
+                $"开始下载 {version.VersionId}：{tasks.Count} 个文件，约 {result.TotalBytes / 1024 / 1024} MB，" +
+                $"并发 {maxConcurrency}，源偏好 {SourcePolicy.Preference}",
+                $"Start install {version.VersionId}: {tasks.Count} files, {result.TotalBytes / 1024 / 1024} MB, " +
+                $"concurrency {maxConcurrency}, preference {SourcePolicy.Preference}");
+
+            // ---------- 4) 并行下载 ----------
+            using var gate = new SemaphoreSlim(maxConcurrency, maxConcurrency);
+
+            int completed = 0, failed = 0, skipped = 0;
+            long skippedBytes = 0;
+            var failures = new ConcurrentQueue<string>();
+            var failureKinds = new ConcurrentDictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+
+            int totalFiles = tasks.Count;
+            long totalBytes = result.TotalBytes;
+
+            // 进度/测速线程
+            using var progressCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            var progressTask = Task.Run(async () =>
+            {
+                long lastBytes = 0;
+                while (!progressCts.IsCancellationRequested)
+                {
+                    try { await Task.Delay(500, progressCts.Token).ConfigureAwait(false); }
+                    catch (OperationCanceledException) { break; }
+
+                    long current = Interlocked.Read(ref DownloadEngine.GlobalBytesDownloaded) - startBytes;
+                    if (current < 0) current = 0;
+                    long speed = (current - lastBytes) * 2;
+                    lastBytes = current;
+
+                    int done = Volatile.Read(ref completed);
+                    int bad = Volatile.Read(ref failed);
+                    long doneBytes = current + Interlocked.Read(ref skippedBytes);
+
+                    double percent = totalBytes > 0
+                        ? 10 + Math.Min(1.0, (double)doneBytes / totalBytes) * 89
+                        : 10 + (double)done / Math.Max(1, totalFiles) * 89;
+
+                    var snapshot = new DownloadProgress
+                    {
+                        State = bad > 0 ? $"正在下载（失败 {bad} 个）..." : "正在下载游戏文件...",
+                        Percentage = Math.Min(99, percent),
+                        SpeedBytesPerSec = speed,
+                        TotalFiles = totalFiles,
+                        CompletedFiles = done,
+                        FailedFiles = bad
+                    };
+
+                    try { progress.Report(snapshot); } catch { }
+                }
+            }, progressCts.Token);
+
+            // 逐文件任务
+            var fileTasks = tasks.Select(task => Task.Run(async () =>
+            {
+                ct.ThrowIfCancellationRequested();
+
+                // 已存在且校验通过 → 跳过（PCL 的本地复用）
+                if (File.Exists(task.LocalPath))
+                {
+                    bool ok = string.IsNullOrEmpty(task.Sha1)
+                              || await DownloadEngine.VerifySha1Async(task.LocalPath, task.Sha1, ct).ConfigureAwait(false);
+                    if (ok)
+                    {
+                        Interlocked.Add(ref skippedBytes, task.Size);
+                        Interlocked.Increment(ref skipped);
+                        Interlocked.Increment(ref completed);
+                        return;
+                    }
+
+                    try { File.Delete(task.LocalPath); } catch { }
+                }
+
+                var (ok2, error) = await DownloadOneAsync(task, gate, ct).ConfigureAwait(false);
+                if (ok2)
+                {
+                    Interlocked.Increment(ref completed);
+                }
+                else
+                {
+                    Interlocked.Increment(ref failed);
+                    string kindKey = ClassifyFailureText(error);
+                    failureKinds.AddOrUpdate(kindKey, 1, (_, v) => v + 1);
+                    if (failures.Count < MaxFailureLogLines)
+                        failures.Enqueue($"{task.DisplayPath} <- {error}");
+                }
+            }, ct)).ToArray();
+
+            await Task.WhenAll(fileTasks).ConfigureAwait(false);
+            progressCts.Cancel();
+            try { await progressTask.ConfigureAwait(false); } catch { }
+
+            // ---------- 5) 汇总 ----------
+            result.CompletedFiles = Volatile.Read(ref completed);
+            result.FailedFiles = Volatile.Read(ref failed);
+            result.SkippedFiles = Volatile.Read(ref skipped);
+            result.DownloadedBytes = Math.Max(0,
+                Interlocked.Read(ref DownloadEngine.GlobalBytesDownloaded) - startBytes + Volatile.Read(ref skippedBytes));
+
+            // 失败日志
+            if (result.FailedFiles > 0)
+            {
+                LogHelper.Write(LauncherPaths.AppLog,
+                    $"下载结束但仍有 {result.FailedFiles} 个文件失败。失败类型分布：" +
+                    string.Join("，", failureKinds.OrderByDescending(kv => kv.Value).Select(kv => $"{kv.Key}×{kv.Value}")),
+                    $"Install finished with {result.FailedFiles} failed files. Breakdown: " +
+                    string.Join(", ", failureKinds.OrderByDescending(kv => kv.Value).Select(kv => $"{kv.Key}x{kv.Value}")));
+
+                int i = 0;
+                foreach (var line in failures)
+                {
+                    LogHelper.Write(LauncherPaths.AppLog, $"失败文件: {line}", $"Failed file: {line}");
+                    if (++i >= MaxFailureLogLines) break;
+                }
+
+                LogHelper.Write(LauncherPaths.AppLog,
+                    $"源健康状态: {SourcePolicy.DescribeHealth()}",
+                    $"Source health: {SourcePolicy.DescribeHealth()}");
+            }
+
+            progress.Report(new DownloadProgress
+            {
+                State = result.FailedFiles == 0 ? "下载完成" : $"部分文件失败（{result.FailedFiles} 个）",
+                Percentage = 100,
+                TotalFiles = totalFiles,
+                CompletedFiles = result.CompletedFiles,
+                FailedFiles = result.FailedFiles
+            });
+
+            LogHelper.Write(LauncherPaths.AppLog,
+                $"下载结束：{result.Summary}",
+                $"Install done: {result.Summary}");
+
+            return result;
+        }
+
+        // ============================================================
+        // 单文件：源降级 + 换源
+        // ============================================================
+
+        private static async Task<(bool ok, string error)> DownloadOneAsync(
+            FileTask task,
+            SemaphoreSlim? gate,
+            CancellationToken ct)
+        {
+            string lastError = "";
+
+            // 两轮：第二轮是 PCL 的「全源降级重试一次」
+            for (int round = 0; round < 2; round++)
+            {
+                var candidates = SourcePolicy.GetCandidates(task.OfficialUrl, task.Kind);
+                bool anyUsable = candidates.Any(s => !SourcePolicy.IsCoolingDown(s));
+
+                foreach (var source in candidates)
+                {
+                    // 冷却中的源跳过（除非所有源都在冷却，此时被迫都试一遍）
+                    if (anyUsable && SourcePolicy.IsCoolingDown(source)) continue;
+
+                    for (int attempt = 0; attempt < PerSourceAttempts; attempt++)
+                    {
+                        ct.ThrowIfCancellationRequested();
+
+                        DownloadAttemptResult attemptResult;
+
+                        if (gate != null) await gate.WaitAsync(ct).ConfigureAwait(false);
+                        try
+                        {
+                            using (await SourcePolicy.AcquireAsync(source, ct).ConfigureAwait(false))
+                            {
+                                attemptResult = await DownloadEngine
+                                    .DownloadAsync(source.Url, task.LocalPath, task.Sha1, ct)
+                                    .ConfigureAwait(false);
+                            }
+                        }
+                        finally
+                        {
+                            gate?.Release();
+                        }
+
+                        if (attemptResult.IsSuccess)
+                        {
+                            SourcePolicy.ReportSuccess(source);
+                            return (true, "");
+                        }
+
+                        SourcePolicy.ReportFailure(source, attemptResult.Kind, attemptResult.RetryAfter);
+                        lastError = $"{source.Id}: {attemptResult.Kind} {attemptResult.Message}";
+
+                        // 磁盘错误：换源也没用，直接失败
+                        if (attemptResult.Kind == DownloadFailureKind.Fatal)
+                            return (false, lastError);
+
+                        // 可恢复的传输错误：同源再试一次
+                        if (attemptResult.Kind == DownloadFailureKind.Transient)
+                            continue;
+
+                        // 失速 / 404 / 403 / 429 / DNS / 校验失败：立刻换源，不在坏源上耗时间
+                        break;
+                    }
+                }
+            }
+
+            return (false, string.IsNullOrEmpty(lastError) ? "所有下载源均失败" : lastError);
+        }
+
+        // ============================================================
+        // assets 解析
+        // ============================================================
+
+        private static async Task<List<FileTask>> ParseAssetObjectsAsync(string indexPath, string assetsDir)
+        {
+            var list = new List<FileTask>();
+            string objectsDir = Path.Combine(assetsDir, "objects");
+
+            string json = await File.ReadAllTextAsync(indexPath).ConfigureAwait(false);
+            using var doc = JsonDocument.Parse(json);
+            if (!doc.RootElement.TryGetProperty("objects", out var objects)) return list;
+
+            foreach (var prop in objects.EnumerateObject())
+            {
+                if (!prop.Value.TryGetProperty("hash", out var hashEl)) continue;
+                string? hash = hashEl.GetString();
+                if (string.IsNullOrEmpty(hash) || hash.Length < 2) continue;
+
+                long size = 0;
+                if (prop.Value.TryGetProperty("size", out var sizeEl) && sizeEl.TryGetInt64(out long s))
+                    size = s;
+
+                string prefix = hash.Substring(0, 2);
+
+                list.Add(new FileTask
+                {
+                    // 统一以官方 URL 记录，镜像由 SourcePolicy 映射
+                    OfficialUrl = $"https://resources.download.minecraft.net/{prefix}/{hash}",
+                    Kind = DownloadSourceKind.Assets,
+                    LocalPath = Path.Combine(objectsDir, prefix, hash),
+                    DisplayPath = $"assets/objects/{prefix}/{hash}",
+                    Sha1 = hash,
+                    Size = size
+                });
+            }
+
+            return list;
+        }
+
+        // ============================================================
+        // 工具
+        // ============================================================
+
+        private static bool IsLibraryAllowed(LibraryEntry lib)
+        {
+            if (lib.Rules == null || lib.Rules.Count == 0) return true;
+
+            bool allowed = false;
+            foreach (var rule in lib.Rules)
+            {
+                bool matches = true;
+                if (rule.Os != null && !string.IsNullOrEmpty(rule.Os.Name))
+                {
+                    if (!rule.Os.Name.Equals("windows", StringComparison.OrdinalIgnoreCase))
+                        matches = false;
+                }
+
+                if (matches)
+                {
+                    if (rule.Action == "allow") allowed = true;
+                    else if (rule.Action == "disallow") return false;
+                }
+            }
+
+            return allowed;
+        }
+
+        private static string ClassifyFailureText(string error)
+        {
+            if (string.IsNullOrEmpty(error)) return "未知";
+
+            int idx = error.IndexOf(':');
+            string prefix = idx > 0 ? error.Substring(0, idx).Trim() : "?";
+            string rest = idx > 0 ? error.Substring(idx + 1).Trim() : error;
+
+            int space = rest.IndexOf(' ');
+            string kind = space > 0 ? rest.Substring(0, space) : rest;
+
+            return $"{prefix}/{kind}";
+        }
+    }
+}
+```
+
+### `MainSrc\Download\MinecraftManifest.cs`
+
+```csharp
+using System;
+using System.Collections.Generic;
+using System.Text.Json.Serialization;
+using Avalonia.Media.Imaging;
+
+namespace Project.Launch.Download
+{
+    public class VersionManifest
+    {
+        [JsonPropertyName("latest")]
+        public LatestVersions Latest { get; set; } = new();
+
+        [JsonPropertyName("versions")]
+        public List<VersionEntry> Versions { get; set; } = new();
+    }
+
+    public class LatestVersions
+    {
+        [JsonPropertyName("release")]
+        public string Release { get; set; } = "";
+
+        [JsonPropertyName("snapshot")]
+        public string Snapshot { get; set; } = "";
+    }
+
+    public class VersionEntry
+    {
+        // ★ 改名避开基础类型的隐藏冲突
+        [JsonPropertyName("id")]
+        public string VersionId { get; set; } = "";
+
+        [JsonPropertyName("type")]
+        public string Type { get; set; } = "";
+
+        [JsonPropertyName("url")]
+        public string Url { get; set; } = "";
+
+        [JsonPropertyName("releaseTime")]
+        public DateTime ReleaseTime { get; set; }
+
+        // 供 UI 显示的格式化时间
+        public string ReleaseTimeStr => ReleaseTime.ToString("yyyy-MM-dd");
+
+        // ★ UI 显示的图标路径
+        public string IconPath { get; set; } = "";
+
+        // ★ UI 直接绑定的图标对象
+        public Bitmap? IconBitmap { get; set; }
+    }
+}
+```
+
+### `MainSrc\Download\ProxyEnvironment.cs`
+
+```csharp
+using System;
+using System.Net;
+using System.Net.Http;
+using System.Net.Sockets;
+using System.Threading;
+
+using Project.Launch.Tools.JavaConfig;
+using Project.Launch.Tools.LogsConfig;
+
+namespace Project.Launch.Download
+{
+    /// <summary>
+    /// 系统代理探测与自动降级。
+    ///
+    /// 背景：Windows 的 WinINET 代理（如 Clash / 各种加速器）会把
+    /// `ProxyEnable=1, ProxyServer=127.0.0.1:7892` 写进注册表，而 .NET 的
+    /// HttpClient **默认继承系统代理**。一旦代理客户端被关掉，所有请求都会
+    /// 被送到这个已经没人监听的本地端口，得到「目标计算机积极拒绝」——
+    /// 表现就是「获取版本列表失败 / 下载全部失败」，看起来像网络没了，
+    /// 其实直连完全正常（curl 不走系统代理，所以 curl 是通的）。
+    ///
+    /// 这里做两件事：
+    ///   1) 启动时探测：系统代理指向本机且端口没在监听 → 直接不用代理；
+    ///   2) 运行时兜底：请求因代理端点不可达而失败 → 立即禁用代理并重试直连。
+    /// </summary>
+    public static class ProxyEnvironment
+    {
+        private static int _initialized;
+        private static int _enabled = 1;   // 0 = 关闭（直连）, 1 = 使用系统代理
+        private static int _logOnce;
+        private static string _endpoint = "";
+        private static bool _isLoopbackProxy;
+
+        /// <summary>当前是否使用系统代理。false 时所有请求走直连。</summary>
+        public static bool IsEnabled => Volatile.Read(ref _enabled) == 1;
+
+        /// <summary>系统代理端点（如 127.0.0.1:7892），未配置时为空。</summary>
+        public static string Endpoint => _endpoint;
+
+        /// <summary>
+        /// 启动时探测一次。幂等，可安全多处调用。
+        /// </summary>
+        public static void EnsureInitialized()
+        {
+            if (Interlocked.Exchange(ref _initialized, 1) == 1) return;
+
+            try
+            {
+                IWebProxy systemProxy = HttpClient.DefaultProxy;
+
+                // 用一个确定会走网络的地址去问「该用哪个代理」
+                Uri probeDestination = new Uri("https://piston-meta.mojang.com/");
+                Uri? proxyUri = systemProxy.GetProxy(probeDestination);
+
+                if (proxyUri == null || proxyUri == probeDestination)
+                {
+                    SetEnabled(false, "系统未配置 HTTP 代理，使用直连");
+                    return;
+                }
+
+                _endpoint = proxyUri.IsDefaultPort
+                    ? proxyUri.Host
+                    : $"{proxyUri.Host}:{proxyUri.Port}";
+
+                // 只对本机代理做存活探测；远程代理探测代价高且可能被策略拦截
+                bool isLoopback = proxyUri.IsLoopback
+                                  || proxyUri.Host.Equals("localhost", StringComparison.OrdinalIgnoreCase)
+                                  || proxyUri.Host == "::1";
+                _isLoopbackProxy = isLoopback;
+
+                if (isLoopback && !IsTcpPortAlive(proxyUri.Host, proxyUri.Port, 400))
+                {
+                    SetEnabled(false,
+                        $"系统代理 {_endpoint} 未在监听（代理客户端可能没启动），已自动改为直连");
+                    return;
+                }
+
+                // 再确认目标主机没有被加入代理例外名单
+                if (systemProxy.IsBypassed(probeDestination))
+                {
+                    SetEnabled(false, $"目标主机在系统代理例外名单中，使用直连");
+                    return;
+                }
+
+                SetEnabled(true, $"使用系统代理 {_endpoint}");
+            }
+            catch (Exception ex)
+            {
+                SetEnabled(false, $"读取系统代理设置失败（{ex.Message}），改用直连");
+            }
+        }
+
+        /// <summary>
+        /// 运行时兜底：某个请求的失败信息表明「是代理端点连不上」，就永久禁用代理。
+        /// 只在确实像代理故障时触发，避免把普通网络抖动误判成代理问题。
+        /// </summary>
+        public static bool LooksLikeDeadProxy(string? message)
+        {
+            if (!IsEnabled || string.IsNullOrEmpty(message)) return false;
+
+            if (!string.IsNullOrEmpty(_endpoint)
+                && message.Contains(_endpoint, StringComparison.OrdinalIgnoreCase))
+                return true;
+
+            if (message.Contains("积极拒绝", StringComparison.Ordinal)
+                || message.Contains("refused", StringComparison.OrdinalIgnoreCase))
+                return true;
+
+            // 本机代理「能建 TCP 却不转发」：表现为建连/首字节超时。
+            // 只有代理指向本机时才这么判定，远程代理超时可能只是网络抖动。
+            if (_isLoopbackProxy
+                && (message.Contains("建连/首字节超时", StringComparison.Ordinal)
+                    || message.Contains("代理", StringComparison.Ordinal)))
+                return true;
+
+            return false;
+        }
+
+        /// <summary>禁用代理（直连）。幂等。</summary>
+        public static void DisableAfterFailure(string reason)
+        {
+            if (!IsEnabled) return;
+            SetEnabled(false, reason);
+        }
+
+        private static void SetEnabled(bool enabled, string reason)
+        {
+            Volatile.Write(ref _enabled, enabled ? 1 : 0);
+
+            // 只在第一次决定时写一条日志，避免刷屏
+            if (Interlocked.Exchange(ref _logOnce, 1) == 0)
+            {
+                LogHelper.Write(LauncherPaths.AppLog,
+                    $"[网络] {reason}",
+                    $"[Network] {reason}");
+            }
+            else if (!enabled)
+            {
+                LogHelper.Write(LauncherPaths.AppLog,
+                    $"[网络] 已切换为直连：{reason}",
+                    $"[Network] Switched to direct connection: {reason}");
+            }
+        }
+
+        private static bool IsTcpPortAlive(string host, int port, int timeoutMs)
+        {
+            try
+            {
+                using var socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+                var connectTask = socket.ConnectAsync(host, port);
+                if (!connectTask.Wait(timeoutMs)) return false;
+                return socket.Connected;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+    }
+
+    /// <summary>
+    /// 自适应 IWebProxy：每个请求实时询问 ProxyEnvironment。
+    /// 这样「禁用代理」对后续请求立即生效，不需要重建 HttpClient。
+    /// </summary>
+    internal sealed class AdaptiveProxy : IWebProxy
+    {
+        private readonly IWebProxy _inner = HttpClient.DefaultProxy;
+
+        public ICredentials? Credentials
+        {
+            get => _inner.Credentials;
+            set => _inner.Credentials = value;
+        }
+
+        public Uri? GetProxy(Uri destination)
+        {
+            if (!ProxyEnvironment.IsEnabled) return null; // null = 直连
+
+            try
+            {
+                Uri? proxy = _inner.GetProxy(destination);
+                // 返回与目标相同的 URI 表示「该主机不走代理」
+                return proxy == destination ? null : proxy;
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        public bool IsBypassed(Uri host)
+        {
+            if (!ProxyEnvironment.IsEnabled) return true;
+
+            try
+            {
+                return _inner.IsBypassed(host);
+            }
+            catch
+            {
+                return true;
+            }
+        }
+    }
+}
+```
+
+### `MainSrc\Download\SourcePolicy.cs`
+
+```csharp
+using System;
+using System.Collections.Concurrent;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
+
+namespace Project.Launch.Download
+{
+    /// <summary>
+    /// 下载资源类别 —— 决定官方/镜像的 URL 映射方式与源健康度分桶。
+    /// </summary>
+    public enum DownloadSourceKind
+    {
+        /// <summary>assets/objects（resources.download.minecraft.net）</summary>
+        Assets,
+        /// <summary>libraries（libraries.minecraft.net）</summary>
+        Maven,
+        /// <summary>元数据：版本清单 / 版本 json / asset index / client.jar（piston-meta、piston-data）</summary>
+        Meta
+    }
+
+    /// <summary>
+    /// 源偏好，对齐 PCL 的 ToolDownloadSource：自动 / 镜像优先 / 官方优先。
+    /// </summary>
+    public enum SourcePreference
+    {
+        /// <summary>官方优先；官方失效（连续失败进入冷却）后自动切镜像。</summary>
+        Auto = 0,
+        MirrorFirst = 1,
+        OfficialFirst = 2
+    }
+
+    /// <summary>
+    /// 一个具体的下载源（同一个文件最多两个：官方 / 镜像）。
+    /// </summary>
+    public sealed class DownloadSource
+    {
+        public required string Id { get; init; }
+        public required string Url { get; init; }
+        public required bool IsMirror { get; init; }
+        public required DownloadSourceKind Kind { get; init; }
+
+        /// <summary>健康度分桶键：镜像/官方 × 资源类别（maven 的镜像和 assets 的镜像质量完全不同，必须分开算）。</summary>
+        public string HealthKey => Id + ":" + Kind;
+
+        public override string ToString() => Id;
+    }
+
+    /// <summary>
+    /// 下载源策略 —— PCL 的 "源失效降级 + 冷却" 的最小可用实现。
+    ///
+    /// 背景（实测结论）：BMCLAPI 的 assets 现在会 302 到一个「每请求随机分配」的节点池，
+    /// 池中约半数节点 NXDOMAIN / TLS RST / 25s 不回字节，单连接有效速率 0.6~63 KB/s；
+    /// 而官方源同批文件 320~5957 KB/s 且从不截断（差 30~50 倍）。
+    /// 所以默认 Auto = 官方优先，同时用健康度把任何「正在坏掉的源」快速冷却掉。
+    /// </summary>
+    public static class SourcePolicy
+    {
+        // ============================================================
+        // 可调参数
+        // ============================================================
+
+        public static SourcePreference Preference { get; set; } = SourcePreference.Auto;
+
+        /// <summary>镜像同时并发上限。PCL 对 bmclapi 的做法是「禁止追加连接 + 每次启动间隔 100ms」，
+        /// 这里折算成主机级并发上限 8，避免把唯一国内镜像打成 403/429。</summary>
+        public const int MirrorConcurrency = 8;
+
+        /// <summary>官方源并发上限（实测 c=50 仍稳定 1160 KB/s，不需要压太低）。</summary>
+        public const int OfficialConcurrency = 32;
+
+        /// <summary>镜像连续失败多少次进入冷却。</summary>
+        private const int MirrorFailThreshold = 2;
+        /// <summary>官方连续失败多少次进入冷却（官方通常可靠，门槛放宽一点）。</summary>
+        private const int OfficialFailThreshold = 3;
+
+        private static readonly TimeSpan MirrorCooldown = TimeSpan.FromSeconds(60);
+        private static readonly TimeSpan OfficialCooldown = TimeSpan.FromSeconds(20);
+        private static readonly TimeSpan MaxCooldown = TimeSpan.FromMinutes(5);
+
+        // ============================================================
+        // 内部状态
+        // ============================================================
+
+        private sealed class Health
+        {
+            public int FailCount;
+            public long CooldownUntilMs; // Environment.TickCount64
+        }
+
+        private static readonly ConcurrentDictionary<string, Health> _health =
+            new(StringComparer.OrdinalIgnoreCase);
+
+        private static readonly ConcurrentDictionary<string, SemaphoreSlim> _gates =
+            new(StringComparer.OrdinalIgnoreCase);
+
+        // ============================================================
+        // URL 映射
+        // ============================================================
+
+        /// <summary>官方 URL → 镜像 URL（BMCLAPI）。没有对应镜像时原样返回。</summary>
+        public static string ToMirror(string officialUrl)
+        {
+            if (string.IsNullOrEmpty(officialUrl)) return officialUrl;
+
+            return officialUrl
+                .Replace("https://resources.download.minecraft.net", "https://bmclapi2.bangbang93.com/assets", StringComparison.OrdinalIgnoreCase)
+                .Replace("https://libraries.minecraft.net", "https://bmclapi2.bangbang93.com/maven", StringComparison.OrdinalIgnoreCase)
+                .Replace("https://piston-meta.mojang.com", "https://bmclapi2.bangbang93.com", StringComparison.OrdinalIgnoreCase)
+                .Replace("https://piston-data.mojang.com", "https://bmclapi2.bangbang93.com", StringComparison.OrdinalIgnoreCase)
+                .Replace("https://launchermeta.mojang.com", "https://bmclapi2.bangbang93.com", StringComparison.OrdinalIgnoreCase)
+                .Replace("https://launcher.mojang.com", "https://bmclapi2.bangbang93.com", StringComparison.OrdinalIgnoreCase);
+        }
+
+        public static string ToOfficial(string url)
+        {
+            if (string.IsNullOrEmpty(url)) return url;
+
+            return url
+                .Replace("https://bmclapi2.bangbang93.com/assets", "https://resources.download.minecraft.net", StringComparison.OrdinalIgnoreCase)
+                .Replace("https://bmclapi2.bangbang93.com/maven", "https://libraries.minecraft.net", StringComparison.OrdinalIgnoreCase)
+                .Replace("https://bmclapi2.bangbang93.com", "https://piston-data.mojang.com", StringComparison.OrdinalIgnoreCase);
+        }
+
+        // ============================================================
+        // 候选源排序
+        // ============================================================
+
+        /// <summary>
+        /// 给出该文件的候选源顺序。冷却中的源排到最后，但仍保留 ——
+        /// 避免「两个源都在冷却」时出现无源可用（PCL 的 SourcesOnce 全量重试语义）。
+        /// </summary>
+        public static IReadOnlyList<DownloadSource> GetCandidates(string officialUrl, DownloadSourceKind kind)
+        {
+            var official = new DownloadSource
+            {
+                Id = "official",
+                Url = officialUrl,
+                IsMirror = false,
+                Kind = kind
+            };
+
+            string mirrorUrl = ToMirror(officialUrl);
+            var list = new List<DownloadSource>(2);
+
+            bool hasMirror = !string.Equals(mirrorUrl, officialUrl, StringComparison.OrdinalIgnoreCase);
+            DownloadSource? mirror = null;
+            if (hasMirror)
+            {
+                mirror = new DownloadSource
+                {
+                    Id = "mirror",
+                    Url = mirrorUrl,
+                    IsMirror = true,
+                    Kind = kind
+                };
+            }
+
+            bool mirrorFirst;
+            switch (Preference)
+            {
+                case SourcePreference.MirrorFirst:
+                    mirrorFirst = hasMirror;
+                    break;
+                case SourcePreference.OfficialFirst:
+                    mirrorFirst = false;
+                    break;
+                default: // Auto：官方优先，官方冷却中才让镜像先上
+                    mirrorFirst = hasMirror && IsCoolingDown(official);
+                    break;
+            }
+
+            if (mirrorFirst && mirror != null)
+            {
+                list.Add(mirror);
+                list.Add(official);
+            }
+            else
+            {
+                list.Add(official);
+                if (mirror != null) list.Add(mirror);
+            }
+
+            // 冷却中的源沉底（Stable 排序保持其余顺序）
+            return list
+                .OrderBy(s => IsCoolingDown(s) ? 1 : 0)
+                .ToList();
+        }
+
+        /// <summary>是否存在镜像。</summary>
+        public static bool HasMirror(string officialUrl) =>
+            !string.Equals(ToMirror(officialUrl), officialUrl, StringComparison.OrdinalIgnoreCase);
+
+        // ============================================================
+        // 健康度
+        // ============================================================
+
+        public static bool IsCoolingDown(DownloadSource source)
+        {
+            if (!_health.TryGetValue(source.HealthKey, out var h)) return false;
+            long until = Volatile.Read(ref h.CooldownUntilMs);
+            return until != 0 && Environment.TickCount64 < until;
+        }
+
+        /// <summary>收到字节即清零失败计数（对齐 PCL：区分「慢但能下」与「连不上」）。</summary>
+        public static void ReportSuccess(DownloadSource source)
+        {
+            if (_health.TryGetValue(source.HealthKey, out var h))
+            {
+                Interlocked.Exchange(ref h.FailCount, 0);
+                Volatile.Write(ref h.CooldownUntilMs, 0);
+            }
+        }
+
+        public static void ReportFailure(DownloadSource source, DownloadFailureKind kind, TimeSpan? retryAfter)
+        {
+            var h = _health.GetOrAdd(source.HealthKey, _ => new Health());
+            int fails = Interlocked.Increment(ref h.FailCount);
+
+            // 429：按服务端 Retry-After 冷却，绝不原地重试（PCL 明确不把 bmclapi 的 403/429 当源坏，
+            // 但我们的问题是「重试风暴」把 60s 的 per-URL 配额打满，所以这里必须冷却）。
+            if (kind == DownloadFailureKind.RateLimited)
+            {
+                TimeSpan cd = retryAfter ?? TimeSpan.FromSeconds(60);
+                if (cd < TimeSpan.FromSeconds(10)) cd = TimeSpan.FromSeconds(10);
+                if (cd > MaxCooldown) cd = MaxCooldown;
+                Cooldown(source, cd);
+                return;
+            }
+
+            // 单文件级别的错误不惩罚整个源
+            if (kind == DownloadFailureKind.NotFound || kind == DownloadFailureKind.Forbidden)
+                return;
+
+            // 磁盘错误直接判死，与源无关
+            if (kind == DownloadFailureKind.Fatal)
+                return;
+
+            int threshold = source.IsMirror ? MirrorFailThreshold : OfficialFailThreshold;
+            if (fails >= threshold)
+            {
+                // 连续失败越多，冷却越久（最多 5 分钟）
+                int multiplier = Math.Min(4, fails - threshold + 1);
+                TimeSpan baseCd = source.IsMirror ? MirrorCooldown : OfficialCooldown;
+                Cooldown(source, TimeSpan.FromMilliseconds(baseCd.TotalMilliseconds * multiplier));
+            }
+        }
+
+        private static void Cooldown(DownloadSource source, TimeSpan duration)
+        {
+            var h = _health.GetOrAdd(source.HealthKey, _ => new Health());
+            long until = Environment.TickCount64 + (long)duration.TotalMilliseconds;
+            Volatile.Write(ref h.CooldownUntilMs, until);
+        }
+
+        // ============================================================
+        // 主机级并发门（PCL 的全局连接数上限 / CE 的 per-host 配额）
+        // ============================================================
+
+        public static async Task<IDisposable> AcquireAsync(DownloadSource source, CancellationToken ct)
+        {
+            var sem = _gates.GetOrAdd(
+                source.Id,
+                id => new SemaphoreSlim(id == "mirror" ? MirrorConcurrency : OfficialConcurrency,
+                                        id == "mirror" ? MirrorConcurrency : OfficialConcurrency));
+
+            await sem.WaitAsync(ct).ConfigureAwait(false);
+            return new GateReleaser(sem);
+        }
+
+        private sealed class GateReleaser : IDisposable
+        {
+            private SemaphoreSlim? _sem;
+
+            public GateReleaser(SemaphoreSlim sem) => _sem = sem;
+
+            public void Dispose()
+            {
+                SemaphoreSlim? sem = Interlocked.Exchange(ref _sem, null);
+                sem?.Release();
+            }
+        }
+
+        // ============================================================
+        // 生命周期
+        // ============================================================
+
+        /// <summary>每次开始安装时清空健康度（冷却与失败计数），但保留并发门。</summary>
+        public static void Reset()
+        {
+            _health.Clear();
+        }
+
+        /// <summary>诊断用：当前各源的健康状态。</summary>
+        public static string DescribeHealth()
+        {
+            if (_health.IsEmpty) return "全部源健康";
+
+            return string.Join("; ", _health
+                .Select(kv =>
+                {
+                    long until = Volatile.Read(ref kv.Value.CooldownUntilMs);
+                    string cd = until != 0 && Environment.TickCount64 < until
+                        ? $"冷却剩余 {(until - Environment.TickCount64) / 1000}s"
+                        : "正常";
+                    return $"{kv.Key}: 连续失败 {Volatile.Read(ref kv.Value.FailCount)}，{cd}";
+                })
+                .OrderBy(s => s));
+        }
+    }
+}
+```
+
+### `MainSrc\Download\VersionService.cs`
+
+```csharp
+using System;
+using System.Net.Http;
+using System.Text.Json;
+using System.Threading;
+using System.Threading.Tasks;
+
+using Project.Launch.Tools.JavaConfig;
+using Project.Launch.Tools.LogsConfig;
+
+namespace Project.Launch.Download
+{
+    /// <summary>
+    /// 版本清单获取 —— 走 SourcePolicy 的源顺序与健康度：
+    /// 某个源超时/DNS 失败后会被冷却，下一次直接换另一个源，而不是每次都先等 15s。
+    /// </summary>
+    public static class VersionService
+    {
+        private const string OfficialManifestUrl =
+            "https://piston-meta.mojang.com/mc/game/version_manifest_v2.json";
+
+        /// <summary>单个源的单次尝试超时（PCL：官方优先时官方只给 5s，避免长等）。</summary>
+        private static readonly TimeSpan AttemptTimeout = TimeSpan.FromSeconds(10);
+
+        /// <summary>请求一次；若是系统代理端点不可达，则自动改直连再试一次。</summary>
+        private static async Task<string> FetchAsync(string url, CancellationToken ct)
+        {
+            try
+            {
+                return await FetchOnceAsync(url, ct).ConfigureAwait(false);
+            }
+            catch (HttpRequestException ex) when (ProxyEnvironment.LooksLikeDeadProxy(ex.Message))
+            {
+                ProxyEnvironment.DisableAfterFailure(
+                    $"版本清单请求命中系统代理端点（{ex.Message}），改用直连重试");
+                return await FetchOnceAsync(url, ct).ConfigureAwait(false);
+            }
+        }
+
+        private static async Task<string> FetchOnceAsync(string url, CancellationToken ct)
+        {
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            cts.CancelAfter(AttemptTimeout);
+            return await DownloadEngine.SharedClient.GetStringAsync(url, cts.Token).ConfigureAwait(false);
+        }
+
+        public static async Task<VersionManifest?> GetVersionManifestAsync(CancellationToken ct = default)
+        {
+            var candidates = SourcePolicy.GetCandidates(OfficialManifestUrl, DownloadSourceKind.Meta);
+
+            foreach (var source in candidates)
+            {
+                if (SourcePolicy.IsCoolingDown(source))
+                {
+                    LogHelper.Write(LauncherPaths.AppLog,
+                        $"跳过冷却中的源：{source.Id}（{source.Url}）",
+                        $"Skip cooling source: {source.Id} ({source.Url})");
+                    continue;
+                }
+
+                try
+                {
+                    string json = await FetchAsync(source.Url, ct).ConfigureAwait(false);
+
+                    var manifest = JsonSerializer.Deserialize<VersionManifest>(
+                        json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+
+                    if (manifest != null && manifest.Versions.Count > 0)
+                    {
+                        SourcePolicy.ReportSuccess(source);
+                        LogHelper.Write(LauncherPaths.AppLog,
+                            $"成功获取版本清单（{source.Id}：{source.Url}），共 {manifest.Versions.Count} 个版本",
+                            $"Fetched manifest from {source.Id} ({source.Url}), count: {manifest.Versions.Count}");
+                        return manifest;
+                    }
+
+                    SourcePolicy.ReportFailure(source, DownloadFailureKind.Transient, null);
+                }
+                catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+                {
+                    SourcePolicy.ReportFailure(source, DownloadFailureKind.Stall, null);
+                    LogHelper.Write(LauncherPaths.AppLog,
+                        $"获取版本清单超时（{source.Id}：{source.Url}，{AttemptTimeout.TotalSeconds:0}s）",
+                        $"Manifest timeout from {source.Id} ({source.Url}), {AttemptTimeout.TotalSeconds:0}s");
+                }
+                catch (HttpRequestException ex)
+                {
+                    var kind = ex.HttpRequestError == HttpRequestError.NameResolutionError
+                        ? DownloadFailureKind.Dns
+                        : DownloadFailureKind.Transient;
+
+                    SourcePolicy.ReportFailure(source, kind, null);
+                    LogHelper.Write(LauncherPaths.AppLog,
+                        $"获取版本清单失败（{source.Id}：{source.Url}）: {ex.Message}",
+                        $"Failed to fetch manifest from {source.Id} ({source.Url}): {ex.Message}");
+                }
+                catch (Exception ex)
+                {
+                    SourcePolicy.ReportFailure(source, DownloadFailureKind.Transient, null);
+                    LogHelper.Write(LauncherPaths.AppLog,
+                        $"获取版本清单异常（{source.Id}）: {ex.Message}",
+                        $"Manifest exception from {source.Id}: {ex.Message}");
+                }
+            }
+
+            LogHelper.Write(LauncherPaths.AppLog,
+                $"所有源均无法获取版本清单。源状态：{SourcePolicy.DescribeHealth()}",
+                $"All sources failed. Health: {SourcePolicy.DescribeHealth()}");
+
+            return null;
+        }
+    }
+}
+```
+
+
+## 6.3 MainSrc\Auth —— 微软正版登录
+
+### `MainSrc\Auth\AccountData.cs`
+
+```csharp
+using System;
+using System.Collections.Generic;
+
+namespace Project.Launch.Auth
+{
+    public class AccountInfo
+    {
+        public string Type { get; set; } = "offline";
+        public string Username { get; set; } = string.Empty;
+        public string Uuid { get; set; } = string.Empty;
+        public DateTime LastUsed { get; set; } = DateTime.UtcNow;
+
+        // ============================================================
+        // 正版账户专属字段（离线账户留空）
+        // ============================================================
+
+        /// <summary>微软 refresh_token（长期，用于静默刷新）</summary>
+        public string MicrosoftRefreshToken { get; set; } = string.Empty;
+
+        /// <summary>Minecraft access_token（短期，24 小时）</summary>
+        public string MinecraftAccessToken { get; set; } = string.Empty;
+
+        /// <summary>token 过期时间（UTC）</summary>
+        public DateTime TokenExpireAt { get; set; } = DateTime.MinValue;
+
+        /// <summary>皮肤 URL（正版专属，留空则用 UUID 推算 Steve/Alex）</summary>
+        public string SkinUrl { get; set; } = string.Empty;
+    }
+
+    public class AccountsRoot
+    {
+        public Dictionary<string, AccountInfo> Accounts { get; set; } = new();
+        public string SelectedAccount { get; set; } = string.Empty;
+        public bool LoginCheck { get; set; } = false;
+    }
+}
+```
+
+### `MainSrc\Auth\AccountService.cs`
+
+```csharp
+using System;
+using System.IO;
+using System.Text.Json;
+
+using Project.Launch.Tools.JavaConfig;
+using Project.Launch.Tools.LogsConfig;
+namespace Project.Launch.Auth
+{
+    public static class AccountService
+    {
+        // ★ P1-5 修复：路径统一走 LauncherPaths，不再自己拼一份
+        private static readonly object _lock = new object();
+
+        public static AccountsRoot LoadAccounts()
+        {
+            lock (_lock)
+            {
+                if (!File.Exists(LauncherPaths.AccountsFile))
+                    return new AccountsRoot();
+
+                try
+                {
+                    string json = File.ReadAllText(LauncherPaths.AccountsFile);
+                    return JsonSerializer.Deserialize<AccountsRoot>(json) ?? new AccountsRoot();
+                }
+                catch (Exception ex)
+                {
+                    LogHelper.Write(LauncherPaths.AppLog,
+                        $"读取账户失败: {ex.Message}",
+                        $"Failed to load accounts: {ex.Message}");
+                    return new AccountsRoot();
+                }
+            }
+        }
+
+        // ★ P0-5 修复：写 tmp + Move 覆盖 + try-catch
+        public static void SaveAccounts(AccountsRoot root)
+        {
+            lock (_lock)
+            {
+                SaveAccountsInternal(root);
+            }
+        }
+
+        // ★ P1-1 修复：read-modify-write 收口在单个 lock 内
+        private static void ModifyAccounts(Action<AccountsRoot> mutate)
+        {
+            lock (_lock)
+            {
+                AccountsRoot root;
+                if (!File.Exists(LauncherPaths.AccountsFile))
+                {
+                    root = new AccountsRoot();
+                }
+                else
+                {
+                    try
+                    {
+                        string json = File.ReadAllText(LauncherPaths.AccountsFile);
+                        root = JsonSerializer.Deserialize<AccountsRoot>(json) ?? new AccountsRoot();
+                    }
+                    catch (Exception ex)
+                    {
+                        LogHelper.Write(LauncherPaths.AppLog,
+                            $"读取账户失败（将重置）: {ex.Message}",
+                            $"Failed to load accounts (will reset): {ex.Message}");
+                        root = new AccountsRoot();
+                    }
+                }
+
+                mutate(root);
+                SaveAccountsInternal(root);
+            }
+        }
+
+        private static void SaveAccountsInternal(AccountsRoot root)
+        {
+            try
+            {
+                string json = JsonSerializer.Serialize(root,
+                    new JsonSerializerOptions { WriteIndented = true });
+
+                // 原子写：先写临时文件，再 Move 覆盖
+                string tmpPath = LauncherPaths.AccountsFile + ".tmp";
+                File.WriteAllText(tmpPath, json);
+                File.Move(tmpPath, LauncherPaths.AccountsFile, overwrite: true);
+            }
+            catch (Exception ex)
+            {
+                LogHelper.Write(LauncherPaths.AppLog,
+                    $"保存账户失败: {ex.Message}",
+                    $"Failed to save accounts: {ex.Message}");
+            }
+        }
+
+        public static AccountInfo? GetSelectedAccount()
+        {
+            var root = LoadAccounts();
+            if (string.IsNullOrEmpty(root.SelectedAccount) || !root.Accounts.ContainsKey(root.SelectedAccount))
+                return null;
+            return root.Accounts[root.SelectedAccount];
+        }
+
+        public static void SetSelectedAccount(string accountId, AccountInfo account)
+        {
+            ModifyAccounts(root =>
+            {
+                root.Accounts[accountId] = account;
+                root.SelectedAccount = accountId;
+            });
+        }
+
+        public static void RemoveAccount(string accountId)
+        {
+            ModifyAccounts(root =>
+            {
+                if (root.Accounts.Remove(accountId) && root.SelectedAccount == accountId)
+                    root.SelectedAccount = string.Empty;
+            });
+        }
+
+        public static bool GetLoginCheck()
+        {
+            var root = LoadAccounts();
+            return root.LoginCheck;
+        }
+
+        public static void SetLoginCheck(bool value)
+        {
+            ModifyAccounts(root => root.LoginCheck = value);
+        }
+    }
+}
+```
+
+### `MainSrc\Auth\AuthModels.cs`
+
+```csharp
+using System.Collections.Generic;
+using System.Text.Json.Serialization;
+
+namespace Project.Launch.Auth
+{
+    // ============================================================
+    // 微软 OAuth 设备代码流
+    // ============================================================
+
+    public class DeviceCodeResponse
+    {
+        [JsonPropertyName("device_code")]
+        public string DeviceCode { get; set; } = "";
+
+        [JsonPropertyName("user_code")]
+        public string UserCode { get; set; } = "";
+
+        [JsonPropertyName("verification_uri")]
+        public string VerificationUri { get; set; } = "";
+
+        [JsonPropertyName("expires_in")]
+        public int ExpiresIn { get; set; }
+
+        [JsonPropertyName("interval")]
+        public int Interval { get; set; } = 5;
+
+        [JsonPropertyName("message")]
+        public string Message { get; set; } = "";
+    }
+
+    public class MicrosoftTokenResponse
+    {
+        [JsonPropertyName("access_token")]
+        public string AccessToken { get; set; } = "";
+
+        [JsonPropertyName("refresh_token")]
+        public string RefreshToken { get; set; } = "";
+
+        [JsonPropertyName("expires_in")]
+        public int ExpiresIn { get; set; }
+
+        [JsonPropertyName("token_type")]
+        public string TokenType { get; set; } = "Bearer";
+    }
+
+    public class MicrosoftErrorResponse
+    {
+        [JsonPropertyName("error")]
+        public string Error { get; set; } = "";
+
+        [JsonPropertyName("error_description")]
+        public string ErrorDescription { get; set; } = "";
+    }
+
+    // ============================================================
+    // Xbox Live 认证
+    // ============================================================
+
+    public class XboxAuthRequest
+    {
+        [JsonPropertyName("Properties")]
+        public XboxAuthProperties Properties { get; set; } = new();
+
+        [JsonPropertyName("RelyingParty")]
+        public string RelyingParty { get; set; } = "http://auth.xboxlive.com";
+
+        [JsonPropertyName("TokenType")]
+        public string TokenType { get; set; } = "JWT";
+    }
+
+    public class XboxAuthProperties
+    {
+        [JsonPropertyName("AuthMethod")]
+        public string AuthMethod { get; set; } = "RPS";
+
+        [JsonPropertyName("SiteName")]
+        public string SiteName { get; set; } = "user.auth.xboxlive.com";
+
+        [JsonPropertyName("RpsTicket")]
+        public string RpsTicket { get; set; } = "";
+    }
+
+    public class XboxAuthResponse
+    {
+        [JsonPropertyName("Token")]
+        public string Token { get; set; } = "";
+
+        [JsonPropertyName("DisplayClaims")]
+        public XboxDisplayClaims? DisplayClaims { get; set; }
+
+        [JsonPropertyName("XErr")]
+        public long? XErr { get; set; }
+
+        [JsonPropertyName("Message")]
+        public string? Message { get; set; }
+    }
+
+    public class XboxDisplayClaims
+    {
+        [JsonPropertyName("xui")]
+        public List<XboxXui> Xui { get; set; } = new();
+    }
+
+    public class XboxXui
+    {
+        [JsonPropertyName("uhs")]
+        public string Uhs { get; set; } = "";
+    }
+
+    // ============================================================
+    // XSTS 认证
+    // ============================================================
+
+    public class XstsAuthRequest
+    {
+        [JsonPropertyName("Properties")]
+        public XstsAuthProperties Properties { get; set; } = new();
+
+        [JsonPropertyName("RelyingParty")]
+        public string RelyingParty { get; set; } = "rp://api.minecraftservices.com/";
+
+        [JsonPropertyName("TokenType")]
+        public string TokenType { get; set; } = "JWT";
+    }
+
+    public class XstsAuthProperties
+    {
+        [JsonPropertyName("SandboxId")]
+        public string SandboxId { get; set; } = "RETAIL";
+
+        [JsonPropertyName("UserTokens")]
+        public List<string> UserTokens { get; set; } = new();
+    }
+
+    // ============================================================
+    // Minecraft 认证
+    // ============================================================
+
+    public class MinecraftAuthRequest
+    {
+        [JsonPropertyName("identityToken")]
+        public string IdentityToken { get; set; } = "";
+    }
+
+    public class MinecraftAuthResponse
+    {
+        [JsonPropertyName("username")]
+        public string Username { get; set; } = "";
+
+        [JsonPropertyName("access_token")]
+        public string AccessToken { get; set; } = "";
+
+        [JsonPropertyName("token_type")]
+        public string TokenType { get; set; } = "Bearer";
+
+        [JsonPropertyName("expires_in")]
+        public int ExpiresIn { get; set; }
+    }
+
+    public class MinecraftProfile
+    {
+        [JsonPropertyName("id")]
+        public string Id { get; set; } = "";
+
+        [JsonPropertyName("name")]
+        public string Name { get; set; } = "";
+
+        [JsonPropertyName("skins")]
+        public List<MinecraftSkin> Skins { get; set; } = new();
+    }
+
+    public class MinecraftSkin
+    {
+        [JsonPropertyName("id")]
+        public string Id { get; set; } = "";
+
+        [JsonPropertyName("state")]
+        public string State { get; set; } = "";
+
+        [JsonPropertyName("url")]
+        public string Url { get; set; } = "";
+
+        [JsonPropertyName("variant")]
+        public string Variant { get; set; } = "";
+    }
+}
+```
+
+### `MainSrc\Auth\DefaultSkinSelector.cs`
+
+```csharp
+using System;
+
+using Project.Launch.Tools.JavaConfig;
+using Project.Launch.Tools.LogsConfig;
+namespace Project.Launch.Auth
+{
+    /// <summary>
+    /// 根据 UUID 决定默认皮肤（Steve / Alex）
+    ///
+    /// 算法来源：Minecraft Java 版官方逻辑
+    ///   取 UUID 第 8、16、24、32 位（0-based 索引 7、15、23、31）的 hex 值
+    ///   异或后取末位：奇数 → Alex，偶数 → Steve
+    /// </summary>
+    public static class DefaultSkinSelector
+    {
+        public const string SteveAssetPath =
+            "avares://Project.Launch/MainSrc/Views/imgs/skin/Steve.png";
+
+        public const string AlexAssetPath =
+            "avares://Project.Launch/MainSrc/Views/imgs/skin/Alex.png";
+
+        /// <summary>
+        /// 根据 UUID 判断是否应使用 Alex 模型
+        /// </summary>
+        public static bool ShouldUseAlex(string? uuid)
+        {
+            // ★ UUID 缺失是错误状态，不静默兜底，写日志暴露
+            if (string.IsNullOrEmpty(uuid))
+            {
+                LogHelper.Write(LauncherPaths.AppLog,
+                    "[错误] UUID 为空，无法判定 Steve/Alex（异常状态）",
+                    "[ERROR] UUID is null/empty, cannot determine Steve/Alex");
+                return false;
+            }
+
+            string hex = uuid.Replace("-", "");
+
+            if (hex.Length < 32)
+            {
+                LogHelper.Write(LauncherPaths.AppLog,
+                    $"[错误] UUID 长度不足（{uuid}），无法判定 Steve/Alex（异常状态）",
+                    $"[ERROR] UUID too short ({uuid}), cannot determine Steve/Alex");
+                return false;
+            }
+
+            try
+            {
+                int a = Convert.ToInt32(hex[7].ToString(), 16);
+                int b = Convert.ToInt32(hex[15].ToString(), 16);
+                int c = Convert.ToInt32(hex[23].ToString(), 16);
+                int d = Convert.ToInt32(hex[31].ToString(), 16);
+
+                int xor = a ^ b ^ c ^ d;
+                return (xor & 1) == 1;
+            }
+            catch (Exception ex)
+            {
+                LogHelper.Write(LauncherPaths.AppLog,
+                    $"[错误] UUID 解析失败（{uuid}）: {ex.Message}",
+                    $"[ERROR] UUID parse failed ({uuid}): {ex.Message}");
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// 根据 UUID 返回对应的皮肤资源路径
+        /// </summary>
+        public static string GetSkinAssetPath(string? uuid)
+        {
+            return ShouldUseAlex(uuid) ? AlexAssetPath : SteveAssetPath;
+        }
+    }
+}
+```
+
+### `MainSrc\Auth\DeviceCodeAuthService.cs`
+
+```csharp
+using System;
+using System.Collections.Generic;
+using System.Net.Http;
+using System.Text.Json;
+using System.Threading;
+using System.Threading.Tasks;
+
+using Project.Launch.Tools.JavaConfig;
+using Project.Launch.Tools.LogsConfig;
+namespace Project.Launch.Auth
+{
+    /// <summary>
+    /// 微软 OAuth 2.0 设备代码流
+    /// </summary>
+    public class DeviceCodeAuthService
+    {
+        public const string ClientId = "7dddbcf7-5d7d-46cf-96fc-292d6f392cd0";
+
+        // ★ 修复：个人账户必须用 consumers 端点
+        public const string Tenant = "consumers";
+
+        // ★ 修复：XboxLive.offline_access 而非 offline_access
+        public const string Scope = "XboxLive.signin XboxLive.offline_access";
+
+        private static readonly HttpClient _http = new HttpClient
+        {
+            Timeout = TimeSpan.FromSeconds(30)
+        };
+
+        private const string DeviceCodeUrl =
+            "https://login.microsoftonline.com/" + Tenant + "/oauth2/v2.0/devicecode";
+        private const string TokenUrl =
+            "https://login.microsoftonline.com/" + Tenant + "/oauth2/v2.0/token";
+
+        // ============================================================
+        // 阶段 1：申请设备代码
+        // ============================================================
+        public async Task<DeviceCodeResponse?> RequestDeviceCodeAsync()
+        {
+            try
+            {
+                var content = new FormUrlEncodedContent(new[]
+                {
+                    new KeyValuePair<string, string>("client_id", ClientId),
+                    new KeyValuePair<string, string>("scope", Scope)
+                });
+
+                var resp = await _http.PostAsync(DeviceCodeUrl, content);
+                var json = await resp.Content.ReadAsStringAsync();
+
+                if (!resp.IsSuccessStatusCode)
+                {
+                    LogHelper.Write(LauncherPaths.AppLog,
+                        $"设备代码申请失败: {resp.StatusCode} {json}",
+                        $"Device code request failed: {resp.StatusCode} {json}");
+                    return null;
+                }
+
+                var result = JsonSerializer.Deserialize<DeviceCodeResponse>(json);
+                LogHelper.Write(LauncherPaths.AppLog,
+                    $"设备代码已申请: {result?.UserCode}",
+                    $"Device code obtained: {result?.UserCode}");
+                return result;
+            }
+            catch (Exception ex)
+            {
+                LogHelper.Write(LauncherPaths.AppLog,
+                    $"设备代码申请异常: {ex.Message}",
+                    $"Device code request exception: {ex.Message}");
+                return null;
+            }
+        }
+
+        // ============================================================
+        // 阶段 3：轮询等待用户授权
+        // ============================================================
+        public async Task<MicrosoftTokenResponse?> PollForTokenAsync(
+            string deviceCode,
+            int intervalSeconds,
+            int expiresInSeconds,
+            CancellationToken ct = default)
+        {
+            var startTime = DateTime.UtcNow;
+            var timeout = TimeSpan.FromSeconds(expiresInSeconds);
+            int interval = Math.Max(3, intervalSeconds);
+
+            while (true)
+            {
+                if (ct.IsCancellationRequested)
+                {
+                    LogHelper.Write(LauncherPaths.AppLog,
+                        "用户取消轮询",
+                        "User cancelled polling");
+                    return null;
+                }
+
+                if (DateTime.UtcNow - startTime > timeout)
+                {
+                    LogHelper.Write(LauncherPaths.AppLog,
+                        "设备代码已超时",
+                        "Device code expired");
+                    return null;
+                }
+
+                // 先等，再轮询
+                try
+                {
+                    await Task.Delay(interval * 1000, ct);
+                }
+                catch (OperationCanceledException)
+                {
+                    return null;
+                }
+
+                try
+                {
+                    var content = new FormUrlEncodedContent(new[]
+                    {
+                        new KeyValuePair<string, string>(
+                            "grant_type",
+                            "urn:ietf:params:oauth:grant-type:device_code"),
+                        new KeyValuePair<string, string>("client_id", ClientId),
+                        new KeyValuePair<string, string>("device_code", deviceCode)
+                    });
+
+                    var resp = await _http.PostAsync(TokenUrl, content, ct);
+                    var json = await resp.Content.ReadAsStringAsync(ct);
+
+                    if (resp.IsSuccessStatusCode)
+                    {
+                        var token = JsonSerializer.Deserialize<MicrosoftTokenResponse>(json);
+                        LogHelper.Write(LauncherPaths.AppLog,
+                            "微软账号授权成功，已获取 access_token",
+                            "Microsoft auth success, access_token obtained");
+                        return token;
+                    }
+
+                    // 错误处理
+                    MicrosoftErrorResponse? err = null;
+                    try
+                    {
+                        err = JsonSerializer.Deserialize<MicrosoftErrorResponse>(json);
+                    }
+                    catch { }
+
+                    switch (err?.Error)
+                    {
+                        case "authorization_pending":
+                            continue;
+
+                        case "slow_down":
+                            interval += 5;
+                            continue;
+
+                        case "access_denied":
+                            LogHelper.Write(LauncherPaths.AppLog,
+                                "用户拒绝了授权",
+                                "User denied authorization");
+                            return null;
+
+                        case "expired_token":
+                            LogHelper.Write(LauncherPaths.AppLog,
+                                "设备代码已过期",
+                                "Device code expired");
+                            return null;
+
+                        default:
+                            LogHelper.Write(LauncherPaths.AppLog,
+                                $"OAuth 错误: {err?.Error} - {err?.ErrorDescription}",
+                                $"OAuth error: {err?.Error} - {err?.ErrorDescription}");
+                            return null;
+                    }
+                }
+                catch (OperationCanceledException)
+                {
+                    return null;
+                }
+                catch (Exception ex)
+                {
+                    LogHelper.Write(LauncherPaths.AppLog,
+                        $"轮询异常: {ex.Message}",
+                        $"Poll exception: {ex.Message}");
+                    continue;
+                }
+            }
+        }
+    }
+}
+```
+
+### `MainSrc\Auth\MicrosoftAuthFlow.cs`
+
+```csharp
+using System;
+using System.Threading;
+using System.Threading.Tasks;
+
+using Project.Launch.Tools.JavaConfig;
+using Project.Launch.Tools.LogsConfig;
+namespace Project.Launch.Auth
+{
+    /// <summary>
+    /// 微软正版登录全流程协调器
+    /// 阶段 1-3：微软 OAuth 设备代码流
+    /// 阶段 4-5：Xbox Live + XSTS
+    /// 阶段 6：Minecraft 认证 + profile
+    /// </summary>
+    public class MicrosoftAuthFlow
+    {
+        /// <summary>登录过程中触发，参数是给用户看的提示</summary>
+        public event Action<string>? Progress;
+
+        /// <summary>拿到设备代码后触发（user_code + verification_uri）</summary>
+        public event Action<string, string>? DeviceCodeReady;
+
+        /// <summary>
+        /// 完整登录流程
+        /// 成功返回 AccountInfo，失败返回 null 并把错误抛给 Progress
+        /// </summary>
+        public async Task<AccountInfo?> LoginAsync(CancellationToken ct = default)
+        {
+            try
+            {
+                // ============================================================
+                // 阶段 1：申请设备代码
+                // ============================================================
+                Progress?.Invoke("正在申请设备代码...");
+
+                var devSvc = new DeviceCodeAuthService();
+                var deviceCode = await devSvc.RequestDeviceCodeAsync();
+                if (deviceCode == null)
+                {
+                    Progress?.Invoke("❌ 无法连接微软服务器");
+                    return null;
+                }
+
+                // 通知 UI 显示代码
+                DeviceCodeReady?.Invoke(deviceCode.UserCode, deviceCode.VerificationUri);
+
+                // ============================================================
+                // 阶段 3：轮询等待授权
+                // ============================================================
+                Progress?.Invoke($"等待授权中（{deviceCode.ExpiresIn / 60} 分钟）...");
+
+                var msToken = await devSvc.PollForTokenAsync(
+                    deviceCode.DeviceCode,
+                    deviceCode.Interval,
+                    deviceCode.ExpiresIn,
+                    ct);
+
+                if (msToken == null)
+                {
+                    if (ct.IsCancellationRequested)
+                        Progress?.Invoke("❌ 已取消");
+                    else
+                        Progress?.Invoke("❌ 授权超时或已拒绝");
+                    return null;
+                }
+
+                // ============================================================
+                // 阶段 4：XBL 认证
+                // ============================================================
+                Progress?.Invoke("正在验证 Xbox Live...");
+
+                var xboxSvc = new XboxAuthService();
+                var xblResp = await xboxSvc.AuthenticateWithXboxLiveAsync(msToken.AccessToken);
+                if (xblResp == null)
+                {
+                    Progress?.Invoke("❌ Xbox Live 认证失败");
+                    return null;
+                }
+
+                // ============================================================
+                // 阶段 5：XSTS 认证
+                // ============================================================
+                Progress?.Invoke("正在验证 XSTS...");
+
+                XboxAuthResponse? xstsResp;
+                try
+                {
+                    xstsResp = await xboxSvc.AuthenticateWithXstsAsync(xblResp.Token);
+                }
+                catch (Exception ex)
+                {
+                    // XboxAuthService 会把用户友好错误通过 Exception 抛出
+                    Progress?.Invoke($"❌ {ex.Message}");
+                    return null;
+                }
+
+                if (xstsResp == null || xstsResp.DisplayClaims == null
+                    || xstsResp.DisplayClaims.Xui.Count == 0)
+                {
+                    Progress?.Invoke("❌ XSTS 认证失败");
+                    return null;
+                }
+
+                string uhs = xstsResp.DisplayClaims.Xui[0].Uhs;
+
+                // ============================================================
+                // 阶段 6：Minecraft 认证 + profile
+                // ============================================================
+                Progress?.Invoke("正在获取 Minecraft 档案...");
+
+                var mcSvc = new MinecraftAuthService();
+                var mcToken = await mcSvc.AuthenticateWithMinecraftAsync(xstsResp.Token, uhs);
+                if (mcToken == null)
+                {
+                    Progress?.Invoke("❌ Minecraft 认证失败");
+                    return null;
+                }
+
+                MinecraftProfile? profile;
+                try
+                {
+                    profile = await mcSvc.GetProfileAsync(mcToken.AccessToken);
+                }
+                catch (Exception ex)
+                {
+                    Progress?.Invoke($"❌ {ex.Message}");
+                    return null;
+                }
+
+                if (profile == null)
+                {
+                    Progress?.Invoke("❌ 无法获取 Minecraft 档案");
+                    return null;
+                }
+
+                // ============================================================
+                // 阶段 7：构造 AccountInfo
+                // ============================================================
+                var account = new AccountInfo
+                {
+                    Type = "microsoft",
+                    Username = profile.Name,
+                    Uuid = profile.Id,   // 无连字符的 32 位 hex
+                    LastUsed = DateTime.UtcNow,
+
+                    MicrosoftRefreshToken = msToken.RefreshToken,
+                    MinecraftAccessToken = mcToken.AccessToken,
+                    TokenExpireAt = DateTime.UtcNow.AddSeconds(mcToken.ExpiresIn),
+                    SkinUrl = profile.Skins.Count > 0 ? profile.Skins[0].Url : ""
+                };
+
+                Progress?.Invoke($"✅ 登录成功：{profile.Name}");
+                LogHelper.Write(LauncherPaths.AppLog,
+                    $"正版登录成功: {profile.Name} ({profile.Id})",
+                    $"Microsoft login success: {profile.Name} ({profile.Id})");
+
+                return account;
+            }
+            catch (Exception ex)
+            {
+                LogHelper.Write(LauncherPaths.AppLog,
+                    $"正版登录流程异常: {ex.Message}",
+                    $"Microsoft auth flow exception: {ex.Message}");
+                Progress?.Invoke($"❌ 登录异常: {ex.Message}");
+                return null;
+            }
+        }
+    }
+}
+```
+
+### `MainSrc\Auth\MinecraftAuthService.cs`
+
+```csharp
+using System;
+using System.Net.Http;
+using System.Net.Http.Headers;
+using System.Text;
+using System.Text.Json;
+using System.Threading.Tasks;
+
+using Project.Launch.Tools.JavaConfig;
+using Project.Launch.Tools.LogsConfig;
+namespace Project.Launch.Auth
+{
+    /// <summary>
+    /// Minecraft 认证 + 拉取 profile
+    /// </summary>
+    public class MinecraftAuthService
+    {
+        private static readonly HttpClient _http = new HttpClient
+        {
+            Timeout = TimeSpan.FromSeconds(30)
+        };
+
+        private const string McAuthUrl =
+            "https://api.minecraftservices.com/authentication/login_with_xbox";
+        private const string McProfileUrl =
+            "https://api.minecraftservices.com/minecraft/profile";
+
+        // ============================================================
+        // 阶段 6a：XSTS token → Minecraft access_token
+        // ============================================================
+        public async Task<MinecraftAuthResponse?> AuthenticateWithMinecraftAsync(
+            string xstsToken, string uhs)
+        {
+            try
+            {
+                // ★ 官方格式：XBL3.0 x=<uhs>;<xsts_token>
+                string identityToken = $"XBL3.0 x={uhs};{xstsToken}";
+
+                var req = new MinecraftAuthRequest
+                {
+                    IdentityToken = identityToken
+                };
+
+                var json = JsonSerializer.Serialize(req);
+                var content = new StringContent(json, Encoding.UTF8, "application/json");
+
+                var resp = await _http.PostAsync(McAuthUrl, content);
+                var respJson = await resp.Content.ReadAsStringAsync();
+
+                if (!resp.IsSuccessStatusCode)
+                {
+                    LogHelper.Write(LauncherPaths.AppLog,
+                        $"Minecraft 认证失败: {resp.StatusCode} {respJson}",
+                        $"Minecraft auth failed: {resp.StatusCode} {respJson}");
+                    return null;
+                }
+
+                var result = JsonSerializer.Deserialize<MinecraftAuthResponse>(respJson);
+                LogHelper.Write(LauncherPaths.AppLog,
+                    "Minecraft 认证成功",
+                    "Minecraft auth success");
+                return result;
+            }
+            catch (Exception ex)
+            {
+                LogHelper.Write(LauncherPaths.AppLog,
+                    $"Minecraft 认证异常: {ex.Message}",
+                    $"Minecraft auth exception: {ex.Message}");
+                return null;
+            }
+        }
+
+        // ============================================================
+        // 阶段 6b：拉取 profile（UUID + 用户名 + 皮肤 URL）
+        // ============================================================
+        public async Task<MinecraftProfile?> GetProfileAsync(string mcAccessToken)
+        {
+            try
+            {
+                var request = new HttpRequestMessage(HttpMethod.Get, McProfileUrl);
+                request.Headers.Authorization =
+                    new AuthenticationHeaderValue("Bearer", mcAccessToken);
+
+                var resp = await _http.SendAsync(request);
+                var respJson = await resp.Content.ReadAsStringAsync();
+
+                if (!resp.IsSuccessStatusCode)
+                {
+                    if ((int)resp.StatusCode == 404)
+                    {
+                        // 没买 Minecraft
+                        LogHelper.Write(LauncherPaths.AppLog,
+                            "此账号未拥有 Minecraft",
+                            "This account does not own Minecraft");
+                        throw new Exception("此微软账号没有购买 Minecraft");
+                    }
+
+                    LogHelper.Write(LauncherPaths.AppLog,
+                        $"获取 profile 失败: {resp.StatusCode} {respJson}",
+                        $"Get profile failed: {resp.StatusCode} {respJson}");
+                    return null;
+                }
+
+                var profile = JsonSerializer.Deserialize<MinecraftProfile>(respJson);
+                LogHelper.Write(LauncherPaths.AppLog,
+                    $"Profile 获取成功: {profile?.Name} ({profile?.Id})",
+                    $"Profile obtained: {profile?.Name} ({profile?.Id})");
+                return profile;
+            }
+            catch (Exception ex)
+            {
+                LogHelper.Write(LauncherPaths.AppLog,
+                    $"获取 profile 异常: {ex.Message}",
+                    $"Get profile exception: {ex.Message}");
+                throw;
+            }
+        }
+    }
+}
+```
+
+### `MainSrc\Auth\OfflineUuidGenerator.cs`
+
+```csharp
+using System;
+using System.Security.Cryptography;
+using System.Text;
+
+namespace Project.Launch.Auth
+{
+    public static class OfflineUuidGenerator
+    {
+        /// <summary>
+        /// 生成标准离线 UUID（兼容 HMCL / Java 实现）
+        /// 算法：MD5("OfflinePlayer:" + username) → 设置 version/variant → 按大端序输出 hex
+        /// </summary>
+        public static string GenerateUuidString(string username)
+        {
+            // 1. 构造输入字符串
+            string input = $"OfflinePlayer:{username}";
+
+            // 2. 计算 MD5 哈希
+            byte[] hash;
+            using (MD5 md5 = MD5.Create())
+            {
+                hash = md5.ComputeHash(Encoding.UTF8.GetBytes(input));
+            }
+
+            // 3. 设置 UUID 版本（version 3）
+            hash[6] = (byte)((hash[6] & 0x0F) | 0x30);
+            // 4. 设置变体（IETF variant）
+            hash[8] = (byte)((hash[8] & 0x3F) | 0x80);
+
+            // 5. ★ 手动拼接 hex 字符串（按大端序，不用 Guid 类）
+            // 格式：xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+            return string.Format(
+                "{0:x2}{1:x2}{2:x2}{3:x2}-{4:x2}{5:x2}-{6:x2}{7:x2}-{8:x2}{9:x2}-{10:x2}{11:x2}{12:x2}{13:x2}{14:x2}{15:x2}",
+                hash[0], hash[1], hash[2], hash[3],
+                hash[4], hash[5],
+                hash[6], hash[7],
+                hash[8], hash[9],
+                hash[10], hash[11], hash[12], hash[13], hash[14], hash[15]
+            );
+        }
+
+        // 如果你还需要返回 Guid 类型（用于现有代码），保留此方法并标记为 Obsolete
+        [Obsolete("此方法返回的 Guid 可能与 Java 服务器不兼容，请使用 GenerateUuidString 替代")]
+        public static Guid Generate(string username)
+        {
+            string uuidString = GenerateUuidString(username);
+            return Guid.ParseExact(uuidString, "D");
+        }
+    }
+}
+```
+
+### `MainSrc\Auth\XboxAuthService.cs`
+
+```csharp
+using System;
+using System.Net.Http;
+using System.Text;
+using System.Text.Json;
+using System.Threading.Tasks;
+
+using Project.Launch.Tools.JavaConfig;
+using Project.Launch.Tools.LogsConfig;
+namespace Project.Launch.Auth
+{
+    /// <summary>
+    /// Xbox Live (XBL) + XSTS 认证
+    /// </summary>
+    public class XboxAuthService
+    {
+        private static readonly HttpClient _http = new HttpClient
+        {
+            Timeout = TimeSpan.FromSeconds(30)
+        };
+
+        private const string XblUrl = "https://user.auth.xboxlive.com/user/authenticate";
+        private const string XstsUrl = "https://xsts.auth.xboxlive.com/xsts/authorize";
+
+        // ============================================================
+        // 阶段 4：MS access_token → XBL token
+        // ============================================================
+        public async Task<XboxAuthResponse?> AuthenticateWithXboxLiveAsync(string msAccessToken)
+        {
+            try
+            {
+                var req = new XboxAuthRequest
+                {
+                    Properties = new XboxAuthProperties
+                    {
+                        AuthMethod = "RPS",
+                        SiteName = "user.auth.xboxlive.com",
+                        // ★ 官方要求加前缀 "d="
+                        RpsTicket = "d=" + msAccessToken
+                    },
+                    RelyingParty = "http://auth.xboxlive.com",
+                    TokenType = "JWT"
+                };
+
+                var json = JsonSerializer.Serialize(req);
+                var content = new StringContent(json, Encoding.UTF8, "application/json");
+
+                var resp = await _http.PostAsync(XblUrl, content);
+                var respJson = await resp.Content.ReadAsStringAsync();
+
+                if (!resp.IsSuccessStatusCode)
+                {
+                    LogHelper.Write(LauncherPaths.AppLog,
+                        $"XBL 认证失败: {resp.StatusCode} {respJson}",
+                        $"XBL auth failed: {resp.StatusCode} {respJson}");
+                    return null;
+                }
+
+                var result = JsonSerializer.Deserialize<XboxAuthResponse>(respJson);
+                LogHelper.Write(LauncherPaths.AppLog,
+                    "XBL 认证成功",
+                    "XBL auth success");
+                return result;
+            }
+            catch (Exception ex)
+            {
+                LogHelper.Write(LauncherPaths.AppLog,
+                    $"XBL 认证异常: {ex.Message}",
+                    $"XBL auth exception: {ex.Message}");
+                return null;
+            }
+        }
+
+        // ============================================================
+        // 阶段 5：XBL token → XSTS token
+        // ============================================================
+        public async Task<XboxAuthResponse?> AuthenticateWithXstsAsync(string xblToken)
+        {
+            try
+            {
+                var req = new XstsAuthRequest
+                {
+                    Properties = new XstsAuthProperties
+                    {
+                        SandboxId = "RETAIL",
+                        UserTokens = new System.Collections.Generic.List<string> { xblToken }
+                    },
+                    RelyingParty = "rp://api.minecraftservices.com/",
+                    TokenType = "JWT"
+                };
+
+                var json = JsonSerializer.Serialize(req);
+                var content = new StringContent(json, Encoding.UTF8, "application/json");
+
+                var resp = await _http.PostAsync(XstsUrl, content);
+                var respJson = await resp.Content.ReadAsStringAsync();
+
+                if (!resp.IsSuccessStatusCode)
+                {
+                    // XSTS 有专属错误码
+                    XboxAuthResponse? errResp = null;
+                    try
+                    {
+                        errResp = JsonSerializer.Deserialize<XboxAuthResponse>(respJson);
+                    }
+                    catch { }
+
+                    string errMsg = errResp?.XErr switch
+                    {
+                        2148916233 => "此微软账号没有 Xbox 账号，请先去 xbox.com 创建",
+                        2148916235 => "此账号所在地区不支持 Xbox Live",
+                        2148916236 => "此账号需要成人验证",
+                        2148916237 => "此账号需要成人验证",
+                        2148916238 => "此账号未成年，需要加入家庭组",
+                        _ => $"XSTS 认证失败: {resp.StatusCode}"
+                    };
+
+                    LogHelper.Write(LauncherPaths.AppLog,
+                        $"XSTS 认证失败 [{errResp?.XErr}]: {errMsg}",
+                        $"XSTS auth failed [{errResp?.XErr}]: {errMsg}");
+
+                    // 把用户友好的错误存起来，供上层显示
+                    throw new Exception(errMsg);
+                }
+
+                var result = JsonSerializer.Deserialize<XboxAuthResponse>(respJson);
+                LogHelper.Write(LauncherPaths.AppLog,
+                    "XSTS 认证成功",
+                    "XSTS auth success");
+                return result;
+            }
+            catch (Exception ex)
+            {
+                LogHelper.Write(LauncherPaths.AppLog,
+                    $"XSTS 认证异常: {ex.Message}",
+                    $"XSTS auth exception: {ex.Message}");
+                throw;
+            }
+        }
+    }
+}
+```
+
+
+## 6.4 MainSrc\Views —— 界面层
+
+### `MainSrc\Views\AccountManagerWindow.axaml`
 
 ```xml
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:avalonia="clr-namespace:Avalonia.Controls;assembly=Avalonia.Controls"
-        xmlns:lg="using:LiquidGlassAvaloniaUI"
-        xmlns:views="clr-namespace:Project.Launch.Views"
-        xmlns:dl="clr-namespace:Project.Launch.Tools.Download"
-        x:Class="Project.Launch.Views.MainWindow"
-        Title="KilimMinecraftLauncherDemo"
-        Width="960" Height="560"
+        xmlns:avalonia="using:Avalonia.Controls"
+        x:Class="Project.Launch.Views.AccountManagerWindow"
+        Title="账户管理"
+        Width="800" Height="440"
         WindowDecorations="None"
         ExtendClientAreaToDecorationsHint="True"
         ExtendClientAreaTitleBarHeightHint="-1"
@@ -1587,1955 +4325,850 @@ We may update this policy at any time. Continued use of the Launcher constitutes
         avalonia:Win32Properties.WindowCornerPreference="Round">
 
     <Window.Styles>
-        <Style Selector="Button.TabBtn">
+        <!-- 添加账户按钮（主题色） -->
+        <Style Selector="Button.AddAccount">
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate>
-                        <ContentPresenter Content="{TemplateBinding Content}"
-                                          HorizontalAlignment="Stretch"
-                                          VerticalAlignment="Stretch"
-                                          HorizontalContentAlignment="Stretch"
-                                          VerticalContentAlignment="Stretch" />
+                        <Border Background="{TemplateBinding Background}"
+                                CornerRadius="10"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter Content="{TemplateBinding Content}"
+                                              HorizontalAlignment="Center"
+                                              VerticalAlignment="Center" />
+                        </Border>
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
+            <Setter Property="Background" Value="#DD8A68CE" />
+            <Setter Property="Foreground" Value="White" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="FontSize" Value="16" />
+            <Setter Property="Padding" Value="28,14" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="HorizontalAlignment" Value="Center" />
+            <Setter Property="Transitions">
+                <Transitions>
+                    <BrushTransition Property="Background" Duration="0:0:0.15" />
+                </Transitions>
+            </Setter>
+        </Style>
+        <Style Selector="Button.AddAccount:pointerover">
+            <Setter Property="Background" Value="#EE9A78DE" />
+        </Style>
+
+        <!-- 账户项按钮 -->
+        <Style Selector="Button.AccountItem">
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate>
+                        <Border Background="{TemplateBinding Background}"
+                                CornerRadius="8"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter Content="{TemplateBinding Content}"
+                                              HorizontalAlignment="Stretch"
+                                              VerticalAlignment="Center" />
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="Padding" Value="12,10" />
+            <Setter Property="Transitions">
+                <Transitions>
+                    <BrushTransition Property="Background" Duration="0:0:0.15" />
+                </Transitions>
+            </Setter>
+        </Style>
+        <Style Selector="Button.AccountItem:pointerover">
+            <Setter Property="Background" Value="#E8E0F0" />
+        </Style>
+
+        <!-- 删除按钮 -->
+        <Style Selector="Button.DeleteAccount">
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate>
+                        <Border Background="{TemplateBinding Background}"
+                                CornerRadius="6"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter Content="{TemplateBinding Content}"
+                                              HorizontalAlignment="Center"
+                                              VerticalAlignment="Center" />
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Foreground" Value="#CC5555" />
+            <Setter Property="FontWeight" Value="Bold" />
+            <Setter Property="FontSize" Value="16" />
+            <Setter Property="Padding" Value="10,4" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style Selector="Button.DeleteAccount:pointerover">
+            <Setter Property="Background" Value="#22CC5555" />
+        </Style>
+
+        <!-- 关闭按钮 -->
+        <Style Selector="Button.CloseBtn">
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate>
+                        <Border Background="{TemplateBinding Background}"
+                                CornerRadius="6"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter Content="{TemplateBinding Content}"
+                                              HorizontalAlignment="Center"
+                                              VerticalAlignment="Center" />
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Foreground" Value="#666" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Padding" Value="14,6" />
+            <Setter Property="Cursor" Value="Hand" />
+        </Style>
+        <Style Selector="Button.CloseBtn:pointerover">
+            <Setter Property="Background" Value="#E8E8E8" />
         </Style>
     </Window.Styles>
 
-    <Grid Background="#D9E0E0E0">
-
-        <Grid.RowDefinitions>
-            <RowDefinition Height="35" />
-            <RowDefinition Height="*" />
-        </Grid.RowDefinitions>
-
-        <!-- ★ 标题栏 -->
-        <Border Grid.Row="0"
-                x:Name="TitleBarBorder"
-                PointerPressed="TitleBar_PointerPressed"
-                CornerRadius="12,12,0,0">
-            <Border.Background>
-                <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,0%">
-                    <GradientStop Color="#CCFF6B9D" Offset="0.0"/>
-                    <GradientStop Color="#CCB366FF" Offset="1.0"/>
-                </LinearGradientBrush>
-            </Border.Background>
-            <Border.Transitions>
-                <Transitions>
-                    <BrushTransition Property="Background" Duration="0:0:0.4" />
-                </Transitions>
-            </Border.Transitions>
-
-            <Grid ColumnDefinitions="*, Auto, Auto">
-                <TextBlock Grid.Column="0"
-                           x:Name="TitleText"
-                           Text="KilimMinecraftLauncherDemo"
-                           FontSize="16"
-                           Foreground="White"
-                           VerticalAlignment="Center"
-                           Margin="10,0,0,0">
-                    <TextBlock.Transitions>
-                        <Transitions>
-                            <BrushTransition Property="Foreground" Duration="0:0:0.4" />
-                        </Transitions>
-                    </TextBlock.Transitions>
-                </TextBlock>
-
-                <Button Grid.Column="1"
-                        x:Name="MinimizeButton"
-                        Background="Transparent"
-                        BorderThickness="0"
-                        Width="45" Height="35"
-                        Cursor="Hand">
-                    <Image x:Name="MinimizeImage"
-                           Source="avares://Project.Launch/MainSrc/Views/imgs/Main/images/Buttons/white-.png"
-                           Width="20" Height="26" Stretch="Fill"
-                           VerticalAlignment="Center" HorizontalAlignment="Center"
-                           Opacity="1">
-                        <Image.Transitions>
-                            <Transitions>
-                                <DoubleTransition Property="Opacity" Duration="0:0:0.2" />
-                            </Transitions>
-                        </Image.Transitions>
-                    </Image>
-                </Button>
-
-                <Button Grid.Column="2"
-                        x:Name="CloseButton"
-                        Background="Transparent"
-                        BorderThickness="0"
-                        Width="45" Height="35"
-                        Cursor="Hand"
-                        Margin="0,0,10,0">
-                    <Image x:Name="CloseImage"
-                           Source="avares://Project.Launch/MainSrc/Views/imgs/Main/images/Buttons/whitex.png"
-                           Width="20" Height="20" Stretch="Uniform"
-                           VerticalAlignment="Center" HorizontalAlignment="Center"
-                           Opacity="1">
-                        <Image.Transitions>
-                            <Transitions>
-                                <DoubleTransition Property="Opacity" Duration="0:0:0.2" />
-                            </Transitions>
-                        </Image.Transitions>
-                    </Image>
-                </Button>
-            </Grid>
-        </Border>
-
-        <!-- ★ 主内容区域 -->
-        <Grid x:Name="ContentArea" Grid.Row="1" Margin="20">
+    <Border CornerRadius="12" Background="White">
+        <Grid>
             <Grid.RowDefinitions>
                 <RowDefinition Height="*" />
                 <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
 
-            <!-- ★ 内容区 -->
-            <Grid Grid.Row="0">
+            <!-- 内容区 -->
+            <Grid Grid.Row="0" Margin="30,30,30,15">
 
-                <!-- ★ 主页 -->
-                <Grid x:Name="HomePanel" IsVisible="True" Opacity="1">
-                    <Grid.Transitions>
-                        <Transitions>
-                            <DoubleTransition Property="Opacity" Duration="0:0:0.2" />
-                        </Transitions>
-                    </Grid.Transitions>
-
-                    <!-- 未登录提示 + ReLogin 按钮 -->
-                    <StackPanel x:Name="HomeNotLoggedIn"
-                                HorizontalAlignment="Center"
-                                VerticalAlignment="Center"
-                                Spacing="24"
-                                IsVisible="False">
-                        <TextBlock Text="您似乎未登录任何账号绑定至启动器或实例"
-                                   FontSize="18"
-                                   Foreground="#555"
-                                   HorizontalAlignment="Center" />
-
-                        <Grid x:Name="ReLoginContainer"
-                              Width="292" Height="85"
-                              HorizontalAlignment="Center">
-                            <Button x:Name="ReLoginButton"
-                                    Width="275"
-                                    Height="80"
-                                    Padding="0"
-                                    Background="Transparent"
-                                    BorderThickness="0"
-                                    Cursor="Hand"
-                                    HorizontalAlignment="Center"
-                                    VerticalAlignment="Center">
-                                <Button.Styles>
-                                    <Style Selector="Button">
-                                        <Setter Property="Template">
-                                            <Setter.Value>
-                                                <ControlTemplate>
-                                                    <ContentPresenter Content="{TemplateBinding Content}"
-                                                                      HorizontalAlignment="Stretch"
-                                                                      VerticalAlignment="Stretch"
-                                                                      HorizontalContentAlignment="Stretch"
-                                                                      VerticalContentAlignment="Stretch" />
-                                                </ControlTemplate>
-                                            </Setter.Value>
-                                        </Setter>
-                                    </Style>
-                                </Button.Styles>
-                                <Grid>
-                                    <Image Source="avares://Project.Launch/MainSrc/Views/imgs/Main/images/Buttons/ReLogin.png"
-                                           Stretch="Fill"
-                                           HorizontalAlignment="Stretch"
-                                           VerticalAlignment="Stretch" />
-                                    <TextBlock Text="登录"
-                                               FontSize="24"
-                                               FontWeight="Bold"
-                                               Foreground="White"
-                                               HorizontalAlignment="Center"
-                                               VerticalAlignment="Center" />
-                                </Grid>
-                            </Button>
-                        </Grid>
-                    </StackPanel>
-
-                    <!-- 已登录：头像 + ID + 切换账户 -->
-                    <StackPanel x:Name="HomeLoggedIn"
-                                HorizontalAlignment="Center"
-                                VerticalAlignment="Center"
-                                Spacing="12"
-                                IsVisible="False">
-                        <Grid Width="160" Height="160"
-                              HorizontalAlignment="Center">
-                            <Image x:Name="HomeFaceImage"
-                                   Stretch="Uniform"
-                                   Width="120" Height="120"
-                                   HorizontalAlignment="Center"
-                                   VerticalAlignment="Center"
-                                   RenderOptions.BitmapInterpolationMode="None" />
-                            <Image x:Name="HomeHatImage"
-                                   Stretch="Uniform"
-                                   Width="120" Height="120"
-                                   HorizontalAlignment="Center"
-                                   VerticalAlignment="Center"
-                                   Margin="-3,-3,-3,-3"
-                                   RenderOptions.BitmapInterpolationMode="None" />
-                            <Border Width="120" Height="120"
-                                    BorderBrush="#DDD"
-                                    BorderThickness="2"
-                                    CornerRadius="4"
-                                    IsHitTestVisible="False"
-                                    HorizontalAlignment="Center"
-                                    VerticalAlignment="Center" />
-                        </Grid>
-                        <TextBlock x:Name="HomePlayerName"
-                                   Text="Steve"
-                                   FontSize="22"
-                                   FontWeight="Bold"
-                                   Foreground="#333"
-                                   HorizontalAlignment="Center" />
-
-                        <Button x:Name="SwitchAccountButton"
-                                Classes="Miret"
-                                Content="切换账户"
-                                Padding="16,7"
-                                FontSize="13"
-                                HorizontalAlignment="Center"
-                                Margin="0,6,0,0"
-                                Click="OnSwitchAccountClicked" />
-                    </StackPanel>
-                </Grid>
-
-                <!-- ★ 启动页 -->
-                <Grid x:Name="LaunchPanel" IsVisible="False" Opacity="1">
-                    <Grid.Transitions>
-                        <Transitions>
-                            <DoubleTransition Property="Opacity" Duration="0:0:0.2" />
-                        </Transitions>
-                    </Grid.Transitions>
-
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="*" />
-                        <RowDefinition Height="Auto" />
-                    </Grid.RowDefinitions>
-
-                    <views:Pivot3DControl x:Name="SkinViewer"
-                                          Grid.Row="0"
-                                          HorizontalAlignment="Stretch"
-                                          VerticalAlignment="Stretch"
-                                          Margin="0,10,0,10"
-                                          IsVisible="False" />
-
-                    <StackPanel x:Name="LaunchNotLoggedIn"
-                                Grid.Row="0"
-                                HorizontalAlignment="Center"
-                                VerticalAlignment="Center"
-                                Spacing="10"
-                                IsVisible="False">
-                        <TextBlock Text="请登录后查看"
-                                   FontSize="20"
-                                   FontWeight="SemiBold"
-                                   Foreground="#555"
-                                   HorizontalAlignment="Center" />
-                        <TextBlock Text="请先在主页完成登录"
-                                   FontSize="13"
-                                   Foreground="#888"
-                                   HorizontalAlignment="Center" />
-                    </StackPanel>
-
-                    <StackPanel x:Name="LaunchButtonsPanel"
-                                Grid.Row="1"
-                                Orientation="Horizontal"
-                                HorizontalAlignment="Center"
-                                Spacing="10"
-                                Margin="0,8,0,8"
-                                IsVisible="False">
-
-                        <Button x:Name="LaunchGameButton"
-                                Width="220"
-                                Height="80"
-                                Padding="0"
-                                Background="Transparent"
-                                BorderThickness="0"
-                                Cursor="Hand"
-                                IsVisible="False">
-                            <Button.Styles>
-                                <Style Selector="Button">
-                                    <Setter Property="Template">
-                                        <Setter.Value>
-                                            <ControlTemplate>
-                                                <ContentPresenter Content="{TemplateBinding Content}"
-                                                                  HorizontalAlignment="Stretch"
-                                                                  VerticalAlignment="Stretch"
-                                                                  HorizontalContentAlignment="Stretch"
-                                                                  VerticalContentAlignment="Stretch" />
-                                            </ControlTemplate>
-                                        </Setter.Value>
-                                    </Setter>
-                                </Style>
-                            </Button.Styles>
-                            <Grid>
-                                <Image x:Name="LaunchGameImage"
-                                       Source="avares://Project.Launch/MainSrc/Views/imgs/Main/images/Buttons/button-Start3.png"
-                                       Stretch="Fill" />
-                                <TextBlock x:Name="LaunchGameText"
-                                           Text="导入实例"
-                                           FontSize="24"
-                                           FontWeight="Bold"
-                                           Foreground="White"
-                                           HorizontalAlignment="Center"
-                                           VerticalAlignment="Center" />
-                            </Grid>
-                        </Button>
-
-                        <Button x:Name="ExpandButton"
-                                Width="45"
-                                Height="80"
-                                Padding="0"
-                                Background="Transparent"
-                                BorderThickness="0"
-                                Cursor="Hand"
-                                IsVisible="False">
-                            <Button.Styles>
-                                <Style Selector="Button">
-                                    <Setter Property="Template">
-                                        <Setter.Value>
-                                            <ControlTemplate>
-                                                <ContentPresenter Content="{TemplateBinding Content}"
-                                                                  HorizontalAlignment="Stretch"
-                                                                  VerticalAlignment="Stretch"
-                                                                  HorizontalContentAlignment="Stretch"
-                                                                  VerticalContentAlignment="Stretch" />
-                                            </ControlTemplate>
-                                        </Setter.Value>
-                                    </Setter>
-                                </Style>
-                            </Button.Styles>
-                            <Grid>
-                                <Image x:Name="ExpandImage"
-                                       Source="avares://Project.Launch/MainSrc/Views/imgs/Main/images/Buttons/button-Start4.png"
-                                       Stretch="Fill" />
-                                <TextBlock Text="^"
-                                           FontSize="30"
-                                           FontWeight="Bold"
-                                           Foreground="White"
-                                           HorizontalAlignment="Center"
-                                           VerticalAlignment="Center" />
-                            </Grid>
-                        </Button>
-                    </StackPanel>
-                </Grid>
-
-                <!-- ★ 下载 -->
-                <Grid x:Name="DownloadPanel" IsVisible="False" Opacity="1">
-                    <Grid.Transitions>
-                        <Transitions>
-                            <DoubleTransition Property="Opacity" Duration="0:0:0.2" />
-                        </Transitions>
-                    </Grid.Transitions>
-
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="*" />
-                    </Grid.RowDefinitions>
-
-                    <!-- 版本类型选择（安全区左上角） -->
-                    <Grid Grid.Row="0" HorizontalAlignment="Left" Margin="0,0,0,12">
-                        <Border Background="#D8D8D8" CornerRadius="8" Width="240" Height="44" />
-                        <Grid ColumnDefinitions="*,*" Width="240" Height="44">
-                            <Button x:Name="BedrockEditionButton"
-                                    Grid.Column="0"
-                                    Background="Transparent"
-                                    BorderThickness="0"
-                                    Foreground="#666666"
-                                    FontWeight="SemiBold"
-                                    FontSize="14"
-                                    Content="基岩版"
-                                    Cursor="Hand"
-                                    HorizontalAlignment="Stretch"
-                                    HorizontalContentAlignment="Center"
-                                    Padding="0" />
-                            <Button x:Name="JavaEditionButton"
-                                    Grid.Column="1"
-                                    Background="Transparent"
-                                    BorderThickness="0"
-                                    Foreground="#666666"
-                                    FontWeight="SemiBold"
-                                    FontSize="14"
-                                    Content="Java版"
-                                    Cursor="Hand"
-                                    HorizontalAlignment="Stretch"
-                                    HorizontalContentAlignment="Center"
-                                    Padding="0" />
-                        </Grid>
-
-                        <lg:LiquidGlassSurface x:Name="EditionSlider"
-                                               Width="114"
-                                               Height="36"
-                                               CornerRadius="6"
-                                               VerticalAlignment="Center"
-                                               HorizontalAlignment="Left"
-                                               Margin="3,0,3,0"
-                                               RenderTransformOrigin="0.5,0.5"
-                                               RefractionHeight="4"
-                                               RefractionAmount="40"
-                                               BlurRadius="0"
-                                               Vibrancy="0.86"
-                                               Brightness="0"
-                                               Contrast="1.0"
-                                               ExposureEv="0"
-                                               GammaPower="1.0"
-                                               BackdropOpacity="1.0"
-                                               ChromaticAberration="True"
-                                               DepthEffect="False"
-                                               HighlightEnabled="True"
-                                               ShadowEnabled="True"
-                                               ShadowRadius="24"
-                                               ShadowOffset="0,4"
-                                               ShadowColor="#1A000000">
-                            <lg:LiquidGlassSurface.RenderTransform>
-                                <TransformGroup>
-                                    <ScaleTransform ScaleX="1" ScaleY="1" />
-                                    <TranslateTransform X="0" Y="0" />
-                                </TransformGroup>
-                            </lg:LiquidGlassSurface.RenderTransform>
-                        </lg:LiquidGlassSurface>
-                    </Grid>
-
-                    <!-- 安全区（负责显示内容） -->
-                    <Border Grid.Row="1"
-                            Background="White"
-                            CornerRadius="12">
-                        <Border.Effect>
-                            <DropShadowEffect BlurRadius="24"
-                                              OffsetX="0"
-                                              OffsetY="8"
-                                              Color="#1A000000" />
-                        </Border.Effect>
-
-                        <Grid>
-                            <!-- 基岩版面板 -->
-                            <StackPanel x:Name="BedrockPanel"
-                                        HorizontalAlignment="Center"
-                                        VerticalAlignment="Center"
-                                        Spacing="10">
-                                <TextBlock Text="基岩版"
-                                           FontSize="22"
-                                           FontWeight="SemiBold"
-                                           Foreground="#555"
-                                           HorizontalAlignment="Center" />
-                                <TextBlock Text="版本列表（待接入）"
-                                           FontSize="14"
-                                           Foreground="#888"
-                                           HorizontalAlignment="Center" />
-                                <TextBlock Text="自觉遵守 Demo 测试保密"
-                                           FontSize="12"
-                                           Foreground="#AAA"
-                                           HorizontalAlignment="Center"
-                                           Margin="0,8,0,0" />
-                            </StackPanel>
-
-                            <!-- ★ Java版面板（版本列表） -->
-                            <Grid x:Name="JavaPanel" IsVisible="False" RowDefinitions="Auto, *" Margin="20">
-                                <!-- 顶部工具栏：类型筛选 + 搜索 -->
-                                <Grid Grid.Row="0" ColumnDefinitions="Auto, *">
-                                    <ComboBox x:Name="VersionTypeFilter" SelectedIndex="0" Width="140" 
-                                              SelectionChanged="OnVersionFilterChanged">
-                                        <ComboBoxItem Content="全部版本" Tag="all" />
-                                        <ComboBoxItem Content="正式版 (Release)" Tag="release" />
-                                        <ComboBoxItem Content="快照版 (Snapshot)" Tag="snapshot" />
-                                    </ComboBox>
-                                    
-                                    <TextBox x:Name="VersionSearchBox" Grid.Column="1" PlaceholderText="搜索版本号..." 
-                                             Width="220" HorizontalAlignment="Right" TextChanged="OnVersionSearchChanged" />
-                                </Grid>
-                                
-                                <!-- 列表区 -->
-                                <Border Grid.Row="1" Margin="0,15,0,0" BorderBrush="#E0E0E0" BorderThickness="1" CornerRadius="8">
-                                    <Grid>
-                                        <!-- 版本列表（自带虚拟化） -->
-                                        <ListBox x:Name="VersionListBox" Background="Transparent" BorderThickness="0" 
-                                                 DoubleTapped="OnVersionListDoubleTapped" SelectionChanged="OnVersionSelected">
-                                            <ListBox.ItemTemplate>
-                                                <DataTemplate x:DataType="dl:VersionEntry">
-                                                    <Grid ColumnDefinitions="150, 120, *" Margin="0,5">
-                                                        <TextBlock Text="{Binding Id}" FontWeight="SemiBold" VerticalAlignment="Center" />
-                                                        <TextBlock Grid.Column="1" Text="{Binding Type}" Foreground="#888" VerticalAlignment="Center" />
-                                                        <TextBlock Grid.Column="2" Text="{Binding ReleaseTimeStr}" Foreground="#AAA" 
-                                                                   HorizontalAlignment="Right" VerticalAlignment="Center" />
-                                                    </Grid>
-                                                </DataTemplate>
-                                            </ListBox.ItemTemplate>
-                                        </ListBox>
-                                        
-                                        <!-- 加载中提示 -->
-                                        <StackPanel x:Name="VersionLoadingPanel" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="10">
-                                            <TextBlock Text="正在连接镜像 API 获取版本列表..." Foreground="#666" FontSize="14"/>
-                                        </StackPanel>
-                                        
-                                        <!-- 加载失败提示 -->
-                                        <StackPanel x:Name="VersionErrorPanel" IsVisible="False" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="15">
-                                            <TextBlock Text="获取版本列表失败，请检查网络连接" Foreground="#CC5555" FontSize="14"/>
-                                            <Button Content="重试" Click="OnRetryVersionsClicked" Classes="Miret" HorizontalAlignment="Center" />
-                                        </StackPanel>
-                                    </Grid>
-                                </Border>
-                            </Grid>
-                        </Grid>
-                    </Border>
-                </Grid>
-
-                <!-- ★ 设置（占位） -->
-                <Grid x:Name="SettingsPanel" IsVisible="False" Opacity="1">
-                    <Grid.Transitions>
-                        <Transitions>
-                            <DoubleTransition Property="Opacity" Duration="0:0:0.2" />
-                        </Transitions>
-                    </Grid.Transitions>
-                    <StackPanel HorizontalAlignment="Center"
-                                VerticalAlignment="Center"
-                                Spacing="10">
-                        <TextBlock Text="暂时无设置功能"
-                                   FontSize="22"
-                                   FontWeight="SemiBold"
-                                   Foreground="#555"
-                                   HorizontalAlignment="Center" />
-                        <TextBlock Text="等待后续开发"
-                                   FontSize="14"
-                                   Foreground="#888"
-                                   HorizontalAlignment="Center" />
-                        <TextBlock Text="自觉遵守 Demo 测试保密"
-                                   FontSize="12"
-                                   Foreground="#AAA"
-                                   HorizontalAlignment="Center"
-                                   Margin="0,8,0,0" />
-                    </StackPanel>
-                </Grid>
-
-                <!-- ★ 工具（占位） -->
-                <Grid x:Name="ToolsPanel" IsVisible="False" Opacity="1">
-                    <Grid.Transitions>
-                        <Transitions>
-                            <DoubleTransition Property="Opacity" Duration="0:0:0.2" />
-                        </Transitions>
-                    </Grid.Transitions>
-                    <StackPanel HorizontalAlignment="Center"
-                                VerticalAlignment="Center"
-                                Spacing="10">
-                        <TextBlock Text="暂时无工具功能"
-                                   FontSize="22"
-                                   FontWeight="SemiBold"
-                                   Foreground="#555"
-                                   HorizontalAlignment="Center" />
-                        <TextBlock Text="等待后续开发"
-                                   FontSize="14"
-                                   Foreground="#888"
-                                   HorizontalAlignment="Center" />
-                        <TextBlock Text="自觉遵守 Demo 测试保密"
-                                   FontSize="12"
-                                   Foreground="#AAA"
-                                   HorizontalAlignment="Center"
-                                   Margin="0,8,0,0" />
-                    </StackPanel>
-                </Grid>
-            </Grid>
-
-            <!-- ★ 底部导航条 -->
-            <Grid x:Name="BottomNavBar"
-                  Grid.Row="1"
-                  Width="520" Height="52"
-                  HorizontalAlignment="Center"
-                  Margin="0,16,0,0">
-
-                <Border Background="#D8D8D8" CornerRadius="26" />
-                <Border Background="#C8C8C8" CornerRadius="25" Margin="1" />
-
-                <Grid ColumnDefinitions="*,*,*,*,*">
-                    <Button x:Name="DownloadTabButton"
-                            Grid.Column="0"
-                            Classes="TabBtn"
-                            Background="Transparent"
-                            BorderThickness="0"
-                            Cursor="Hand"
-                            HorizontalAlignment="Stretch"
-                            HorizontalContentAlignment="Center"
-                            VerticalContentAlignment="Center"
-                            Padding="0">
-                        <StackPanel Orientation="Vertical"
-                                    Spacing="2"
-                                    Background="Transparent"
-                                    HorizontalAlignment="Center"
-                                    VerticalAlignment="Center">
-                            <Image Source="avares://Project.Launch/MainSrc/Views/imgs/Main/images/Buttons/Download.png"
-                                   Width="22" Height="22" Stretch="Uniform" />
-                            <TextBlock Text="下载"
-                                       FontSize="10"
-                                       Foreground="#444"
-                                       HorizontalAlignment="Center" />
-                        </StackPanel>
-                    </Button>
-                    <Button x:Name="LaunchTabButton"
-                            Grid.Column="1"
-                            Classes="TabBtn"
-                            Background="Transparent"
-                            BorderThickness="0"
-                            Cursor="Hand"
-                            HorizontalAlignment="Stretch"
-                            HorizontalContentAlignment="Center"
-                            VerticalContentAlignment="Center"
-                            Padding="0">
-                        <StackPanel Orientation="Vertical"
-                                    Spacing="2"
-                                    Background="Transparent"
-                                    HorizontalAlignment="Center"
-                                    VerticalAlignment="Center">
-                            <Image Source="avares://Project.Launch/MainSrc/Views/imgs/Main/images/Buttons/Launch.png"
-                                   Width="22" Height="22" Stretch="Uniform" />
-                            <TextBlock Text="启动"
-                                       FontSize="10"
-                                       Foreground="#444"
-                                       HorizontalAlignment="Center" />
-                        </StackPanel>
-                    </Button>
-                    <Button x:Name="HomeTabButton"
-                            Grid.Column="2"
-                            Classes="TabBtn"
-                            Background="Transparent"
-                            BorderThickness="0"
-                            Cursor="Hand"
-                            HorizontalAlignment="Stretch"
-                            HorizontalContentAlignment="Center"
-                            VerticalContentAlignment="Center"
-                            Padding="0">
-                        <StackPanel Orientation="Vertical"
-                                    Spacing="2"
-                                    Background="Transparent"
-                                    HorizontalAlignment="Center"
-                                    VerticalAlignment="Center">
-                            <Image Source="avares://Project.Launch/MainSrc/Views/imgs/Main/images/Buttons/Home.png"
-                                   Width="22" Height="22" Stretch="Uniform" />
-                            <TextBlock Text="主页"
-                                       FontSize="10"
-                                       Foreground="#444"
-                                       HorizontalAlignment="Center" />
-                        </StackPanel>
-                    </Button>
-                    <Button x:Name="SettingsTabButton"
-                            Grid.Column="3"
-                            Classes="TabBtn"
-                            Background="Transparent"
-                            BorderThickness="0"
-                            Cursor="Hand"
-                            HorizontalAlignment="Stretch"
-                            HorizontalContentAlignment="Center"
-                            VerticalContentAlignment="Center"
-                            Padding="0">
-                        <StackPanel Orientation="Vertical"
-                                    Spacing="2"
-                                    Background="Transparent"
-                                    HorizontalAlignment="Center"
-                                    VerticalAlignment="Center">
-                            <Image Source="avares://Project.Launch/MainSrc/Views/imgs/Main/images/Buttons/Setting.png"
-                                   Width="22" Height="22" Stretch="Uniform" />
-                            <TextBlock Text="设置"
-                                       FontSize="10"
-                                       Foreground="#444"
-                                       HorizontalAlignment="Center" />
-                        </StackPanel>
-                    </Button>
-                    <Button x:Name="ToolsTabButton"
-                            Grid.Column="4"
-                            Classes="TabBtn"
-                            Background="Transparent"
-                            BorderThickness="0"
-                            Cursor="Hand"
-                            HorizontalAlignment="Stretch"
-                            HorizontalContentAlignment="Center"
-                            VerticalContentAlignment="Center"
-                            Padding="0">
-                        <StackPanel Orientation="Vertical"
-                                    Spacing="2"
-                                    Background="Transparent"
-                                    HorizontalAlignment="Center"
-                                    VerticalAlignment="Center">
-                            <Image Source="avares://Project.Launch/MainSrc/Views/imgs/Main/images/Buttons/Tool.png"
-                                   Width="22" Height="22" Stretch="Uniform" />
-                            <TextBlock Text="工具"
-                                       FontSize="10"
-                                       Foreground="#444"
-                                       HorizontalAlignment="Center" />
-                        </StackPanel>
-                    </Button>
-                </Grid>
-
-                <lg:LiquidGlassSurface x:Name="TabSlider"
-                                       Width="96"
-                                       Height="44"
-                                       CornerRadius="22"
-                                       VerticalAlignment="Center"
-                                       HorizontalAlignment="Left"
-                                       Margin="4,0,4,0"
-                                       RenderTransformOrigin="0.5,0.5"
-                                       RefractionHeight="4"
-                                       RefractionAmount="40"
-                                       BlurRadius="0"
-                                       Vibrancy="0.86"
-                                       Brightness="0"
-                                       Contrast="1.0"
-                                       ExposureEv="0"
-                                       GammaPower="1.0"
-                                       BackdropOpacity="1.0"
-                                       ChromaticAberration="True"
-                                       DepthEffect="False"
-                                       HighlightEnabled="False"
-                                       HighlightOpacity="0"
-                                       ShadowEnabled="True"
-                                       ShadowRadius="20"
-                                       ShadowOffset="0,3"
-                                       ShadowColor="#1A000000">
-                    <lg:LiquidGlassSurface.RenderTransform>
-                        <TransformGroup>
-                            <ScaleTransform ScaleX="1" ScaleY="1" />
-                            <TranslateTransform X="208" Y="0" />
-                        </TransformGroup>
-                    </lg:LiquidGlassSurface.RenderTransform>
-                </lg:LiquidGlassSurface>
-            </Grid>
-        </Grid>
-
-        <!-- Toast -->
-        <Border x:Name="CancelToast"
-                Grid.Row="1"
-                IsVisible="False"
-                Opacity="0"
-                Background="#F2FFFFFF"
-                CornerRadius="14"
-                BorderBrush="#33FFFFFF"
-                BorderThickness="1"
-                Padding="20,16"
-                MinWidth="360"
-                HorizontalAlignment="Right"
-                VerticalAlignment="Bottom"
-                Margin="0,0,24,24">
-            <Border.Effect>
-                <DropShadowEffect BlurRadius="24"
-                                  OffsetX="0"
-                                  OffsetY="8"
-                                  Color="#33000000" />
-            </Border.Effect>
-            <Border.Transitions>
-                <Transitions>
-                    <DoubleTransition Property="Opacity" Duration="0:0:0.3">
-                        <DoubleTransition.Easing>
-                            <CubicEaseInOut />
-                        </DoubleTransition.Easing>
-                    </DoubleTransition>
-                </Transitions>
-            </Border.Transitions>
-
-            <StackPanel Orientation="Horizontal"
+                <!-- 空状态：居中大按钮 -->
+                <Button x:Name="EmptyAddButton"
+                        Classes="AddAccount"
+                        Content="＋ 添加账户"
+                        HorizontalAlignment="Center"
                         VerticalAlignment="Center"
-                        Spacing="14">
-                <Image Source="avares://Project.Launch/MainSrc/Views/imgs/Main/images/Buttons/warning.png"
-                       Width="28"
-                       Height="28"
-                       Stretch="Uniform"
-                       VerticalAlignment="Center" />
-                <TextBlock x:Name="ToastText"
-                           Text="用户取消登录"
-                           FontSize="16"
-                           FontWeight="SemiBold"
-                           Foreground="#333"
-                           VerticalAlignment="Center" />
-            </StackPanel>
-        </Border>
-    </Grid>
+                        IsVisible="False"
+                        Click="OnAddAccountClicked" />
+
+                <!-- 非空：列表 + 底部添加按钮 -->
+                <Grid x:Name="ListContainer" IsVisible="False">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <ScrollViewer Grid.Row="0"
+                                  VerticalScrollBarVisibility="Auto"
+                                  HorizontalScrollBarVisibility="Disabled">
+                        <StackPanel x:Name="AccountListPanel" Spacing="8" />
+                    </ScrollViewer>
+
+                    <Button x:Name="BottomAddButton"
+                            Grid.Row="1"
+                            Classes="AddAccount"
+                            Content="＋ 添加账户"
+                            HorizontalAlignment="Stretch"
+                            Margin="0,15,0,0"
+                            Click="OnAddAccountClicked" />
+                </Grid>
+            </Grid>
+
+            <!-- 底部栏 -->
+            <Border Grid.Row="1"
+                    Height="44"
+                    Background="#F5F5F5"
+                    CornerRadius="0,0,12,12">
+                <DockPanel Margin="15,0,15,0">
+                    <TextBlock DockPanel.Dock="Left"
+                               Text="账户管理"
+                               FontSize="11"
+                               Foreground="#999"
+                               VerticalAlignment="Center" />
+                    <Button DockPanel.Dock="Right"
+                            x:Name="CloseButton"
+                            Classes="CloseBtn"
+                            Content="关闭"
+                            VerticalAlignment="Center"
+                            Click="OnCloseClicked" />
+                </DockPanel>
+            </Border>
+        </Grid>
+    </Border>
 </Window>
 ```
 
-### `MainSrc\Views\MainWindow.cs`
-
-<!-- 1178 行 / 46.6 KB -->
+### `MainSrc\Views\AccountManagerWindow.axaml.cs`
 
 ```csharp
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
+using Avalonia.Interactivity;
+using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
-using Avalonia.Platform;
-using Avalonia.Platform.Storage;
-using Avalonia.Threading;
-using LiquidGlassAvaloniaUI;
 using Project.Launch.Tools;
-using System;
-using System.IO;
-using System.Linq;
-using System.Net.Http;
-using System.Text;
-using System.Text.Json;
-using System.Threading.Tasks;
-using System.Collections.Generic;
-using Project.Launch.Tools.Download;
 
+using Project.Launch;
+using Project.Launch.Auth;
+using Project.Launch.Tools.JavaConfig;
+using Project.Launch.Tools.LogsConfig;
 namespace Project.Launch.Views
 {
-    public partial class MainWindow : Window
+    public partial class AccountManagerWindow : Window
     {
-        private readonly Color _defaultStartColor = Color.Parse("#CCFF6B9D");
-        private readonly Color _defaultEndColor = Color.Parse("#CCB366FF");
-        private readonly HttpClient _httpClient = new HttpClient();
+        /// <summary>用户是否点了"添加账户"（外部据此决定是否打开 LoginWindow）</summary>
+        public bool ShouldOpenLogin { get; private set; } = false;
 
-        private InstanceInfo? _currentInstance;
-        private Bitmap? _fullSkinBitmap;
-
-        private Button? _homeTab, _launchTab, _downloadTab, _settingsTab, _toolsTab;
-        private LiquidGlassSurface? _tabSlider;
-        private TranslateTransform? _tabSliderTransform;
-        private ScaleTransform? _tabSliderScale;
-        private int _selectedTab = 2;
-        private DispatcherTimer? _tabAnimTimer;
-        private double _tabAnimStartX, _tabAnimTargetX;
-        private DateTime _tabAnimStartTime;
-
-        // 下载页：基岩版 / Java版 选择器
-        private Button? _bedrockEditionBtn, _javaEditionBtn;
-        private StackPanel? _bedrockPanel;
-        private Grid? _javaPanel; // 改为 Grid
-        private LiquidGlassSurface? _editionSlider;
-        private TranslateTransform? _editionSliderTransform;
-        private ScaleTransform? _editionSliderScale;
-        private int _selectedEdition = 0;
-        private DispatcherTimer? _editionAnimTimer;
-        private double _editionAnimStartX, _editionAnimTargetX;
-        private DateTime _editionAnimStartTime;
-
-        // Java 版版本列表
-        private List<VersionEntry>? _allVersions;
-        private bool _isVersionsLoading = false;
-        // private bool _isVersionsLoaded = false; // 已移除，消除 CS0414 警告
-        private VersionEntry? _selectedVersion;
-
-        public MainWindow()
+        public AccountManagerWindow()
         {
-            WindowStartupLocation = WindowStartupLocation.CenterScreen;
-
-            LogHelper.Reset(LauncherPaths.MainWindowLog,
-                "Kilim 启动器日志", "Kilim Launcher Log");
-
-            Log("程序启动", "Program started");
-
+            WindowStartupLocation = WindowStartupLocation.CenterOwner;
             InitializeComponent();
 
-            Log("InitializeComponent 完成", "InitializeComponent completed");
-
-            var closeButton = this.FindControl<Button>("CloseButton");
-            if (closeButton != null)
-                closeButton.Click += (s, e) => this.Close();
-
-            var minimizeButton = this.FindControl<Button>("MinimizeButton");
-            if (minimizeButton != null)
-                minimizeButton.Click += (s, e) => this.WindowState = WindowState.Minimized;
-
-            var launchGameButton = this.FindControl<Button>("LaunchGameButton");
-            if (launchGameButton != null)
-                launchGameButton.Click += OnMainButtonClicked;
-
-            var expandButton = this.FindControl<Button>("ExpandButton");
-            if (expandButton != null)
-                expandButton.Click += OnExpandClicked;
-
-            var reLoginButton = this.FindControl<Button>("ReLoginButton");
-            if (reLoginButton != null)
-                reLoginButton.Click += OnReLoginClicked;
-
-            InitializeTabSelector();
-            InitializeEditionSelector();
-            InitializeVersionList(); // 初始化版本列表请求
-
-            Log("按钮事件绑定完成", "Button events bound");
-
-            _currentInstance = InstanceService.GetSelectedInstance();
-            if (_currentInstance != null)
-            {
-                Log($"已加载实例: {_currentInstance.VersionId} @ {_currentInstance.RootPath}",
-                    $"Loaded instance: {_currentInstance.VersionId} @ {_currentInstance.RootPath}");
-            }
-
-            if (!App.LoginCheck)
-            {
-                UpdateTitleBarGradient(_defaultStartColor, _defaultEndColor);
-                Log("初始化完成（未登录，显示渐变标题栏）",
-                    "Initialization complete (not logged in, gradient title bar)");
-
-                Opened += async (s, e) =>
-                {
-                    try
-                    {
-                        await ShowLoginDialog();
-                        await SetTransparentTitleBarAsync();
-                        UpdateLoginStatus();
-                        await RefreshAvatarAsync();
-
-                        Log("登录窗口已关闭，切换为透明标题栏",
-                            "Login window closed, switched to transparent title bar");
-                    }
-                    catch (Exception ex)
-                    {
-                        Log($"弹登录窗异常: {ex.Message}",
-                            $"ShowLoginDialog exception: {ex.Message}");
-                    }
-                };
-            }
-            else
-            {
-                Opened += async (s, e) =>
-                {
-                    try
-                    {
-                        await SetTransparentTitleBarAsync(animate: false);
-                        UpdateLoginStatus();
-                        await RefreshAvatarAsync();
-
-                        Log("初始化完成（已登录，显示透明标题栏）",
-                            "Initialization complete (logged in, transparent title bar)");
-                    }
-                    catch (Exception ex)
-                    {
-                        Log($"初始化异常: {ex.Message}",
-                            $"Init exception: {ex.Message}");
-                    }
-                };
-            }
-        }
-
-        private void InitializeTabSelector()
-        {
-            _homeTab = this.FindControl<Button>("HomeTabButton");
-            _launchTab = this.FindControl<Button>("LaunchTabButton");
-            _downloadTab = this.FindControl<Button>("DownloadTabButton");
-            _settingsTab = this.FindControl<Button>("SettingsTabButton");
-            _toolsTab = this.FindControl<Button>("ToolsTabButton");
-
-            _tabSlider = this.FindControl<LiquidGlassSurface>("TabSlider");
-            if (_tabSlider != null)
-            {
-                var group = _tabSlider.RenderTransform as TransformGroup;
-                if (group != null)
-                {
-                    _tabSliderTransform = group.Children.OfType<TranslateTransform>().FirstOrDefault();
-                    _tabSliderScale = group.Children.OfType<ScaleTransform>().FirstOrDefault();
-                }
-
-                if (_tabSliderTransform != null)
-                {
-                    _tabSliderTransform.X = _selectedTab * AnimationConfig.TabStep;
-                    _tabSliderTransform.Y = 0;
-                }
-                if (_tabSliderScale != null)
-                {
-                    _tabSliderScale.ScaleX = 1.0;
-                    _tabSliderScale.ScaleY = 1.0;
-                }
-            }
-
-            if (_downloadTab != null) _downloadTab.Click += (s, e) => SelectTab(0);
-            if (_launchTab != null) _launchTab.Click += (s, e) => SelectTab(1);
-            if (_homeTab != null) _homeTab.Click += (s, e) => SelectTab(2);
-            if (_settingsTab != null) _settingsTab.Click += (s, e) => SelectTab(3);
-            if (_toolsTab != null) _toolsTab.Click += (s, e) => SelectTab(4);
-
-            UpdateTabVisuals(_selectedTab);
-        }
-
-        private void SelectTab(int index)
-        {
-            if (index == _selectedTab) return;
-            int oldIndex = _selectedTab;
-            _selectedTab = index;
-
-            AnimateTabSliderTo(index);
-            UpdateTabVisuals(index);
-            _ = SwitchPanelAsync(oldIndex, index);
-        }
-
-        private void UpdateTabVisuals(int index)
-        {
-            var tabs = new[] { _downloadTab, _launchTab, _homeTab, _settingsTab, _toolsTab };
-            for (int i = 0; i < tabs.Length; i++)
-            {
-                if (tabs[i] != null)
-                {
-                    tabs[i]!.Foreground = (i == index)
-                        ? new SolidColorBrush(Colors.Black)
-                        : new SolidColorBrush(Color.Parse("#666666"));
-                    tabs[i]!.IsHitTestVisible = (i != index);
-                }
-            }
-        }
-
-        private async Task SwitchPanelAsync(int oldIndex, int newIndex)
-        {
-            var panels = new Grid?[]
-            {
-                this.FindControl<Grid>("DownloadPanel"),
-                this.FindControl<Grid>("LaunchPanel"),
-                this.FindControl<Grid>("HomePanel"),
-                this.FindControl<Grid>("SettingsPanel"),
-                this.FindControl<Grid>("ToolsPanel")
-            };
-
-            var oldPanel = (oldIndex >= 0 && oldIndex < panels.Length) ? panels[oldIndex] : null;
-            if (oldPanel != null && oldPanel.IsVisible)
-            {
-                oldPanel.Opacity = 0;
-                await Task.Delay(AnimationConfig.TabPanelFadeDuration);
-                oldPanel.IsVisible = false;
-            }
-
-            var newPanel = (newIndex >= 0 && newIndex < panels.Length) ? panels[newIndex] : null;
-            if (newPanel != null)
-            {
-                newPanel.Opacity = 0;
-                newPanel.IsVisible = true;
-                await Task.Delay(20);
-                newPanel.Opacity = 1;
-            }
-        }
-
-        private void AnimateTabSliderTo(int index)
-        {
-            if (_tabSliderTransform == null || _tabSlider == null) return;
-
-            double targetX = index * AnimationConfig.TabStep;
-            double startX = _tabSliderTransform.X;
-
-            _tabAnimTimer?.Stop();
-
-            _tabAnimStartX = startX;
-            _tabAnimTargetX = targetX;
-            _tabAnimStartTime = DateTime.Now;
-
-            double halfW = AnimationConfig.TabWidth / 2.0;
-            double halfH = AnimationConfig.TabHeight / 2.0;
-
-            _tabAnimTimer = new DispatcherTimer
-            {
-                Interval = TimeSpan.FromMilliseconds(16)
-            };
-            _tabAnimTimer.Tick += (s, e) =>
-            {
-                var elapsed = DateTime.Now - _tabAnimStartTime;
-                double progress = elapsed.TotalMilliseconds / AnimationConfig.TabMoveDuration.TotalMilliseconds;
-                if (progress >= 1.0)
-                {
-                    progress = 1.0;
-                    _tabAnimTimer.Stop();
-                }
-
-                double eased = progress < 0.5
-                    ? 4 * progress * progress * progress
-                    : 1 - Math.Pow(-2 * progress + 2, 3) / 2;
-                double baseX = _tabAnimStartX + (_tabAnimTargetX - _tabAnimStartX) * eased;
-
-                double scaleCurve;
-                if (progress <= AnimationConfig.TabScaleRiseEnd)
-                {
-                    double t = progress / AnimationConfig.TabScaleRiseEnd;
-                    scaleCurve = t * t * (3 - 2 * t);
-                }
-                else if (progress <= AnimationConfig.TabScaleFallStart)
-                {
-                    scaleCurve = 1.0;
-                }
-                else
-                {
-                    double t = (progress - AnimationConfig.TabScaleFallStart) / (1.0 - AnimationConfig.TabScaleFallStart);
-                    scaleCurve = 1.0 - t * t * (3 - 2 * t);
-                }
-                double currentScale = 1.0 + (AnimationConfig.TabPeakScale - 1.0) * scaleCurve;
-
-                double blurCurve = 1.0 - Math.Abs(progress * 2.0 - 1.0);
-                _tabSlider.BlurRadius = AnimationConfig.TabBlurPeak * blurCurve;
-
-                double xComp = -(currentScale - 1.0) * halfW;
-                double yComp = -(currentScale - 1.0) * halfH;
-
-                _tabSliderTransform.X = baseX + xComp;
-                _tabSliderTransform.Y = yComp;
-
-                if (_tabSliderScale != null)
-                {
-                    _tabSliderScale.ScaleX = currentScale;
-                    _tabSliderScale.ScaleY = currentScale;
-                }
-
-                if (progress >= 1.0)
-                {
-                    _tabSliderTransform.X = _tabAnimTargetX;
-                    _tabSliderTransform.Y = 0;
-                    if (_tabSliderScale != null)
-                    {
-                        _tabSliderScale.ScaleX = 1.0;
-                        _tabSliderScale.ScaleY = 1.0;
-                    }
-                    _tabSlider.BlurRadius = 0;
-                }
-            };
-            _tabAnimTimer.Start();
+            RebuildAccountList();
         }
 
         // ============================================================
-        // 下载页：基岩版 / Java版 选择器
+        // 重建账户列表
         // ============================================================
-        private void InitializeEditionSelector()
+        private void RebuildAccountList()
         {
-            _bedrockEditionBtn = this.FindControl<Button>("BedrockEditionButton");
-            _javaEditionBtn = this.FindControl<Button>("JavaEditionButton");
-            _bedrockPanel = this.FindControl<StackPanel>("BedrockPanel");
-            _javaPanel = this.FindControl<Grid>("JavaPanel");
+            var listPanel = this.FindControl<StackPanel>("AccountListPanel");
+            var emptyAddBtn = this.FindControl<Button>("EmptyAddButton");
+            var listContainer = this.FindControl<Grid>("ListContainer");
 
-            _editionSlider = this.FindControl<LiquidGlassSurface>("EditionSlider");
-            if (_editionSlider != null)
+            if (listPanel == null || emptyAddBtn == null || listContainer == null) return;
+
+            listPanel.Children.Clear();
+
+            var root = AccountService.LoadAccounts();
+            var accounts = root.Accounts
+                .OrderByDescending(a => a.Value.LastUsed)
+                .ToList();
+
+            if (accounts.Count == 0)
             {
-                var group = _editionSlider.RenderTransform as TransformGroup;
-                if (group != null)
-                {
-                    _editionSliderTransform = group.Children.OfType<TranslateTransform>().FirstOrDefault();
-                    _editionSliderScale = group.Children.OfType<ScaleTransform>().FirstOrDefault();
-                }
-
-                if (_editionSliderTransform != null)
-                {
-                    _editionSliderTransform.X = 0;
-                    _editionSliderTransform.Y = 0;
-                }
-                if (_editionSliderScale != null)
-                {
-                    _editionSliderScale.ScaleX = 1.0;
-                    _editionSliderScale.ScaleY = 1.0;
-                }
-            }
-
-            if (_bedrockEditionBtn != null) _bedrockEditionBtn.Click += (s, e) => SelectEdition(0);
-            if (_javaEditionBtn != null) _javaEditionBtn.Click += (s, e) => SelectEdition(1);
-
-            UpdateEditionVisuals(0);
-        }
-
-        private void SelectEdition(int index)
-        {
-            if (index == _selectedEdition) return;
-            _selectedEdition = index;
-            AnimateEditionSliderTo(index);
-            UpdateEditionVisuals(index);
-        }
-
-        private void UpdateEditionVisuals(int index)
-        {
-            var buttons = new[] { _bedrockEditionBtn, _javaEditionBtn };
-            for (int i = 0; i < buttons.Length; i++)
-            {
-                if (buttons[i] != null)
-                {
-                    buttons[i]!.Foreground = (i == index)
-                        ? new SolidColorBrush(Colors.Black)
-                        : new SolidColorBrush(Color.Parse("#666666"));
-                    buttons[i]!.IsHitTestVisible = (i != index);
-                }
-            }
-
-            if (_bedrockPanel != null) _bedrockPanel.IsVisible = (index == 0);
-            if (_javaPanel != null) _javaPanel.IsVisible = (index == 1);
-        }
-
-        private void AnimateEditionSliderTo(int index)
-        {
-            if (_editionSliderTransform == null || _editionSlider == null) return;
-
-            double targetX = index * 120;
-            double startX = _editionSliderTransform.X;
-
-            _editionAnimTimer?.Stop();
-
-            _editionAnimStartX = startX;
-            _editionAnimTargetX = targetX;
-            _editionAnimStartTime = DateTime.Now;
-
-            TimeSpan duration = AnimationConfig.SliderMoveDuration;
-            double peakScale = AnimationConfig.SliderPeakScale;
-            double riseEnd = AnimationConfig.SliderScaleRiseEnd;
-            double fallStart = AnimationConfig.SliderScaleFallStart;
-            double blurPeak = AnimationConfig.SliderBlurPeak;
-            double halfW = AnimationConfig.SliderWidth / 2.0;
-            double halfH = AnimationConfig.SliderHeight / 2.0;
-
-            _editionAnimTimer = new DispatcherTimer
-            {
-                Interval = TimeSpan.FromMilliseconds(16)
-            };
-            _editionAnimTimer.Tick += (s, e) =>
-            {
-                var elapsed = DateTime.Now - _editionAnimStartTime;
-                double progress = elapsed.TotalMilliseconds / duration.TotalMilliseconds;
-                if (progress >= 1.0)
-                {
-                    progress = 1.0;
-                    _editionAnimTimer.Stop();
-                }
-
-                double eased = progress < 0.5
-                    ? 4 * progress * progress * progress
-                    : 1 - Math.Pow(-2 * progress + 2, 3) / 2;
-
-                double baseX = _editionAnimStartX + (_editionAnimTargetX - _editionAnimStartX) * eased;
-
-                double scaleCurve;
-                if (progress <= riseEnd)
-                {
-                    double t = progress / riseEnd;
-                    scaleCurve = t * t * (3 - 2 * t);
-                }
-                else if (progress <= fallStart)
-                {
-                    scaleCurve = 1.0;
-                }
-                else
-                {
-                    double t = (progress - fallStart) / (1.0 - fallStart);
-                    scaleCurve = 1.0 - t * t * (3 - 2 * t);
-                }
-                double currentScale = 1.0 + (peakScale - 1.0) * scaleCurve;
-
-                double blurCurve = 1.0 - Math.Abs(progress * 2.0 - 1.0);
-                _editionSlider.BlurRadius = blurPeak * blurCurve;
-
-                double xComp = -(currentScale - 1.0) * halfW;
-                double yComp = -(currentScale - 1.0) * halfH;
-
-                _editionSliderTransform.X = baseX + xComp;
-                _editionSliderTransform.Y = yComp;
-
-                if (_editionSliderScale != null)
-                {
-                    _editionSliderScale.ScaleX = currentScale;
-                    _editionSliderScale.ScaleY = currentScale;
-                }
-
-                if (progress >= 1.0)
-                {
-                    _editionSliderTransform.X = _editionAnimTargetX;
-                    _editionSliderTransform.Y = 0;
-                    if (_editionSliderScale != null)
-                    {
-                        _editionSliderScale.ScaleX = 1.0;
-                        _editionSliderScale.ScaleY = 1.0;
-                    }
-                    _editionSlider.BlurRadius = 0;
-                }
-            };
-            _editionAnimTimer.Start();
-        }
-
-        // ============================================================
-        // Java 版版本列表逻辑
-        // ============================================================
-        private void InitializeVersionList()
-        {
-            _ = LoadVersionManifestAsync();
-        }
-
-        private async Task LoadVersionManifestAsync()
-        {
-            if (_isVersionsLoading) return;
-            _isVersionsLoading = true;
-            
-            var loadingPanel = this.FindControl<StackPanel>("VersionLoadingPanel");
-            var errorPanel = this.FindControl<StackPanel>("VersionErrorPanel");
-            var listBox = this.FindControl<ListBox>("VersionListBox");
-            
-            if (loadingPanel != null) loadingPanel.IsVisible = true;
-            if (errorPanel != null) errorPanel.IsVisible = false;
-            if (listBox != null) listBox.IsVisible = false;
-
-            var manifest = await VersionService.GetVersionManifestAsync();
-            
-            if (manifest != null && manifest.Versions.Count > 0)
-            {
-                _allVersions = manifest.Versions;
-                
-                // 按时间倒序排列
-                _allVersions = _allVersions.OrderByDescending(v => v.ReleaseTime).ToList();
-                
-                ApplyVersionFilter();
-                
-                if (loadingPanel != null) loadingPanel.IsVisible = false;
-                if (listBox != null) listBox.IsVisible = true;
-            }
-            else
-            {
-                if (loadingPanel != null) loadingPanel.IsVisible = false;
-                if (errorPanel != null) errorPanel.IsVisible = true;
-            }
-            
-            _isVersionsLoading = false;
-        }
-
-        private void ApplyVersionFilter()
-        {
-            if (_allVersions == null) return;
-            
-            var listBox = this.FindControl<ListBox>("VersionListBox");
-            var filterCombo = this.FindControl<ComboBox>("VersionTypeFilter");
-            var searchBox = this.FindControl<TextBox>("VersionSearchBox");
-            
-            if (listBox == null || filterCombo == null || searchBox == null) return;
-            
-            string filter = (filterCombo.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "all";
-            string search = searchBox.Text?.Trim().ToLowerInvariant() ?? "";
-            
-            var filtered = _allVersions.Where(v => 
-            {
-                if (filter != "all" && !v.Type.Equals(filter, StringComparison.OrdinalIgnoreCase)) 
-                    return false;
-                if (!string.IsNullOrEmpty(search) && !v.Id.ToLowerInvariant().Contains(search)) 
-                    return false;
-                return true;
-            }).ToList();
-            
-            listBox.ItemsSource = filtered;
-        }
-
-        private void OnVersionFilterChanged(object? sender, SelectionChangedEventArgs e) => ApplyVersionFilter();
-
-        private void OnVersionSearchChanged(object? sender, TextChangedEventArgs e) => ApplyVersionFilter();
-
-        private void OnRetryVersionsClicked(object? sender, Avalonia.Interactivity.RoutedEventArgs e) => _ = LoadVersionManifestAsync();
-
-        private void OnVersionSelected(object? sender, SelectionChangedEventArgs e)
-        {
-            var listBox = this.FindControl<ListBox>("VersionListBox");
-            _selectedVersion = listBox?.SelectedItem as VersionEntry;
-            
-            if (_selectedVersion != null)
-            {
-                Log($"用户选中了版本: {_selectedVersion.Id}", $"User selected version: {_selectedVersion.Id}");
-            }
-        }
-
-        private void OnVersionListDoubleTapped(object? sender, TappedEventArgs e)
-        {
-            // 预留：双击进入下载安装，留给 P2 实现
-            if (_selectedVersion != null)
-            {
-                // 暂时没写逻辑
-            }
-        }
-
-        // ============================================================
-        // 启动与状态同步逻辑
-        // ============================================================
-        private async void OnMainButtonClicked(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
-        {
-            if (_currentInstance == null)
-            {
-                await ImportInstanceAsync();
-            }
-            else
-            {
-                await StartGameAsync();
-            }
-        }
-
-        private async Task StartGameAsync()
-        {
-            if (_currentInstance == null) return;
-
-            try
-            {
-                string versionsDir = Path.Combine(_currentInstance.RootPath, "versions");
-                string jsonPath = Path.Combine(versionsDir, _currentInstance.VersionId,
-                    _currentInstance.VersionId + ".json");
-                if (!File.Exists(jsonPath))
-                {
-                    Log($"版本 json 不存在: {jsonPath}", $"Version json not found: {jsonPath}");
-                    await ShowToastAsync("版本文件缺失", "Messages");
-                    return;
-                }
-
-                var vj = MinecraftVersionJson.Load(jsonPath);
-                if (vj == null)
-                {
-                    await ShowToastAsync("版本解析失败", "Messages");
-                    return;
-                }
-
-                int requiredJava = vj.JavaVersion?.MajorVersion ?? 8;
-                Log($"版本要求 Java {requiredJava}", $"Version requires Java {requiredJava}");
-
-                var javas = await JavaDetector.DetectAllAsync();
-                Log($"检测到 {javas.Count} 个 Java", $"Detected {javas.Count} Java(s)");
-                foreach (var j in javas)
-                    Log($"  Java: {j.Path} (major={j.MajorVersion})",
-                        $"  Java: {j.Path} (major={j.MajorVersion})");
-
-                var matched = JavaDetector.Match(javas, requiredJava);
-                if (matched == null)
-                {
-                    Log($"未找到合适的 Java（需要 {requiredJava}）",
-                        $"No suitable Java (need {requiredJava})");
-                    await ShowToastAsync($"Java 环境异常：需要 Java {requiredJava}", "Messages");
-                    return;
-                }
-
-                Log($"匹配到 Java: {matched.Path}", $"Matched Java: {matched.Path}");
-
-                _currentInstance.JavaPath = matched.Path;
-                InstanceService.SetSelectedInstance(_currentInstance);
-
-                string playerName = App.PlayerName ?? "Steve";
-                string playerUuid = App.OfflineUuid
-                    ?? OfflineUuidGenerator.GenerateUuidString(playerName).Replace("-", "");
-
-                await ShowToastAsync("正在启动游戏...", "Messages");
-
-                bool ok = await GameLauncher.LaunchAsync(
-                    _currentInstance, vj, matched, playerName, playerUuid);
-
-                if (ok)
-                    await ShowToastAsync("游戏已启动", "Messages");
-                else
-                    await ShowToastAsync("启动失败，查看日志", "Messages");
-            }
-            catch (Exception ex)
-            {
-                Log($"启动游戏异常: {ex.Message}", $"Start game exception: {ex.Message}");
-                await ShowToastAsync("启动失败", "Messages");
-            }
-        }
-
-        private async void OnExpandClicked(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
-        {
-            await ImportInstanceAsync();
-        }
-
-        private async Task ImportInstanceAsync()
-        {
-            try
-            {
-                var topLevel = TopLevel.GetTopLevel(this);
-                if (topLevel == null) return;
-
-                var folders = await topLevel.StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
-                {
-                    Title = "选择 Minecraft 目录（.minecraft 根目录或隔离实例目录）",
-                    AllowMultiple = false
-                });
-
-                if (folders.Count < 1)
-                {
-                    Log("用户取消导入", "User cancelled import");
-                    return;
-                }
-
-                var folder = folders[0];
-                string path = folder.Path.LocalPath;
-                Log($"用户选择目录: {path}", $"User selected directory: {path}");
-
-                var result = MinecraftDirectoryAnalyzer.Analyze(path);
-                if (!result.IsValid)
-                {
-                    Log("目录无效（未找到 versions/ 或 .minecraft/versions/）",
-                        "Invalid directory (no versions/ or .minecraft/versions/)");
-                    await ShowToastAsync("未找到有效的 Minecraft 目录", "Messages");
-                    return;
-                }
-
-                Log($"分析结果: Layout={result.Layout}, Versions={string.Join(",", result.Versions)}",
-                    $"Analysis: Layout={result.Layout}, Versions={string.Join(",", result.Versions)}");
-
-                string versionId = result.Versions[result.Versions.Count - 1];
-
-                var instance = new InstanceInfo
-                {
-                    Name = versionId,
-                    RootPath = result.RootPath,
-                    Layout = result.Layout,
-                    VersionId = versionId,
-                    ImportedAt = DateTime.UtcNow,
-                    LastUsed = DateTime.UtcNow
-                };
-
-                InstanceService.SetSelectedInstance(instance);
-                _currentInstance = instance;
-
-                Log($"实例导入成功: {versionId}", $"Instance imported: {versionId}");
-
-                UpdateLoginStatus();
-                await ShowToastAsync($"已导入 {versionId}", "Messages");
-            }
-            catch (Exception ex)
-            {
-                Log($"导入实例异常: {ex.Message}", $"Import instance exception: {ex.Message}");
-                await ShowToastAsync("导入失败", "Messages");
-            }
-        }
-
-        private async void OnReLoginClicked(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
-        {
-            try
-            {
-                UpdateTitleBarGradient(_defaultStartColor, _defaultEndColor);
-
-                await ShowLoginDialog();
-                UpdateLoginStatus();
-                await RefreshAvatarAsync();
-
-                await SetTransparentTitleBarAsync();
-            }
-            catch (Exception ex)
-            {
-                Log($"重新登录异常: {ex.Message}", $"ReLogin exception: {ex.Message}");
-            }
-        }
-
-        // ★ 主页"切换账户"按钮
-        private async void OnSwitchAccountClicked(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
-        {
-            await ShowAccountManagerAsync();
-        }
-
-        // ★ 账户管理窗口
-        private async Task ShowAccountManagerAsync()
-        {
-            UpdateTitleBarGradient(_defaultStartColor, _defaultEndColor);
-
-            var contentArea = this.FindControl<Grid>("ContentArea");
-            if (contentArea != null) contentArea.IsVisible = false;
-
-            await Task.Delay(150);
-
-            try
-            {
-                var win = new AccountManagerWindow();
-                await win.ShowDialog(this);
-
-                if (win.ShouldOpenLogin)
-                {
-                    await RunLoginWindowAsync();
-                }
-
-                UpdateLoginStatus();
-                await RefreshAvatarAsync();
-            }
-            finally
-            {
-                if (contentArea != null) contentArea.IsVisible = true;
-                await SetTransparentTitleBarAsync();
-            }
-        }
-
-        // ★ 跑 LoginWindow 并处理结果
-        private async Task RunLoginWindowAsync()
-        {
-            var loginWindow = new LoginWindow();
-            await loginWindow.ShowDialog(this);
-
-            UpdateLoginStatus();
-
-            if (App.IsLoggedIn && loginWindow.FaceBitmap != null && loginWindow.HatBitmap != null)
-            {
-                var faceImg = this.FindControl<Image>("HomeFaceImage");
-                var hatImg = this.FindControl<Image>("HomeHatImage");
-                if (faceImg != null)
-                {
-                    faceImg.Source = loginWindow.FaceBitmap;
-                    RenderOptions.SetBitmapInterpolationMode(faceImg, BitmapInterpolationMode.None);
-                }
-                if (hatImg != null)
-                {
-                    hatImg.Source = loginWindow.HatBitmap;
-                    RenderOptions.SetBitmapInterpolationMode(hatImg, BitmapInterpolationMode.None);
-                }
-            }
-
-            if (!App.IsLoggedIn)
-            {
-                _ = ShowCancelToastAsync();
-            }
-        }
-
-        // ★ 登录窗
-        private async Task ShowLoginDialog()
-        {
-            var contentArea = this.FindControl<Grid>("ContentArea");
-            if (contentArea != null) contentArea.IsVisible = false;
-
-            await Task.Delay(150);
-
-            try
-            {
-                await RunLoginWindowAsync();
-            }
-            finally
-            {
-                if (contentArea != null) contentArea.IsVisible = true;
-            }
-        }
-
-        private async Task SetTransparentTitleBarAsync(bool animate = true)
-        {
-            var titleBar = this.FindControl<Border>("TitleBarBorder");
-            var titleText = this.FindControl<TextBlock>("TitleText");
-            var minImg = this.FindControl<Image>("MinimizeImage");
-            var closeImg = this.FindControl<Image>("CloseImage");
-
-            if (!animate)
-            {
-                if (titleBar != null) titleBar.Background = Brushes.Transparent;
-                if (titleText != null) titleText.Foreground = new SolidColorBrush(Colors.Black);
-                SetBlackIcons(minImg, closeImg);
+                emptyAddBtn.IsVisible = true;
+                listContainer.IsVisible = false;
                 return;
             }
 
-            if (minImg != null) minImg.Opacity = 0;
-            if (closeImg != null) closeImg.Opacity = 0;
+            emptyAddBtn.IsVisible = false;
+            listContainer.IsVisible = true;
 
-            if (titleBar != null) titleBar.Background = Brushes.Transparent;
-            if (titleText != null) titleText.Foreground = new SolidColorBrush(Colors.Black);
-
-            await Task.Delay(200);
-
-            SetBlackIcons(minImg, closeImg);
-
-            if (minImg != null) minImg.Opacity = 1;
-            if (closeImg != null) closeImg.Opacity = 1;
+            foreach (var kv in accounts)
+            {
+                bool isSelected = kv.Key == root.SelectedAccount;
+                var item = CreateAccountItem(kv.Key, kv.Value, isSelected);
+                listPanel.Children.Add(item);
+            }
         }
 
-        private void SetBlackIcons(Image? minImg, Image? closeImg)
+        // ============================================================
+        // 创建单个账户项（方形头像，无边框）
+        // ============================================================
+        private Control CreateAccountItem(string id, AccountInfo info, bool isSelected)
         {
+            var button = new Button
+            {
+                Background = isSelected
+                    ? new SolidColorBrush(Color.Parse("#E0D8F0"))
+                    : new SolidColorBrush(Color.Parse("#F0F0F0"))
+            };
+            button.Classes.Add("AccountItem");
+
+            var grid = new Grid
+            {
+                ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto,Auto,Auto"),
+                VerticalAlignment = VerticalAlignment.Center
+            };
+
+            // ★ 方形头像（40×40，无边框，用裁切好的 face）
+            var avatar = new Image
+            {
+                Width = 40,
+                Height = 40,
+                Stretch = Stretch.Uniform,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+
+            // ★ 用附加属性设置 Nearest 采样
+            RenderOptions.SetBitmapInterpolationMode(avatar, BitmapInterpolationMode.None);
+
             try
             {
-                if (minImg != null)
-                {
-                    var uri = new Uri("avares://Project.Launch/MainSrc/Views/imgs/Main/images/Buttons/black-.png");
-                    using var stream = AssetLoader.Open(uri);
-                    minImg.Source = new Bitmap(stream);
-                }
-                if (closeImg != null)
-                {
-                    var uri = new Uri("avares://Project.Launch/MainSrc/Views/imgs/Main/images/Buttons/blackx.png");
-                    using var stream = AssetLoader.Open(uri);
-                    closeImg.Source = new Bitmap(stream);
-                }
+                string skinAsset = DefaultSkinSelector.GetSkinAssetPath(info.Uuid);
+                var face = SkinCropper.CropFaceFromAsset(skinAsset);
+                if (face != null)
+                    avatar.Source = face;
             }
             catch { }
+
+            Grid.SetColumn(avatar, 0);
+            grid.Children.Add(avatar);
+
+            // 用户名
+            var nameText = new TextBlock
+            {
+                Text = info.Username,
+                FontSize = 15,
+                FontWeight = FontWeight.SemiBold,
+                Foreground = new SolidColorBrush(Color.Parse("#333")),
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(12, 0, 0, 0)
+            };
+            Grid.SetColumn(nameText, 1);
+            grid.Children.Add(nameText);
+
+            // 类型标签
+            var typeText = new TextBlock
+            {
+                Text = info.Type == "microsoft" ? "正版" : "离线",
+                FontSize = 11,
+                Foreground = new SolidColorBrush(
+                    info.Type == "microsoft" ? Color.Parse("#4C8F4C") : Color.Parse("#888888")),
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(10, 0, 10, 0)
+            };
+            Grid.SetColumn(typeText, 2);
+            grid.Children.Add(typeText);
+
+            // UUID 简写
+            string uuidShort = string.IsNullOrEmpty(info.Uuid)
+                ? "-------"
+                : info.Uuid.Substring(0, Math.Min(8, info.Uuid.Length));
+            var uuidText = new TextBlock
+            {
+                Text = uuidShort,
+                FontSize = 11,
+                FontFamily = new FontFamily("Consolas,monospace"),
+                Foreground = new SolidColorBrush(Color.Parse("#AAA")),
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(0, 0, 12, 0)
+            };
+            Grid.SetColumn(uuidText, 3);
+            grid.Children.Add(uuidText);
+
+            // 删除按钮
+            var deleteBtn = new Button { Content = "✕" };
+            deleteBtn.Classes.Add("DeleteAccount");
+            deleteBtn.Click += (s, e) =>
+            {
+                e.Handled = true;
+                _ = OnDeleteAccountAsync(id, info.Username);
+            };
+            Grid.SetColumn(deleteBtn, 4);
+            grid.Children.Add(deleteBtn);
+
+            button.Content = grid;
+            button.Click += (s, e) => OnSelectAccount(id, info);
+
+            return button;
         }
 
-        private void UpdateLoginStatus()
+        // ============================================================
+        // 点击账户 → 切换
+        // ============================================================
+        private void OnSelectAccount(string id, AccountInfo info)
         {
-            var homeNotLoggedIn = this.FindControl<StackPanel>("HomeNotLoggedIn");
-            var homeLoggedIn = this.FindControl<StackPanel>("HomeLoggedIn");
-            var homePlayerName = this.FindControl<TextBlock>("HomePlayerName");
-            var launchBtn = this.FindControl<Button>("LaunchGameButton");
-            var launchImg = this.FindControl<Image>("LaunchGameImage");
-            var launchTxt = this.FindControl<TextBlock>("LaunchGameText");
-            var expandBtn = this.FindControl<Button>("ExpandButton");
-            var expandImg = this.FindControl<Image>("ExpandImage");
-            var reLoginBtn = this.FindControl<Button>("ReLoginButton");
-            var reLoginContainer = this.FindControl<Grid>("ReLoginContainer");
-
-            var launchNotLoggedIn = this.FindControl<StackPanel>("LaunchNotLoggedIn");
-            var skinViewer = this.FindControl<Pivot3DControl>("SkinViewer");
-            var launchButtonsPanel = this.FindControl<StackPanel>("LaunchButtonsPanel");
-
-            bool loggedIn = App.IsLoggedIn && !string.IsNullOrEmpty(App.PlayerName);
-            bool hasInstance = _currentInstance != null;
-
-            if (homeNotLoggedIn != null) homeNotLoggedIn.IsVisible = !loggedIn;
-            if (homeLoggedIn != null) homeLoggedIn.IsVisible = loggedIn;
-            if (homePlayerName != null) homePlayerName.Text = App.PlayerName ?? "Steve";
-
-            if (launchNotLoggedIn != null) launchNotLoggedIn.IsVisible = !loggedIn;
-            if (skinViewer != null) skinViewer.IsVisible = loggedIn;
-            if (launchButtonsPanel != null) launchButtonsPanel.IsVisible = loggedIn;
-
             try
             {
-                string mainIcon = hasInstance ? "button-Start1.png" : "button-Start3.png";
-                string subIcon = hasInstance ? "button-Start2.png" : "button-Start4.png";
+                App.PlayerName = info.Username;
+                App.OfflineUuid = info.Uuid;
+                App.IsLoggedIn = true;
+                App.LoginCheck = true;
 
-                if (launchImg != null)
-                {
-                    using var stream = AssetLoader.Open(new Uri(
-                        $"avares://Project.Launch/MainSrc/Views/imgs/Main/images/Buttons/{mainIcon}"));
-                    launchImg.Source = new Bitmap(stream);
-                }
-                if (launchTxt != null)
-                    launchTxt.Text = hasInstance ? "开始游戏" : "导入实例";
+                var root = AccountService.LoadAccounts();
+                root.SelectedAccount = id;
+                AccountService.SaveAccounts(root);
 
-                if (expandImg != null)
-                {
-                    using var stream = AssetLoader.Open(new Uri(
-                        $"avares://Project.Launch/MainSrc/Views/imgs/Main/images/Buttons/{subIcon}"));
-                    expandImg.Source = new Bitmap(stream);
-                }
+                Close();
             }
             catch (Exception ex)
             {
-                Log($"更新按钮图像失败: {ex.Message}", $"Update button icon failed: {ex.Message}");
+                LogHelper.Write(LauncherPaths.AppLog,
+                    $"切换账户失败: {ex.Message}",
+                    $"Switch account failed: {ex.Message}");
             }
-
-            bool showMainBtn = loggedIn;
-            bool showReLogin = !loggedIn;
-
-            if (launchBtn != null) launchBtn.IsVisible = showMainBtn;
-            if (expandBtn != null) expandBtn.IsVisible = showMainBtn;
-            if (reLoginBtn != null) reLoginBtn.IsVisible = showReLogin;
-            if (reLoginContainer != null) reLoginContainer.IsVisible = showReLogin;
         }
 
-        private async Task RefreshAvatarAsync()
+        // ============================================================
+        // 删除账户（含确认框）
+        // ============================================================
+        private async Task OnDeleteAccountAsync(string id, string username)
         {
-            if (!App.IsLoggedIn)
-            {
-                Log("未登录，跳过皮肤加载", "Not logged in, skip skin loading");
-                return;
-            }
+            bool confirmed = await ShowConfirmDialogAsync(
+                $"确认删除账户「{username}」？",
+                "删除",
+                "取消");
+            if (!confirmed) return;
 
-            var account = AccountService.GetSelectedAccount();
-            Bitmap? skinBitmap = null;
-
-            // ★ 正版皮肤：尝试爬取网络皮肤
-            if (account != null && account.Type == "microsoft" && !string.IsNullOrEmpty(account.SkinUrl))
-            {
-                try
-                {
-                    Log($"正在下载正版皮肤: {account.SkinUrl}", $"Downloading official skin: {account.SkinUrl}");
-                    byte[] bytes = await _httpClient.GetByteArrayAsync(account.SkinUrl);
-                    using var ms = new MemoryStream(bytes);
-                    skinBitmap = new Bitmap(ms);
-                    Log("正版皮肤下载成功", "Official skin downloaded successfully");
-                }
-                catch (Exception ex)
-                {
-                    Log($"正版皮肤下载失败，将回退到默认皮肤: {ex.Message}", $"Skin download failed, falling back to default: {ex.Message}");
-                }
-            }
-
-            // ★ 离线或下载失败：回退默认皮肤（UUID 判断）
-            if (skinBitmap == null)
-            {
-                string skinAssetPath = DefaultSkinSelector.GetSkinAssetPath(account?.Uuid ?? App.OfflineUuid);
-                Log($"使用默认皮肤: {skinAssetPath}", $"Using default skin: {skinAssetPath}");
-                try
-                {
-                    using var stream = AssetLoader.Open(new Uri(skinAssetPath));
-                    skinBitmap = new Bitmap(stream);
-                }
-                catch (Exception ex)
-                {
-                    Log($"加载默认皮肤失败: {ex.Message}", $"Failed to load default skin: {ex.Message}");
-                }
-            }
-
-            if (skinBitmap == null) return;
-
-            // 1. 更新 3D 皮肤投影
             try
             {
-                _fullSkinBitmap?.Dispose();
-                _fullSkinBitmap = skinBitmap;
+                AccountService.RemoveAccount(id);
 
-                var skinViewer = this.FindControl<Pivot3DControl>("SkinViewer");
-                if (skinViewer != null)
+                var root = AccountService.LoadAccounts();
+                if (string.IsNullOrEmpty(root.SelectedAccount))
                 {
-                    skinViewer.Skin = _fullSkinBitmap;
+                    App.IsLoggedIn = false;
+                    App.PlayerName = null;
+                    App.OfflineUuid = null;
                 }
-                Log("3D 皮肤视图已更新", "3D skin view updated");
+
+                RebuildAccountList();
             }
             catch (Exception ex)
             {
-                Log($"更新 3D 皮肤视图失败: {ex.Message}", $"Failed to update 3D skin view: {ex.Message}");
-            }
-
-            // 2. 更新 2D 头像
-            var faceImg = this.FindControl<Image>("HomeFaceImage");
-            var hatImg = this.FindControl<Image>("HomeHatImage");
-            if (faceImg != null && hatImg != null)
-            {
-                try
-                {
-                    if (_fullSkinBitmap != null) // 修复 CS8604 警告
-                    {
-                        var (face, hat) = CropSkinFromBitmap(_fullSkinBitmap);
-                        if (face != null && hat != null)
-                        {
-                            faceImg.Source = face;
-                            hatImg.Source = hat;
-                            RenderOptions.SetBitmapInterpolationMode(faceImg, BitmapInterpolationMode.None);
-                            RenderOptions.SetBitmapInterpolationMode(hatImg, BitmapInterpolationMode.None);
-                            Log("2D 头像已更新", "2D avatar updated");
-                        }
-                    }
-                }
-                catch (Exception ex)
-                {
-                    Log($"更新 2D 头像失败: {ex.Message}", $"Failed to update 2D avatar: {ex.Message}");
-                }
+                LogHelper.Write(LauncherPaths.AppLog,
+                    $"删除账户失败: {ex.Message}",
+                    $"Delete account failed: {ex.Message}");
             }
         }
 
-        private void Log(string zh, string en)
+        // ============================================================
+        // 确认对话框
+        // ============================================================
+        private async Task<bool> ShowConfirmDialogAsync(string message, string yesText, string noText)
         {
-            LogHelper.Write(LauncherPaths.MainWindowLog, zh, en);
-        }
-
-        private async Task ShowToastAsync(string message, string sound = "Messages")
-        {
-            SoundService.Play(sound);
-
-            var toast = this.FindControl<Border>("CancelToast");
-            var toastText = this.FindControl<TextBlock>("ToastText");
-            if (toast == null) return;
-
-            if (toastText != null)
-                toastText.Text = message;
-
-            toast.IsVisible = true;
-            toast.Opacity = 0;
-
-            await Task.Delay(20);
-            toast.Opacity = 1;
-
-            await Task.Delay(2500);
-
-            toast.Opacity = 0;
-            await Task.Delay(320);
-            toast.IsVisible = false;
-        }
-
-        private Task ShowCancelToastAsync() => ShowToastAsync("用户取消登录", "Messages");
-
-        private (Bitmap? face, Bitmap? hat) CropSkinFromBitmap(Bitmap bitmap)
-        {
-            try
+            var dialog = new Window
             {
-                int width = bitmap.PixelSize.Width;
-                int height = bitmap.PixelSize.Height;
-                
-                // 动态计算比例（支持 64x64, 128x128, 256x256 等任意倍数）
-                int scale = width / 64;
-                if (scale < 1) return (null, null);
-                
-                int faceX = 8 * scale;
-                int faceY = 8 * scale;
-                int faceSize = 8 * scale;
-                int hatX = 40 * scale;
-                int hatY = 8 * scale;
-
-                var faceCropped = new CroppedBitmap(bitmap, new PixelRect(faceX, faceY, faceSize, faceSize));
-                var hatCropped = new CroppedBitmap(bitmap, new PixelRect(hatX, hatY, faceSize, faceSize));
-
-                var faceBmp = new RenderTargetBitmap(new PixelSize(faceSize, faceSize), new Vector(96, 96));
-                using (var ctx = faceBmp.CreateDrawingContext())
-                    ctx.DrawImage(faceCropped, new Rect(0, 0, faceSize, faceSize));
-
-                var hatBmp = new RenderTargetBitmap(new PixelSize(faceSize, faceSize), new Vector(96, 96));
-                using (var ctx = hatBmp.CreateDrawingContext())
-                    ctx.DrawImage(hatCropped, new Rect(0, 0, faceSize, faceSize));
-
-                return (faceBmp, hatBmp);
-            }
-            catch
-            {
-                return (null, null);
-            }
-        }
-
-        private void UpdateTitleBarGradient(Color startColor, Color endColor)
-        {
-            var titleBar = this.FindControl<Border>("TitleBarBorder");
-            if (titleBar == null) return;
-
-            var gradient = new LinearGradientBrush
-            {
-                StartPoint = new RelativePoint(0, 0, RelativeUnit.Relative),
-                EndPoint = new RelativePoint(1, 0, RelativeUnit.Relative),
-                GradientStops = new GradientStops
-                {
-                    new GradientStop(startColor, 0.0),
-                    new GradientStop(endColor, 1.0)
-                }
+                Title = "确认",
+                Width = 360,
+                Height = 180,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner,
+                CanResize = false,
+                Background = new SolidColorBrush(Colors.White),
+                WindowDecorations = WindowDecorations.None,
+                TransparencyLevelHint = new[] { WindowTransparencyLevel.Transparent },
+                ShowInTaskbar = false
             };
 
-            titleBar.Background = gradient;
-            UpdateTitleBarForeground(startColor, endColor);
-        }
-
-        private void UpdateTitleBarForeground(Color startColor, Color endColor)
-        {
-            double avgLuminance = (GetLuminance(startColor) + GetLuminance(endColor)) / 2.0;
-            bool useDark = avgLuminance > 0.5;
-
-            var titleText = this.FindControl<TextBlock>("TitleText");
-            if (titleText != null)
-                titleText.Foreground = useDark ? new SolidColorBrush(Colors.Black) : new SolidColorBrush(Colors.White);
-
-            var minImg = this.FindControl<Image>("MinimizeImage");
-            if (minImg != null)
+            var border = new Border
             {
-                var path = useDark ? "avares://Project.Launch/MainSrc/Views/imgs/Main/images/Buttons/black-.png"
-                                   : "avares://Project.Launch/MainSrc/Views/imgs/Main/images/Buttons/white-.png";
-                try
-                {
-                    var uri = new Uri(path);
-                    using var stream = AssetLoader.Open(uri);
-                    minImg.Source = new Bitmap(stream);
-                }
-                catch { }
-            }
+                CornerRadius = new CornerRadius(12),
+                Background = new SolidColorBrush(Colors.White),
+                BorderBrush = new SolidColorBrush(Color.Parse("#20000000")),
+                BorderThickness = new Thickness(1),
+                Padding = new Thickness(24)
+            };
 
-            var closeImg = this.FindControl<Image>("CloseImage");
-            if (closeImg != null)
+            var panel = new StackPanel { Spacing = 20 };
+
+            panel.Children.Add(new TextBlock
             {
-                var path = useDark ? "avares://Project.Launch/MainSrc/Views/imgs/Main/images/Buttons/blackx.png"
-                                   : "avares://Project.Launch/MainSrc/Views/imgs/Main/images/Buttons/whitex.png";
-                try
-                {
-                    var uri = new Uri(path);
-                    using var stream = AssetLoader.Open(uri);
-                    closeImg.Source = new Bitmap(stream);
-                }
-                catch { }
-            }
+                Text = message,
+                FontSize = 14,
+                Foreground = new SolidColorBrush(Color.Parse("#333")),
+                HorizontalAlignment = HorizontalAlignment.Center,
+                TextWrapping = TextWrapping.Wrap,
+                TextAlignment = TextAlignment.Center
+            });
+
+            var btnPanel = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                Spacing = 12
+            };
+
+            var yesBtn = new Button
+            {
+                Content = yesText,
+                Padding = new Thickness(24, 8),
+                Background = new SolidColorBrush(Color.Parse("#CC5555")),
+                Foreground = new SolidColorBrush(Colors.White),
+                FontWeight = FontWeight.SemiBold,
+                CornerRadius = new CornerRadius(8),
+                Cursor = new Cursor(StandardCursorType.Hand)
+            };
+            var noBtn = new Button
+            {
+                Content = noText,
+                Padding = new Thickness(24, 8),
+                Background = new SolidColorBrush(Color.Parse("#EEEEEE")),
+                Foreground = new SolidColorBrush(Color.Parse("#333")),
+                CornerRadius = new CornerRadius(8),
+                Cursor = new Cursor(StandardCursorType.Hand)
+            };
+
+            yesBtn.Click += (s, e) => dialog.Close(true);
+            noBtn.Click += (s, e) => dialog.Close(false);
+
+            btnPanel.Children.Add(yesBtn);
+            btnPanel.Children.Add(noBtn);
+            panel.Children.Add(btnPanel);
+
+            border.Child = panel;
+            dialog.Content = border;
+
+            return await dialog.ShowDialog<bool>(this);
         }
 
-        private static double GetLuminance(Color color)
+        // ============================================================
+        // 添加账户
+        // ============================================================
+        private void OnAddAccountClicked(object? sender, RoutedEventArgs e)
         {
-            double r = color.R / 255.0;
-            double g = color.G / 255.0;
-            double b = color.B / 255.0;
-
-            r = r <= 0.03928 ? r / 12.92 : Math.Pow((r + 0.055) / 1.055, 2.4);
-            g = g <= 0.03928 ? g / 12.92 : Math.Pow((g + 0.055) / 1.055, 2.4);
-            b = b <= 0.03928 ? b / 12.92 : Math.Pow((b + 0.055) / 1.055, 2.4);
-
-            return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+            ShouldOpenLogin = true;
+            Close();
         }
 
-        private void TitleBar_PointerPressed(object? sender, PointerPressedEventArgs e)
+        private void OnCloseClicked(object? sender, RoutedEventArgs e)
         {
-            if (e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
-                BeginMoveDrag(e);
-        }
-
-        public void SetTitleBarGradient(Color start, Color end)
-        {
-            UpdateTitleBarGradient(start, end);
+            Close();
         }
     }
 }
 ```
 
-### `MainSrc\Views\LoginWindow.axaml`
+### `MainSrc\Views\DownloadWindow.axaml`
 
-<!-- 313 行 / 18.3 KB -->
+```xml
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:avalonia="using:Avalonia.Controls"
+        x:Class="Project.Launch.Views.DownloadWindow"
+        Title="下载中"
+        Width="800" Height="440"
+        WindowDecorations="None"
+        ExtendClientAreaToDecorationsHint="True"
+        ExtendClientAreaTitleBarHeightHint="-1"
+        CanResize="False"
+        Background="Transparent"
+        TransparencyLevelHint="AcrylicBlur"
+        avalonia:Win32Properties.WindowCornerPreference="Round">
+
+    <Border CornerRadius="12" Background="White">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <Grid Grid.Row="0" Margin="30,30,30,15">
+                
+                <!-- ★ 配置面板（初始显示） -->
+                <StackPanel x:Name="SetupPanel" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="20">
+                    <TextBlock Text="下载选项配置" FontSize="20" FontWeight="Bold" Foreground="#333" HorizontalAlignment="Center" />
+                    <TextBlock Text="请输入最大并发下载线程数 (推荐 20-50):" FontSize="14" Foreground="#666" HorizontalAlignment="Center" />
+                    <NumericUpDown x:Name="ThreadCountBox" Value="20" Minimum="1" Maximum="128" Increment="5" 
+                                   Width="200" HorizontalAlignment="Center" />
+                    <Button x:Name="StartButton" Content="开始下载" Classes="Miret" Width="140" Height="40" 
+                            HorizontalAlignment="Center" Margin="0,10,0,0" Click="OnStartClicked" />
+                </StackPanel>
+
+                <!-- ★ 进度面板（点击开始后显示） -->
+                <StackPanel x:Name="ProgressPanel" IsVisible="False" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="20">
+                    <TextBlock x:Name="TitleText" Text="正在下载 Minecraft" FontSize="20" FontWeight="Bold" Foreground="#333" HorizontalAlignment="Center" />
+                    <TextBlock x:Name="StatusText" Text="正在获取版本信息..." FontSize="14" Foreground="#666" HorizontalAlignment="Center" />
+                    <ProgressBar x:Name="MainProgressBar" Width="500" Height="12" Minimum="0" Maximum="100" Value="0" CornerRadius="6" Foreground="#D969CE" Background="#E0E0E0" />
+                    <Grid Width="500" ColumnDefinitions="*,*">
+                        <TextBlock x:Name="SpeedText" Text="速度: 0 KB/s" FontSize="13" Foreground="#888" HorizontalAlignment="Left" />
+                        <TextBlock x:Name="FilesText" Grid.Column="1" Text="文件: 0 / 0" FontSize="13" Foreground="#888" HorizontalAlignment="Right" />
+                    </Grid>
+                </StackPanel>
+            </Grid>
+
+            <!-- 底部状态栏 -->
+            <Border Grid.Row="1" Height="44" Background="#F5F5F5" CornerRadius="0,0,12,12">
+                <DockPanel Margin="15,0,15,0">
+                    <TextBlock DockPanel.Dock="Left" Text="Kilim 下载引擎" FontSize="11" Foreground="#999" VerticalAlignment="Center" />
+                    <Button x:Name="CancelButton" DockPanel.Dock="Right" Content="取消下载" Background="#FF5555" Foreground="White" 
+                            Padding="14,6" CornerRadius="6" Cursor="Hand" VerticalAlignment="Center" Click="OnCancelClicked" />
+                </DockPanel>
+            </Border>
+        </Grid>
+    </Border>
+</Window>
+```
+
+### `MainSrc\Views\DownloadWindow.axaml.cs`
+
+```csharp
+using Avalonia.Controls;
+using Avalonia.Interactivity;
+using Project.Launch.Tools;
+using Project.Launch.Download;
+using System;
+using System.Threading;
+using System.Threading.Tasks;
+
+using Project.Launch.Tools.JavaConfig;
+using Project.Launch.Tools.LogsConfig;
+
+namespace Project.Launch.Views
+{
+    public partial class DownloadWindow : Window
+    {
+        private readonly VersionEntry _version;
+        private readonly string _targetPath;
+        private readonly CancellationTokenSource _cts;
+        private bool _hasStarted = false;
+
+        /// <summary>本次安装结果（失败详情、文件计数），供调用方决定提示文案。</summary>
+        public InstallResult? LastResult { get; private set; }
+
+        public DownloadWindow(VersionEntry version, string targetPath, CancellationTokenSource cts)
+        {
+            WindowStartupLocation = WindowStartupLocation.CenterOwner;
+            InitializeComponent();
+
+            _version = version;
+            _targetPath = targetPath;
+            _cts = cts;
+
+            TitleText.Text = $"正在下载 Minecraft {version.VersionId}";
+        }
+
+        private void OnStartClicked(object? sender, RoutedEventArgs e)
+        {
+            if (_hasStarted) return;
+            _hasStarted = true;
+
+            SetupPanel.IsVisible = false;
+            ProgressPanel.IsVisible = true;
+
+            int maxThreads = (int)(ThreadCountBox.Value ?? 20);
+            if (maxThreads < 1) maxThreads = 1;
+            if (maxThreads > 128) maxThreads = 128;
+
+            _ = StartDownloadAsync(maxThreads);
+        }
+
+        private async Task StartDownloadAsync(int maxThreads)
+        {
+            var progress = new Progress<DownloadProgress>(UpdateUi);
+
+            try
+            {
+                LastResult = await GameInstaller.InstallVanillaAsync(
+                    _version, _targetPath, maxThreads, progress, _cts.Token);
+
+                if (LastResult.Success)
+                {
+                    Close(true);
+                }
+                else
+                {
+                    // 不再把「缺文件的安装」当成功
+                    StatusText.Text = LastResult.Summary;
+                    LogHelper.Write(LauncherPaths.AppLog,
+                        $"安装未完成：{LastResult.Summary}",
+                        $"Install incomplete: {LastResult.Summary}");
+                    Close(false);
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                LastResult = null;
+                Close(false);
+            }
+            catch (Exception ex)
+            {
+                LogHelper.Write(LauncherPaths.AppLog,
+                    $"下载异常: {ex.Message}",
+                    $"Download error: {ex.Message}");
+                Close(false);
+            }
+        }
+
+        private void UpdateUi(DownloadProgress p)
+        {
+            StatusText.Text = p.State;
+            MainProgressBar.Value = p.Percentage;
+
+            SpeedText.Text = $"速度: {FormatBytes(p.SpeedBytesPerSec)}/s";
+
+            if (p.TotalFiles > 0)
+                FilesText.Text = p.FailedFiles > 0
+                    ? $"文件: {p.CompletedFiles} / {p.TotalFiles}（失败 {p.FailedFiles}）"
+                    : $"文件: {p.CompletedFiles} / {p.TotalFiles}";
+            else
+                FilesText.Text = "文件: -- / --";
+        }
+
+        private string FormatBytes(long bytes)
+        {
+            if (bytes < 1024) return $"{bytes} B";
+            if (bytes < 1024 * 1024) return $"{bytes / 1024.0:F1} KB";
+            return $"{bytes / 1024.0 / 1024.0:F1} MB";
+        }
+
+        private void OnCancelClicked(object? sender, RoutedEventArgs e)
+        {
+            CancelButton.IsEnabled = false;
+            CancelButton.Content = "正在取消...";
+            _cts.Cancel();
+        }
+    }
+}
+```
+
+### `MainSrc\Views\Glass.axaml`
+
+```xml
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:media="using:Avalonia.Media">
+
+    <Styles.Resources>
+        <!-- ============================================================ -->
+        <!-- 液态玻璃参数总表 - 调参只改这里                              -->
+        <!-- ============================================================ -->
+
+        <!-- ★ 透明度控制（0~1）— 大幅降低，让窗口的亚克力透出来 -->
+        <x:Double x:Key="GlassTintOpacity">0.12</x:Double>
+        <x:Double x:Key="GlassTintOpacityHover">0.25</x:Double>
+        <x:Double x:Key="GlassTintOpacityPressed">0.35</x:Double>
+
+        <!-- ★ 边框 — 加强，让玻璃边缘有"实感" -->
+        <Thickness x:Key="GlassBorderThickness">1.2</Thickness>
+        <x:Double x:Key="GlassBorderOpacity">0.55</x:Double>
+        <x:Double x:Key="GlassBorderOpacityHover">0.75</x:Double>
+
+        <!-- ★ 圆角 -->
+        <CornerRadius x:Key="GlassCornerRadius">14</CornerRadius>
+
+        <!-- ★ 阴影 — 更柔更淡，避免显脏 -->
+        <x:Double x:Key="GlassShadowBlur">14</x:Double>
+        <x:Double x:Key="GlassShadowBlurHover">20</x:Double>
+        <x:Double x:Key="GlassShadowOffsetY">6</x:Double>
+        <x:Double x:Key="GlassShadowOffsetYHover">8</x:Double>
+        <Color x:Key="GlassShadowColor">#33000000</Color>
+        <Color x:Key="GlassShadowColorHover">#55000000</Color>
+
+        <!-- ★ 高光 — 加强，模拟玻璃反射 -->
+        <Color x:Key="GlassHighlightColor">#B3FFFFFF</Color>
+        <x:Double x:Key="GlassHighlightEndOffset">0.7</x:Double>
+
+        <!-- ============================================================ -->
+        <!-- 派生资源                                                     -->
+        <!-- ============================================================ -->
+
+        <SolidColorBrush x:Key="GlassBrush"
+                         Color="{StaticResource MiretPrimaryColor}"
+                         Opacity="{StaticResource GlassTintOpacity}" />
+        <SolidColorBrush x:Key="GlassBrushHover"
+                         Color="{StaticResource MiretHoverColor}"
+                         Opacity="{StaticResource GlassTintOpacityHover}" />
+        <SolidColorBrush x:Key="GlassBrushPressed"
+                         Color="{StaticResource MiretPressedColor}"
+                         Opacity="{StaticResource GlassTintOpacityPressed}" />
+
+        <SolidColorBrush x:Key="GlassBorderBrush"
+                         Color="White"
+                         Opacity="{StaticResource GlassBorderOpacity}" />
+        <SolidColorBrush x:Key="GlassBorderBrushHover"
+                         Color="White"
+                         Opacity="{StaticResource GlassBorderOpacityHover}" />
+
+        <media:DropShadowEffect x:Key="GlassShadow"
+                                BlurRadius="{StaticResource GlassShadowBlur}"
+                                OffsetX="0"
+                                OffsetY="{StaticResource GlassShadowOffsetY}"
+                                Color="{StaticResource GlassShadowColor}" />
+        <media:DropShadowEffect x:Key="GlassShadowHover"
+                                BlurRadius="{StaticResource GlassShadowBlurHover}"
+                                OffsetX="0"
+                                OffsetY="{StaticResource GlassShadowOffsetYHover}"
+                                Color="{StaticResource GlassShadowColorHover}" />
+
+        <LinearGradientBrush x:Key="GlassHighlight"
+                             StartPoint="0,0"
+                             EndPoint="1,1">
+            <GradientStop Color="{StaticResource GlassHighlightColor}"
+                          Offset="0.0" />
+            <GradientStop Color="#00FFFFFF"
+                          Offset="{StaticResource GlassHighlightEndOffset}" />
+        </LinearGradientBrush>
+
+        <!-- ★ 文字投影 — 让字从半透明背景中"浮"出来 -->
+        <media:DropShadowEffect x:Key="GlassTextShadow"
+                                BlurRadius="4"
+                                OffsetX="0"
+                                OffsetY="1"
+                                Color="#55000000" />
+    </Styles.Resources>
+
+    <!-- ============================================================ -->
+    <!-- 液态玻璃按钮样式                                             -->
+    <!-- ============================================================ -->
+    <Style Selector="Button.Glass">
+        <Setter Property="ClipToBounds" Value="True" />
+        <Setter Property="Background" Value="{StaticResource GlassBrush}" />
+        <Setter Property="Foreground" Value="White" />
+        <Setter Property="BorderBrush" Value="{StaticResource GlassBorderBrush}" />
+        <Setter Property="BorderThickness" Value="{StaticResource GlassBorderThickness}" />
+        <Setter Property="CornerRadius" Value="{StaticResource GlassCornerRadius}" />
+        <Setter Property="Effect" Value="{StaticResource GlassShadow}" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Padding" Value="20,8" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate>
+                    <Grid>
+                        <!-- 玻璃主层 -->
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="{TemplateBinding CornerRadius}" />
+                        <!-- 左上角高光层（不阻挡鼠标） -->
+                        <Border Background="{StaticResource GlassHighlight}"
+                                CornerRadius="{TemplateBinding CornerRadius}"
+                                IsHitTestVisible="False" />
+                        <!-- 内容 -->
+                        <ContentPresenter Content="{TemplateBinding Content}"
+                                          HorizontalAlignment="Center"
+                                          VerticalAlignment="Center" />
+                    </Grid>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+        <Setter Property="Transitions">
+            <Setter.Value>
+                <Transitions>
+                    <BrushTransition Property="Background" Duration="0:0:0.2" />
+                    <BrushTransition Property="BorderBrush" Duration="0:0:0.2" />
+                </Transitions>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- 悬停 -->
+    <Style Selector="Button.Glass:pointerover">
+        <Setter Property="Background" Value="{StaticResource GlassBrushHover}" />
+        <Setter Property="BorderBrush" Value="{StaticResource GlassBorderBrushHover}" />
+        <Setter Property="Effect" Value="{StaticResource GlassShadowHover}" />
+    </Style>
+
+    <!-- 按下 -->
+    <Style Selector="Button.Glass:pressed">
+        <Setter Property="Background" Value="{StaticResource GlassBrushPressed}" />
+        <Setter Property="Effect" Value="{StaticResource GlassShadow}" />
+    </Style>
+
+    <!-- ★ 玻璃按钮内文字：加投影，字清晰 -->
+    <Style Selector="Button.Glass TextBlock">
+        <Setter Property="Foreground" Value="White" />
+        <Setter Property="FontWeight" Value="Bold" />
+        <Setter Property="Effect" Value="{StaticResource GlassTextShadow}" />
+    </Style>
+</Styles>
+```
+
+### `MainSrc\Views\LoginWindow.axaml`
 
 ```xml
 <Window xmlns="https://github.com/avaloniaui"
@@ -3543,6 +5176,7 @@ namespace Project.Launch.Views
         xmlns:media="clr-namespace:Avalonia.Media;assembly=Avalonia.Base"
         xmlns:avalonia="using:Avalonia.Controls"
         xmlns:lg="using:LiquidGlassAvaloniaUI"
+        xmlns:sc="using:Project.Launch.Tools.AppConstants"
         x:Class="Project.Launch.Views.LoginWindow"
         Title="登录"
         Width="800" Height="440"
@@ -3618,7 +5252,7 @@ namespace Project.Launch.Views
                         </Border.RenderTransform>
 
                         <StackPanel HorizontalAlignment="Center">
-                            <TextBlock Text="登录 Kilim Minecraft Launcher"
+                            <TextBlock Text="{x:Static sc:SetConstants.LoginHeader}"
                                        FontSize="20"
                                        FontWeight="Bold"
                                        Foreground="#333"
@@ -3839,7 +5473,7 @@ namespace Project.Launch.Views
                     Background="#F5F5F5"
                     CornerRadius="0,0,12,12">
                 <DockPanel Margin="15,0,15,0">
-                    <TextBlock DockPanel.Dock="Left" Text="rc-5" FontSize="11" Foreground="#999" VerticalAlignment="Center" />
+                    <TextBlock DockPanel.Dock="Left" Text="{x:Static sc:SetConstants.Version}" FontSize="11" Foreground="#999" VerticalAlignment="Center" />
                     <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center" Spacing="8">
                         <Button x:Name="GitHubButton" Background="Transparent" BorderThickness="0" Cursor="Hand" Padding="0" Width="44" Height="44" ToolTip.Tip="点击即访问仓库">
                             <Image Source="avares://Project.Launch/MainSrc/Views/imgs/Main/images/Support/github.png" Width="36" Height="36" Stretch="Uniform" />
@@ -3854,8 +5488,6 @@ namespace Project.Launch.Views
 ```
 
 ### `MainSrc\Views\LoginWindow.xaml.cs`
-
-<!-- 616 行 / 23.2 KB -->
 
 ```csharp
 using System;
@@ -3878,8 +5510,13 @@ using Avalonia.Platform;
 using Avalonia.Threading;
 using LiquidGlassAvaloniaUI;
 using Project.Launch.Tools;
-using Project.Launch.Tools.Auth;
+using Project.Launch.Auth;
 
+using Project.Launch;
+using Project.Launch.Tools.AnimSettings;
+using Project.Launch.Tools.JavaConfig;
+using Project.Launch.Tools.LogsConfig;
+using Project.Launch.Tools.SoundControl;
 namespace Project.Launch.Views
 {
     public partial class LoginWindow : Window
@@ -4476,17 +6113,19 @@ namespace Project.Launch.Views
 }
 ```
 
-### `MainSrc\Views\AccountManagerWindow.axaml`
-
-<!-- 193 行 / 8.6 KB -->
+### `MainSrc\Views\MainWindow.axaml`
 
 ```xml
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:avalonia="using:Avalonia.Controls"
-        x:Class="Project.Launch.Views.AccountManagerWindow"
-        Title="账户管理"
-        Width="800" Height="440"
+        xmlns:avalonia="clr-namespace:Avalonia.Controls;assembly=Avalonia.Controls"
+        xmlns:lg="using:LiquidGlassAvaloniaUI"
+        xmlns:p3d="clr-namespace:Project.Launch.Tools.Player3DConfig"
+        xmlns:dl="clr-namespace:Project.Launch.Download"
+        xmlns:sc="using:Project.Launch.Tools.AppConstants"
+        x:Class="Project.Launch.Views.MainWindow"
+        Title="{x:Static sc:SetConstants.AppName}"
+        Width="960" Height="560"
         WindowDecorations="None"
         ExtendClientAreaToDecorationsHint="True"
         ExtendClientAreaTitleBarHeightHint="-1"
@@ -4496,515 +6135,2105 @@ namespace Project.Launch.Views
         avalonia:Win32Properties.WindowCornerPreference="Round">
 
     <Window.Styles>
-        <!-- 添加账户按钮（主题色） -->
-        <Style Selector="Button.AddAccount">
+        <Style Selector="Button.TabBtn">
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate>
-                        <Border Background="{TemplateBinding Background}"
-                                CornerRadius="10"
-                                Padding="{TemplateBinding Padding}">
-                            <ContentPresenter Content="{TemplateBinding Content}"
-                                              HorizontalAlignment="Center"
-                                              VerticalAlignment="Center" />
-                        </Border>
+                        <ContentPresenter Content="{TemplateBinding Content}"
+                                          HorizontalAlignment="Stretch"
+                                          VerticalAlignment="Stretch"
+                                          HorizontalContentAlignment="Stretch"
+                                          VerticalContentAlignment="Stretch" />
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
-            <Setter Property="Background" Value="#DD8A68CE" />
-            <Setter Property="Foreground" Value="White" />
-            <Setter Property="FontWeight" Value="SemiBold" />
-            <Setter Property="FontSize" Value="16" />
-            <Setter Property="Padding" Value="28,14" />
-            <Setter Property="Cursor" Value="Hand" />
-            <Setter Property="HorizontalAlignment" Value="Center" />
-            <Setter Property="Transitions">
-                <Transitions>
-                    <BrushTransition Property="Background" Duration="0:0:0.15" />
-                </Transitions>
-            </Setter>
-        </Style>
-        <Style Selector="Button.AddAccount:pointerover">
-            <Setter Property="Background" Value="#EE9A78DE" />
-        </Style>
-
-        <!-- 账户项按钮 -->
-        <Style Selector="Button.AccountItem">
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate>
-                        <Border Background="{TemplateBinding Background}"
-                                CornerRadius="8"
-                                Padding="{TemplateBinding Padding}">
-                            <ContentPresenter Content="{TemplateBinding Content}"
-                                              HorizontalAlignment="Stretch"
-                                              VerticalAlignment="Center" />
-                        </Border>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-            <Setter Property="Cursor" Value="Hand" />
-            <Setter Property="HorizontalAlignment" Value="Stretch" />
-            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-            <Setter Property="Padding" Value="12,10" />
-            <Setter Property="Transitions">
-                <Transitions>
-                    <BrushTransition Property="Background" Duration="0:0:0.15" />
-                </Transitions>
-            </Setter>
-        </Style>
-        <Style Selector="Button.AccountItem:pointerover">
-            <Setter Property="Background" Value="#E8E0F0" />
-        </Style>
-
-        <!-- 删除按钮 -->
-        <Style Selector="Button.DeleteAccount">
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate>
-                        <Border Background="{TemplateBinding Background}"
-                                CornerRadius="6"
-                                Padding="{TemplateBinding Padding}">
-                            <ContentPresenter Content="{TemplateBinding Content}"
-                                              HorizontalAlignment="Center"
-                                              VerticalAlignment="Center" />
-                        </Border>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-            <Setter Property="Background" Value="Transparent" />
-            <Setter Property="Foreground" Value="#CC5555" />
-            <Setter Property="FontWeight" Value="Bold" />
-            <Setter Property="FontSize" Value="16" />
-            <Setter Property="Padding" Value="10,4" />
-            <Setter Property="Cursor" Value="Hand" />
-            <Setter Property="VerticalAlignment" Value="Center" />
-        </Style>
-        <Style Selector="Button.DeleteAccount:pointerover">
-            <Setter Property="Background" Value="#22CC5555" />
-        </Style>
-
-        <!-- 关闭按钮 -->
-        <Style Selector="Button.CloseBtn">
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate>
-                        <Border Background="{TemplateBinding Background}"
-                                CornerRadius="6"
-                                Padding="{TemplateBinding Padding}">
-                            <ContentPresenter Content="{TemplateBinding Content}"
-                                              HorizontalAlignment="Center"
-                                              VerticalAlignment="Center" />
-                        </Border>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-            <Setter Property="Background" Value="Transparent" />
-            <Setter Property="Foreground" Value="#666" />
-            <Setter Property="FontSize" Value="12" />
-            <Setter Property="Padding" Value="14,6" />
-            <Setter Property="Cursor" Value="Hand" />
-        </Style>
-        <Style Selector="Button.CloseBtn:pointerover">
-            <Setter Property="Background" Value="#E8E8E8" />
         </Style>
     </Window.Styles>
 
-    <Border CornerRadius="12" Background="White">
-        <Grid>
+    <Grid Background="#D9E0E0E0">
+
+        <Grid.RowDefinitions>
+            <RowDefinition Height="35" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <!-- ★ 标题栏 -->
+        <Border Grid.Row="0"
+                x:Name="TitleBarBorder"
+                PointerPressed="TitleBar_PointerPressed"
+                CornerRadius="12,12,0,0">
+            <Border.Background>
+                <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,0%">
+                    <GradientStop Color="#CCFF6B9D" Offset="0.0"/>
+                    <GradientStop Color="#CCB366FF" Offset="1.0"/>
+                </LinearGradientBrush>
+            </Border.Background>
+            <Border.Transitions>
+                <Transitions>
+                    <BrushTransition Property="Background" Duration="0:0:0.4" />
+                </Transitions>
+            </Border.Transitions>
+
+            <Grid ColumnDefinitions="*, Auto, Auto">
+                <TextBlock Grid.Column="0"
+                           x:Name="TitleText"
+                           Text="{x:Static sc:SetConstants.AppName}"
+                           FontSize="16"
+                           Foreground="White"
+                           VerticalAlignment="Center"
+                           Margin="10,0,0,0">
+                    <TextBlock.Transitions>
+                        <Transitions>
+                            <BrushTransition Property="Foreground" Duration="0:0:0.4" />
+                        </Transitions>
+                    </TextBlock.Transitions>
+                </TextBlock>
+
+                <Button Grid.Column="1"
+                        x:Name="MinimizeButton"
+                        Background="Transparent"
+                        BorderThickness="0"
+                        Width="45" Height="35"
+                        Cursor="Hand">
+                    <Image x:Name="MinimizeImage"
+                           Source="avares://Project.Launch/MainSrc/Views/imgs/Main/images/Buttons/white-.png"
+                           Width="20" Height="26" Stretch="Fill"
+                           VerticalAlignment="Center" HorizontalAlignment="Center"
+                           Opacity="1">
+                        <Image.Transitions>
+                            <Transitions>
+                                <DoubleTransition Property="Opacity" Duration="0:0:0.2" />
+                            </Transitions>
+                        </Image.Transitions>
+                    </Image>
+                </Button>
+
+                <Button Grid.Column="2"
+                        x:Name="CloseButton"
+                        Background="Transparent"
+                        BorderThickness="0"
+                        Width="45" Height="35"
+                        Cursor="Hand"
+                        Margin="0,0,10,0">
+                    <Image x:Name="CloseImage"
+                           Source="avares://Project.Launch/MainSrc/Views/imgs/Main/images/Buttons/whitex.png"
+                           Width="20" Height="20" Stretch="Uniform"
+                           VerticalAlignment="Center" HorizontalAlignment="Center"
+                           Opacity="1">
+                        <Image.Transitions>
+                            <Transitions>
+                                <DoubleTransition Property="Opacity" Duration="0:0:0.2" />
+                            </Transitions>
+                        </Image.Transitions>
+                    </Image>
+                </Button>
+            </Grid>
+        </Border>
+
+        <!-- ★ 主内容区域 -->
+        <Grid x:Name="ContentArea" Grid.Row="1" Margin="20">
             <Grid.RowDefinitions>
                 <RowDefinition Height="*" />
                 <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
 
-            <!-- 内容区 -->
-            <Grid Grid.Row="0" Margin="30,30,30,15">
+            <!-- ★ 内容区 -->
+            <Grid Grid.Row="0">
 
-                <!-- 空状态：居中大按钮 -->
-                <Button x:Name="EmptyAddButton"
-                        Classes="AddAccount"
-                        Content="＋ 添加账户"
-                        HorizontalAlignment="Center"
-                        VerticalAlignment="Center"
-                        IsVisible="False"
-                        Click="OnAddAccountClicked" />
+                <!-- ★ 主页 -->
+                <Grid x:Name="HomePanel" IsVisible="True" Opacity="1">
+                    <Grid.Transitions>
+                        <Transitions>
+                            <DoubleTransition Property="Opacity" Duration="0:0:0.2" />
+                        </Transitions>
+                    </Grid.Transitions>
 
-                <!-- 非空：列表 + 底部添加按钮 -->
-                <Grid x:Name="ListContainer" IsVisible="False">
+                    <!-- 未登录提示 + ReLogin 按钮 -->
+                    <StackPanel x:Name="HomeNotLoggedIn"
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center"
+                                Spacing="24"
+                                IsVisible="False">
+                        <TextBlock Text="您似乎未登录任何账号绑定至启动器或实例"
+                                   FontSize="18"
+                                   Foreground="#555"
+                                   HorizontalAlignment="Center" />
+
+                        <Grid x:Name="ReLoginContainer"
+                              Width="292" Height="85"
+                              HorizontalAlignment="Center">
+                            <Button x:Name="ReLoginButton"
+                                    Width="275"
+                                    Height="80"
+                                    Padding="0"
+                                    Background="Transparent"
+                                    BorderThickness="0"
+                                    Cursor="Hand"
+                                    HorizontalAlignment="Center"
+                                    VerticalAlignment="Center">
+                                <Button.Styles>
+                                    <Style Selector="Button">
+                                        <Setter Property="Template">
+                                            <Setter.Value>
+                                                <ControlTemplate>
+                                                    <ContentPresenter Content="{TemplateBinding Content}"
+                                                                      HorizontalAlignment="Stretch"
+                                                                      VerticalAlignment="Stretch"
+                                                                      HorizontalContentAlignment="Stretch"
+                                                                      VerticalContentAlignment="Stretch" />
+                                                </ControlTemplate>
+                                            </Setter.Value>
+                                        </Setter>
+                                    </Style>
+                                </Button.Styles>
+                                <Grid>
+                                    <Image Source="avares://Project.Launch/MainSrc/Views/imgs/Main/images/Buttons/ReLogin.png"
+                                           Stretch="Fill"
+                                           HorizontalAlignment="Stretch"
+                                           VerticalAlignment="Stretch" />
+                                    <TextBlock Text="登录"
+                                               FontSize="24"
+                                               FontWeight="Bold"
+                                               Foreground="White"
+                                               HorizontalAlignment="Center"
+                                               VerticalAlignment="Center" />
+                                </Grid>
+                            </Button>
+                        </Grid>
+                    </StackPanel>
+
+                    <!-- 已登录：头像 + ID + 切换账户 -->
+                    <StackPanel x:Name="HomeLoggedIn"
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center"
+                                Spacing="12"
+                                IsVisible="False">
+                        <Grid Width="160" Height="160"
+                              HorizontalAlignment="Center">
+                            <Image x:Name="HomeFaceImage"
+                                   Stretch="Uniform"
+                                   Width="120" Height="120"
+                                   HorizontalAlignment="Center"
+                                   VerticalAlignment="Center"
+                                   RenderOptions.BitmapInterpolationMode="None" />
+                            <Image x:Name="HomeHatImage"
+                                   Stretch="Uniform"
+                                   Width="120" Height="120"
+                                   HorizontalAlignment="Center"
+                                   VerticalAlignment="Center"
+                                   Margin="-3,-3,-3,-3"
+                                   RenderOptions.BitmapInterpolationMode="None" />
+                            <Border Width="120" Height="120"
+                                    BorderBrush="#DDD"
+                                    BorderThickness="2"
+                                    CornerRadius="4"
+                                    IsHitTestVisible="False"
+                                    HorizontalAlignment="Center"
+                                    VerticalAlignment="Center" />
+                        </Grid>
+                        <TextBlock x:Name="HomePlayerName"
+                                   Text="Steve"
+                                   FontSize="22"
+                                   FontWeight="Bold"
+                                   Foreground="#333"
+                                   HorizontalAlignment="Center" />
+
+                        <Button x:Name="SwitchAccountButton"
+                                Classes="Miret"
+                                Content="切换账户"
+                                Padding="16,7"
+                                FontSize="13"
+                                HorizontalAlignment="Center"
+                                Margin="0,6,0,0"
+                                Click="OnSwitchAccountClicked" />
+                    </StackPanel>
+                </Grid>
+
+                <!-- ★ 启动页 -->
+                <Grid x:Name="LaunchPanel" IsVisible="False" Opacity="1">
+                    <Grid.Transitions>
+                        <Transitions>
+                            <DoubleTransition Property="Opacity" Duration="0:0:0.2" />
+                        </Transitions>
+                    </Grid.Transitions>
+
                     <Grid.RowDefinitions>
                         <RowDefinition Height="*" />
                         <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
 
-                    <ScrollViewer Grid.Row="0"
-                                  VerticalScrollBarVisibility="Auto"
-                                  HorizontalScrollBarVisibility="Disabled">
-                        <StackPanel x:Name="AccountListPanel" Spacing="8" />
-                    </ScrollViewer>
+                    <p3d:Pivot3DControl x:Name="SkinViewer"
+                                          Grid.Row="0"
+                                          HorizontalAlignment="Stretch"
+                                          VerticalAlignment="Stretch"
+                                          Margin="0,10,0,10"
+                                          IsVisible="False" />
 
-                    <Button x:Name="BottomAddButton"
-                            Grid.Row="1"
-                            Classes="AddAccount"
-                            Content="＋ 添加账户"
-                            HorizontalAlignment="Stretch"
-                            Margin="0,15,0,0"
-                            Click="OnAddAccountClicked" />
+                    <StackPanel x:Name="LaunchNotLoggedIn"
+                                Grid.Row="0"
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center"
+                                Spacing="10"
+                                IsVisible="False">
+                        <TextBlock Text="请登录后查看"
+                                   FontSize="20"
+                                   FontWeight="SemiBold"
+                                   Foreground="#555"
+                                   HorizontalAlignment="Center" />
+                        <TextBlock Text="请先在主页完成登录"
+                                   FontSize="13"
+                                   Foreground="#888"
+                                   HorizontalAlignment="Center" />
+                    </StackPanel>
+
+                    <StackPanel x:Name="LaunchButtonsPanel"
+                                Grid.Row="1"
+                                Orientation="Horizontal"
+                                HorizontalAlignment="Center"
+                                Spacing="10"
+                                Margin="0,8,0,8"
+                                IsVisible="False">
+
+                        <Button x:Name="LaunchGameButton"
+                                Width="220"
+                                Height="80"
+                                Padding="0"
+                                Background="Transparent"
+                                BorderThickness="0"
+                                Cursor="Hand"
+                                IsVisible="False">
+                            <Button.Styles>
+                                <Style Selector="Button">
+                                    <Setter Property="Template">
+                                        <Setter.Value>
+                                            <ControlTemplate>
+                                                <ContentPresenter Content="{TemplateBinding Content}"
+                                                                  HorizontalAlignment="Stretch"
+                                                                  VerticalAlignment="Stretch"
+                                                                  HorizontalContentAlignment="Stretch"
+                                                                  VerticalContentAlignment="Stretch" />
+                                            </ControlTemplate>
+                                        </Setter.Value>
+                                    </Setter>
+                                </Style>
+                            </Button.Styles>
+                            <Grid>
+                                <Image x:Name="LaunchGameImage"
+                                       Source="avares://Project.Launch/MainSrc/Views/imgs/Main/images/Buttons/button-Start3.png"
+                                       Stretch="Fill" />
+                                <TextBlock x:Name="LaunchGameText"
+                                           Text="导入实例"
+                                           FontSize="24"
+                                           FontWeight="Bold"
+                                           Foreground="White"
+                                           HorizontalAlignment="Center"
+                                           VerticalAlignment="Center" />
+                            </Grid>
+                        </Button>
+
+                        <Button x:Name="ExpandButton"
+                                Width="45"
+                                Height="80"
+                                Padding="0"
+                                Background="Transparent"
+                                BorderThickness="0"
+                                Cursor="Hand"
+                                IsVisible="False">
+                            <Button.Styles>
+                                <Style Selector="Button">
+                                    <Setter Property="Template">
+                                        <Setter.Value>
+                                            <ControlTemplate>
+                                                <ContentPresenter Content="{TemplateBinding Content}"
+                                                                  HorizontalAlignment="Stretch"
+                                                                  VerticalAlignment="Stretch"
+                                                                  HorizontalContentAlignment="Stretch"
+                                                                  VerticalContentAlignment="Stretch" />
+                                            </ControlTemplate>
+                                        </Setter.Value>
+                                    </Setter>
+                                </Style>
+                            </Button.Styles>
+                            <Grid>
+                                <Image x:Name="ExpandImage"
+                                       Source="avares://Project.Launch/MainSrc/Views/imgs/Main/images/Buttons/button-Start4.png"
+                                       Stretch="Fill" />
+                                <TextBlock Text="^"
+                                           FontSize="30"
+                                           FontWeight="Bold"
+                                           Foreground="White"
+                                           HorizontalAlignment="Center"
+                                           VerticalAlignment="Center" />
+                            </Grid>
+                        </Button>
+                    </StackPanel>
+                </Grid>
+
+                <!-- ★ 下载 -->
+                <Grid x:Name="DownloadPanel" IsVisible="False" Opacity="1">
+                    <Grid.Transitions>
+                        <Transitions>
+                            <DoubleTransition Property="Opacity" Duration="0:0:0.2" />
+                        </Transitions>
+                    </Grid.Transitions>
+
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+
+                    <!-- 版本类型选择（安全区左上角） -->
+                    <Grid Grid.Row="0" HorizontalAlignment="Left" Margin="0,0,0,12">
+                        <Border Background="#D8D8D8" CornerRadius="8" Width="240" Height="44" />
+                        <Grid ColumnDefinitions="*,*" Width="240" Height="44">
+                            <Button x:Name="BedrockEditionButton"
+                                    Grid.Column="0"
+                                    Background="Transparent"
+                                    BorderThickness="0"
+                                    Foreground="#666666"
+                                    FontWeight="SemiBold"
+                                    FontSize="14"
+                                    Content="基岩版"
+                                    Cursor="Hand"
+                                    HorizontalAlignment="Stretch"
+                                    HorizontalContentAlignment="Center"
+                                    Padding="0" />
+                            <Button x:Name="JavaEditionButton"
+                                    Grid.Column="1"
+                                    Background="Transparent"
+                                    BorderThickness="0"
+                                    Foreground="#666666"
+                                    FontWeight="SemiBold"
+                                    FontSize="14"
+                                    Content="Java版"
+                                    Cursor="Hand"
+                                    HorizontalAlignment="Stretch"
+                                    HorizontalContentAlignment="Center"
+                                    Padding="0" />
+                        </Grid>
+
+                        <lg:LiquidGlassSurface x:Name="EditionSlider"
+                                               Width="114"
+                                               Height="36"
+                                               CornerRadius="6"
+                                               VerticalAlignment="Center"
+                                               HorizontalAlignment="Left"
+                                               Margin="3,0,3,0"
+                                               RenderTransformOrigin="0.5,0.5"
+                                               RefractionHeight="4"
+                                               RefractionAmount="40"
+                                               BlurRadius="0"
+                                               Vibrancy="0.86"
+                                               Brightness="0"
+                                               Contrast="1.0"
+                                               ExposureEv="0"
+                                               GammaPower="1.0"
+                                               BackdropOpacity="1.0"
+                                               ChromaticAberration="True"
+                                               DepthEffect="False"
+                                               HighlightEnabled="True"
+                                               ShadowEnabled="True"
+                                               ShadowRadius="24"
+                                               ShadowOffset="0,4"
+                                               ShadowColor="#1A000000">
+                            <lg:LiquidGlassSurface.RenderTransform>
+                                <TransformGroup>
+                                    <ScaleTransform ScaleX="1" ScaleY="1" />
+                                    <TranslateTransform X="0" Y="0" />
+                                </TransformGroup>
+                            </lg:LiquidGlassSurface.RenderTransform>
+                        </lg:LiquidGlassSurface>
+                    </Grid>
+
+                    <!-- 安全区（负责显示内容） -->
+                    <Border Grid.Row="1"
+                            Background="White"
+                            CornerRadius="12">
+                        <Border.Effect>
+                            <DropShadowEffect BlurRadius="24"
+                                              OffsetX="0"
+                                              OffsetY="8"
+                                              Color="#1A000000" />
+                        </Border.Effect>
+
+                        <Grid>
+                            <!-- 基岩版面板 -->
+                            <StackPanel x:Name="BedrockPanel"
+                                        HorizontalAlignment="Center"
+                                        VerticalAlignment="Center"
+                                        Spacing="10">
+                                <TextBlock Text="基岩版"
+                                           FontSize="22"
+                                           FontWeight="SemiBold"
+                                           Foreground="#555"
+                                           HorizontalAlignment="Center" />
+                                <TextBlock Text="版本列表（待接入）"
+                                           FontSize="14"
+                                           Foreground="#888"
+                                           HorizontalAlignment="Center" />
+                                <TextBlock Text="自觉遵守 Demo 测试保密"
+                                           FontSize="12"
+                                           Foreground="#AAA"
+                                           HorizontalAlignment="Center"
+                                           Margin="0,8,0,0" />
+                            </StackPanel>
+
+                            <!-- ★ Java版面板（版本列表） -->
+                            <Grid x:Name="JavaPanel" IsVisible="False" RowDefinitions="Auto, *" Margin="20">
+                                <!-- 顶部工具栏：类型筛选 + 搜索 -->
+                                <Grid Grid.Row="0" ColumnDefinitions="Auto, *">
+                                    <ComboBox x:Name="VersionTypeFilter" SelectedIndex="0" Width="140" 
+                                              SelectionChanged="OnVersionFilterChanged">
+                                        <ComboBoxItem Content="全部版本" Tag="all" />
+                                        <ComboBoxItem Content="正式版 (Release)" Tag="release" />
+                                        <ComboBoxItem Content="快照版 (Snapshot)" Tag="snapshot" />
+                                    </ComboBox>
+                                    
+                                    <TextBox x:Name="VersionSearchBox" Grid.Column="1" PlaceholderText="搜索版本号..." 
+                                             Width="220" HorizontalAlignment="Right" TextChanged="OnVersionSearchChanged" />
+                                </Grid>
+                                
+                                <!-- 列表区 -->
+                                <Border Grid.Row="1" Margin="0,15,0,0" BorderBrush="#E0E0E0" BorderThickness="1" CornerRadius="8">
+                                    <Grid>
+                                        <!-- 版本列表 -->
+                                        <ListBox x:Name="VersionListBox" Background="Transparent" BorderThickness="0" 
+                                                 DoubleTapped="OnVersionListDoubleTapped" SelectionChanged="OnVersionSelected">
+                                            <ListBox.ItemTemplate>
+                                                <DataTemplate x:DataType="dl:VersionEntry">
+                                                    <DockPanel Margin="0,5">
+                                                        <!-- 右侧：日期 -->
+                                                        <TextBlock DockPanel.Dock="Right" Text="{Binding ReleaseTimeStr}" Foreground="#AAA" 
+                                                                   VerticalAlignment="Center" Margin="0,0,15,0" />
+                                                        <!-- 右侧：类型 -->
+                                                        <TextBlock DockPanel.Dock="Right" Text="{Binding Type}" Foreground="#888" 
+                                                                   VerticalAlignment="Center" Width="80" />
+                                                        <!-- 左侧：图标 -->
+                                                        <Image DockPanel.Dock="Left" Source="{Binding IconBitmap}" Width="24" Height="24" 
+                                                               VerticalAlignment="Center" />
+                                                        <!-- ★ 最关键：最后一个元素不要写 Dock，让它填满中间，且显式赋予深色字体 -->
+                                                        <TextBlock Text="{Binding VersionId}" Foreground="#333" FontWeight="SemiBold" 
+                                                                   VerticalAlignment="Center" Margin="10,0,0,0" FontSize="15" />
+                                                    </DockPanel>
+                                                </DataTemplate>
+                                            </ListBox.ItemTemplate>
+                                        </ListBox>
+                                        
+                                        <!-- 加载中提示 -->
+                                        <StackPanel x:Name="VersionLoadingPanel" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="10">
+                                            <TextBlock Text="正在连接镜像 API 获取版本列表..." Foreground="#666" FontSize="14"/>
+                                        </StackPanel>
+                                        
+                                        <!-- 加载失败提示 -->
+                                        <StackPanel x:Name="VersionErrorPanel" IsVisible="False" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="15">
+                                            <TextBlock Text="获取版本列表失败，请检查网络连接" Foreground="#CC5555" FontSize="14"/>
+                                            <Button Content="重试" Click="OnRetryVersionsClicked" Classes="Miret" HorizontalAlignment="Center" />
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
+                            </Grid>
+                        </Grid>
+                    </Border>
+                </Grid>
+
+                <!-- ★ 设置（占位） -->
+                <Grid x:Name="SettingsPanel" IsVisible="False" Opacity="1">
+                    <Grid.Transitions>
+                        <Transitions>
+                            <DoubleTransition Property="Opacity" Duration="0:0:0.2" />
+                        </Transitions>
+                    </Grid.Transitions>
+                    <StackPanel HorizontalAlignment="Center"
+                                VerticalAlignment="Center"
+                                Spacing="10">
+                        <TextBlock Text="暂时无设置功能"
+                                   FontSize="22"
+                                   FontWeight="SemiBold"
+                                   Foreground="#555"
+                                   HorizontalAlignment="Center" />
+                        <TextBlock Text="等待后续开发"
+                                   FontSize="14"
+                                   Foreground="#888"
+                                   HorizontalAlignment="Center" />
+                        <TextBlock Text="自觉遵守 Demo 测试保密"
+                                   FontSize="12"
+                                   Foreground="#AAA"
+                                   HorizontalAlignment="Center"
+                                   Margin="0,8,0,0" />
+                    </StackPanel>
+                </Grid>
+
+                <!-- ★ 工具（占位） -->
+                <Grid x:Name="ToolsPanel" IsVisible="False" Opacity="1">
+                    <Grid.Transitions>
+                        <Transitions>
+                            <DoubleTransition Property="Opacity" Duration="0:0:0.2" />
+                        </Transitions>
+                    </Grid.Transitions>
+                    <StackPanel HorizontalAlignment="Center"
+                                VerticalAlignment="Center"
+                                Spacing="10">
+                        <TextBlock Text="暂时无工具功能"
+                                   FontSize="22"
+                                   FontWeight="SemiBold"
+                                   Foreground="#555"
+                                   HorizontalAlignment="Center" />
+                        <TextBlock Text="等待后续开发"
+                                   FontSize="14"
+                                   Foreground="#888"
+                                   HorizontalAlignment="Center" />
+                        <TextBlock Text="自觉遵守 Demo 测试保密"
+                                   FontSize="12"
+                                   Foreground="#AAA"
+                                   HorizontalAlignment="Center"
+                                   Margin="0,8,0,0" />
+                    </StackPanel>
                 </Grid>
             </Grid>
 
-            <!-- 底部栏 -->
-            <Border Grid.Row="1"
-                    Height="44"
-                    Background="#F5F5F5"
-                    CornerRadius="0,0,12,12">
-                <DockPanel Margin="15,0,15,0">
-                    <TextBlock DockPanel.Dock="Left"
-                               Text="账户管理"
-                               FontSize="11"
-                               Foreground="#999"
-                               VerticalAlignment="Center" />
-                    <Button DockPanel.Dock="Right"
-                            x:Name="CloseButton"
-                            Classes="CloseBtn"
-                            Content="关闭"
-                            VerticalAlignment="Center"
-                            Click="OnCloseClicked" />
-                </DockPanel>
-            </Border>
+            <!-- ★ 底部导航条 -->
+            <Grid x:Name="BottomNavBar"
+                  Grid.Row="1"
+                  Width="520" Height="52"
+                  HorizontalAlignment="Center"
+                  Margin="0,16,0,0">
+
+                <Border Background="#D8D8D8" CornerRadius="26" />
+                <Border Background="#C8C8C8" CornerRadius="25" Margin="1" />
+
+                <Grid ColumnDefinitions="*,*,*,*,*">
+                    <Button x:Name="DownloadTabButton"
+                            Grid.Column="0"
+                            Classes="TabBtn"
+                            Background="Transparent"
+                            BorderThickness="0"
+                            Cursor="Hand"
+                            HorizontalAlignment="Stretch"
+                            HorizontalContentAlignment="Center"
+                            VerticalContentAlignment="Center"
+                            Padding="0">
+                        <StackPanel Orientation="Vertical"
+                                    Spacing="2"
+                                    Background="Transparent"
+                                    HorizontalAlignment="Center"
+                                    VerticalAlignment="Center">
+                            <Image Source="avares://Project.Launch/MainSrc/Views/imgs/Main/images/Buttons/Download.png"
+                                   Width="22" Height="22" Stretch="Uniform" />
+                            <TextBlock Text="下载"
+                                       FontSize="10"
+                                       Foreground="#444"
+                                       HorizontalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
+                    <Button x:Name="LaunchTabButton"
+                            Grid.Column="1"
+                            Classes="TabBtn"
+                            Background="Transparent"
+                            BorderThickness="0"
+                            Cursor="Hand"
+                            HorizontalAlignment="Stretch"
+                            HorizontalContentAlignment="Center"
+                            VerticalContentAlignment="Center"
+                            Padding="0">
+                        <StackPanel Orientation="Vertical"
+                                    Spacing="2"
+                                    Background="Transparent"
+                                    HorizontalAlignment="Center"
+                                    VerticalAlignment="Center">
+                            <Image Source="avares://Project.Launch/MainSrc/Views/imgs/Main/images/Buttons/Launch.png"
+                                   Width="22" Height="22" Stretch="Uniform" />
+                            <TextBlock Text="启动"
+                                       FontSize="10"
+                                       Foreground="#444"
+                                       HorizontalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
+                    <Button x:Name="HomeTabButton"
+                            Grid.Column="2"
+                            Classes="TabBtn"
+                            Background="Transparent"
+                            BorderThickness="0"
+                            Cursor="Hand"
+                            HorizontalAlignment="Stretch"
+                            HorizontalContentAlignment="Center"
+                            VerticalContentAlignment="Center"
+                            Padding="0">
+                        <StackPanel Orientation="Vertical"
+                                    Spacing="2"
+                                    Background="Transparent"
+                                    HorizontalAlignment="Center"
+                                    VerticalAlignment="Center">
+                            <Image Source="avares://Project.Launch/MainSrc/Views/imgs/Main/images/Buttons/Home.png"
+                                   Width="22" Height="22" Stretch="Uniform" />
+                            <TextBlock Text="主页"
+                                       FontSize="10"
+                                       Foreground="#444"
+                                       HorizontalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
+                    <Button x:Name="SettingsTabButton"
+                            Grid.Column="3"
+                            Classes="TabBtn"
+                            Background="Transparent"
+                            BorderThickness="0"
+                            Cursor="Hand"
+                            HorizontalAlignment="Stretch"
+                            HorizontalContentAlignment="Center"
+                            VerticalContentAlignment="Center"
+                            Padding="0">
+                        <StackPanel Orientation="Vertical"
+                                    Spacing="2"
+                                    Background="Transparent"
+                                    HorizontalAlignment="Center"
+                                    VerticalAlignment="Center">
+                            <Image Source="avares://Project.Launch/MainSrc/Views/imgs/Main/images/Buttons/Setting.png"
+                                   Width="22" Height="22" Stretch="Uniform" />
+                            <TextBlock Text="设置"
+                                       FontSize="10"
+                                       Foreground="#444"
+                                       HorizontalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
+                    <Button x:Name="ToolsTabButton"
+                            Grid.Column="4"
+                            Classes="TabBtn"
+                            Background="Transparent"
+                            BorderThickness="0"
+                            Cursor="Hand"
+                            HorizontalAlignment="Stretch"
+                            HorizontalContentAlignment="Center"
+                            VerticalContentAlignment="Center"
+                            Padding="0">
+                        <StackPanel Orientation="Vertical"
+                                    Spacing="2"
+                                    Background="Transparent"
+                                    HorizontalAlignment="Center"
+                                    VerticalAlignment="Center">
+                            <Image Source="avares://Project.Launch/MainSrc/Views/imgs/Main/images/Buttons/Tool.png"
+                                   Width="22" Height="22" Stretch="Uniform" />
+                            <TextBlock Text="工具"
+                                       FontSize="10"
+                                       Foreground="#444"
+                                       HorizontalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
+                </Grid>
+
+                <lg:LiquidGlassSurface x:Name="TabSlider"
+                                       Width="96"
+                                       Height="44"
+                                       CornerRadius="22"
+                                       VerticalAlignment="Center"
+                                       HorizontalAlignment="Left"
+                                       Margin="4,0,4,0"
+                                       RenderTransformOrigin="0.5,0.5"
+                                       RefractionHeight="4"
+                                       RefractionAmount="40"
+                                       BlurRadius="0"
+                                       Vibrancy="0.86"
+                                       Brightness="0"
+                                       Contrast="1.0"
+                                       ExposureEv="0"
+                                       GammaPower="1.0"
+                                       BackdropOpacity="1.0"
+                                       ChromaticAberration="True"
+                                       DepthEffect="False"
+                                       HighlightEnabled="False"
+                                       HighlightOpacity="0"
+                                       ShadowEnabled="True"
+                                       ShadowRadius="20"
+                                       ShadowOffset="0,3"
+                                       ShadowColor="#1A000000">
+                    <lg:LiquidGlassSurface.RenderTransform>
+                        <TransformGroup>
+                            <ScaleTransform ScaleX="1" ScaleY="1" />
+                            <TranslateTransform X="208" Y="0" />
+                        </TransformGroup>
+                    </lg:LiquidGlassSurface.RenderTransform>
+                </lg:LiquidGlassSurface>
+            </Grid>
         </Grid>
-    </Border>
+
+        <!-- Toast -->
+        <Border x:Name="CancelToast"
+                Grid.Row="1"
+                IsVisible="False"
+                Opacity="0"
+                Background="#F2FFFFFF"
+                CornerRadius="14"
+                BorderBrush="#33FFFFFF"
+                BorderThickness="1"
+                Padding="20,16"
+                MinWidth="360"
+                HorizontalAlignment="Right"
+                VerticalAlignment="Bottom"
+                Margin="0,0,24,24">
+            <Border.Effect>
+                <DropShadowEffect BlurRadius="24"
+                                  OffsetX="0"
+                                  OffsetY="8"
+                                  Color="#33000000" />
+            </Border.Effect>
+            <Border.Transitions>
+                <Transitions>
+                    <DoubleTransition Property="Opacity" Duration="0:0:0.3">
+                        <DoubleTransition.Easing>
+                            <CubicEaseInOut />
+                        </DoubleTransition.Easing>
+                    </DoubleTransition>
+                </Transitions>
+            </Border.Transitions>
+
+            <StackPanel Orientation="Horizontal"
+                        VerticalAlignment="Center"
+                        Spacing="14">
+                <Image Source="avares://Project.Launch/MainSrc/Views/imgs/Main/images/Buttons/warning.png"
+                       Width="28"
+                       Height="28"
+                       Stretch="Uniform"
+                       VerticalAlignment="Center" />
+                <TextBlock x:Name="ToastText"
+                           Text="用户取消登录"
+                           FontSize="16"
+                           FontWeight="SemiBold"
+                           Foreground="#333"
+                           VerticalAlignment="Center" />
+            </StackPanel>
+        </Border>
+    </Grid>
 </Window>
 ```
 
-### `MainSrc\Views\AccountManagerWindow.axaml.cs`
-
-<!-- 319 行 / 11.5 KB -->
+### `MainSrc\Views\MainWindow.cs`
 
 ```csharp
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
-using Avalonia.Interactivity;
-using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
+using Avalonia.Platform;
+using Avalonia.Platform.Storage;
+using Avalonia.Threading;
+using LiquidGlassAvaloniaUI;
 using Project.Launch.Tools;
+using System;
+using System.IO;
+using System.Linq;
+using System.Net.Http;
+using System.Text;
+using System.Text.Json;
+using System.Threading.Tasks;
+using System.Collections.Generic;
+using Project.Launch.Download;
 
+using Project.Launch;
+using Project.Launch.Auth;
+using Project.Launch.Tools.AnimSettings;
+using Project.Launch.Tools.JavaConfig;
+using Project.Launch.Tools.LogsConfig;
+using Project.Launch.Tools.Player3DConfig;
+using Project.Launch.Tools.SoundControl;
 namespace Project.Launch.Views
 {
-    public partial class AccountManagerWindow : Window
+    public partial class MainWindow : Window
     {
-        /// <summary>用户是否点了"添加账户"（外部据此决定是否打开 LoginWindow）</summary>
-        public bool ShouldOpenLogin { get; private set; } = false;
+        private readonly Color _defaultStartColor = Color.Parse("#CCFF6B9D");
+        private readonly Color _defaultEndColor = Color.Parse("#CCB366FF");
+        private readonly HttpClient _httpClient = new HttpClient();
 
-        public AccountManagerWindow()
+        private InstanceInfo? _currentInstance;
+        private Bitmap? _fullSkinBitmap;
+
+        private Button? _homeTab, _launchTab, _downloadTab, _settingsTab, _toolsTab;
+        private LiquidGlassSurface? _tabSlider;
+        private TranslateTransform? _tabSliderTransform;
+        private ScaleTransform? _tabSliderScale;
+        private int _selectedTab = 2;
+        private DispatcherTimer? _tabAnimTimer;
+        private double _tabAnimStartX, _tabAnimTargetX;
+        private DateTime _tabAnimStartTime;
+
+        // 下载页：基岩版 / Java版 选择器
+        private Button? _bedrockEditionBtn, _javaEditionBtn;
+        private StackPanel? _bedrockPanel;
+        private Grid? _javaPanel;
+        private LiquidGlassSurface? _editionSlider;
+        private TranslateTransform? _editionSliderTransform;
+        private ScaleTransform? _editionSliderScale;
+        private int _selectedEdition = 0;
+        private DispatcherTimer? _editionAnimTimer;
+        private double _editionAnimStartX, _editionAnimTargetX;
+        private DateTime _editionAnimStartTime;
+
+        // Java 版版本列表
+        private List<VersionEntry>? _allVersions;
+        private bool _isVersionsLoading = false;
+        private VersionEntry? _selectedVersion;
+
+        public MainWindow()
         {
-            WindowStartupLocation = WindowStartupLocation.CenterOwner;
+            WindowStartupLocation = WindowStartupLocation.CenterScreen;
+
+            LogHelper.Reset(LauncherPaths.MainWindowLog,
+                "Kilim 启动器日志", "Kilim Launcher Log");
+
+            Log("程序启动", "Program started");
+
             InitializeComponent();
 
-            RebuildAccountList();
+            Log("InitializeComponent 完成", "InitializeComponent completed");
+
+            var closeButton = this.FindControl<Button>("CloseButton");
+            if (closeButton != null)
+                closeButton.Click += (s, e) => this.Close();
+
+            var minimizeButton = this.FindControl<Button>("MinimizeButton");
+            if (minimizeButton != null)
+                minimizeButton.Click += (s, e) => this.WindowState = WindowState.Minimized;
+
+            var launchGameButton = this.FindControl<Button>("LaunchGameButton");
+            if (launchGameButton != null)
+                launchGameButton.Click += OnMainButtonClicked;
+
+            var expandButton = this.FindControl<Button>("ExpandButton");
+            if (expandButton != null)
+                expandButton.Click += OnExpandClicked;
+
+            var reLoginButton = this.FindControl<Button>("ReLoginButton");
+            if (reLoginButton != null)
+                reLoginButton.Click += OnReLoginClicked;
+
+            InitializeTabSelector();
+            InitializeEditionSelector();
+            InitializeVersionList();
+
+            Log("按钮事件绑定完成", "Button events bound");
+
+            _currentInstance = InstanceService.GetSelectedInstance();
+            if (_currentInstance != null)
+            {
+                Log($"已加载实例: {_currentInstance.VersionId} @ {_currentInstance.RootPath}",
+                    $"Loaded instance: {_currentInstance.VersionId} @ {_currentInstance.RootPath}");
+            }
+
+            if (!App.LoginCheck)
+            {
+                UpdateTitleBarGradient(_defaultStartColor, _defaultEndColor);
+                Log("初始化完成（未登录，显示渐变标题栏）", "Initialization complete (not logged in, gradient title bar)");
+
+                Opened += async (s, e) =>
+                {
+                    try
+                    {
+                        await ShowLoginDialog();
+                        await SetTransparentTitleBarAsync();
+                        UpdateLoginStatus();
+                        await RefreshAvatarAsync();
+                        Log("登录窗口已关闭，切换为透明标题栏", "Login window closed, switched to transparent title bar");
+                    }
+                    catch (Exception ex)
+                    {
+                        Log($"弹登录窗异常: {ex.Message}", $"ShowLoginDialog exception: {ex.Message}");
+                    }
+                };
+            }
+            else
+            {
+                Opened += async (s, e) =>
+                {
+                    try
+                    {
+                        await SetTransparentTitleBarAsync(animate: false);
+                        UpdateLoginStatus();
+                        await RefreshAvatarAsync();
+                        Log("初始化完成（已登录，显示透明标题栏）", "Initialization complete (logged in, transparent title bar)");
+                    }
+                    catch (Exception ex)
+                    {
+                        Log($"初始化异常: {ex.Message}", $"Init exception: {ex.Message}");
+                    }
+                };
+            }
         }
 
-        // ============================================================
-        // 重建账户列表
-        // ============================================================
-        private void RebuildAccountList()
+        private void InitializeTabSelector()
         {
-            var listPanel = this.FindControl<StackPanel>("AccountListPanel");
-            var emptyAddBtn = this.FindControl<Button>("EmptyAddButton");
-            var listContainer = this.FindControl<Grid>("ListContainer");
+            _homeTab = this.FindControl<Button>("HomeTabButton");
+            _launchTab = this.FindControl<Button>("LaunchTabButton");
+            _downloadTab = this.FindControl<Button>("DownloadTabButton");
+            _settingsTab = this.FindControl<Button>("SettingsTabButton");
+            _toolsTab = this.FindControl<Button>("ToolsTabButton");
 
-            if (listPanel == null || emptyAddBtn == null || listContainer == null) return;
-
-            listPanel.Children.Clear();
-
-            var root = AccountService.LoadAccounts();
-            var accounts = root.Accounts
-                .OrderByDescending(a => a.Value.LastUsed)
-                .ToList();
-
-            if (accounts.Count == 0)
+            _tabSlider = this.FindControl<LiquidGlassSurface>("TabSlider");
+            if (_tabSlider != null)
             {
-                emptyAddBtn.IsVisible = true;
-                listContainer.IsVisible = false;
+                var group = _tabSlider.RenderTransform as TransformGroup;
+                if (group != null)
+                {
+                    _tabSliderTransform = group.Children.OfType<TranslateTransform>().FirstOrDefault();
+                    _tabSliderScale = group.Children.OfType<ScaleTransform>().FirstOrDefault();
+                }
+
+                if (_tabSliderTransform != null)
+                {
+                    _tabSliderTransform.X = _selectedTab * AnimationConfig.TabStep;
+                    _tabSliderTransform.Y = 0;
+                }
+                if (_tabSliderScale != null)
+                {
+                    _tabSliderScale.ScaleX = 1.0;
+                    _tabSliderScale.ScaleY = 1.0;
+                }
+            }
+
+            if (_downloadTab != null) _downloadTab.Click += (s, e) => SelectTab(0);
+            if (_launchTab != null) _launchTab.Click += (s, e) => SelectTab(1);
+            if (_homeTab != null) _homeTab.Click += (s, e) => SelectTab(2);
+            if (_settingsTab != null) _settingsTab.Click += (s, e) => SelectTab(3);
+            if (_toolsTab != null) _toolsTab.Click += (s, e) => SelectTab(4);
+
+            UpdateTabVisuals(_selectedTab);
+        }
+
+        private void SelectTab(int index)
+        {
+            if (index == _selectedTab) return;
+            int oldIndex = _selectedTab;
+            _selectedTab = index;
+
+            AnimateTabSliderTo(index);
+            UpdateTabVisuals(index);
+            _ = SwitchPanelAsync(oldIndex, index);
+        }
+
+        private void UpdateTabVisuals(int index)
+        {
+            var tabs = new[] { _downloadTab, _launchTab, _homeTab, _settingsTab, _toolsTab };
+            for (int i = 0; i < tabs.Length; i++)
+            {
+                if (tabs[i] != null)
+                {
+                    tabs[i]!.Foreground = (i == index)
+                        ? new SolidColorBrush(Colors.Black)
+                        : new SolidColorBrush(Color.Parse("#666666"));
+                    tabs[i]!.IsHitTestVisible = (i != index);
+                }
+            }
+        }
+
+        private async Task SwitchPanelAsync(int oldIndex, int newIndex)
+        {
+            var panels = new Grid?[]
+            {
+                this.FindControl<Grid>("DownloadPanel"),
+                this.FindControl<Grid>("LaunchPanel"),
+                this.FindControl<Grid>("HomePanel"),
+                this.FindControl<Grid>("SettingsPanel"),
+                this.FindControl<Grid>("ToolsPanel")
+            };
+
+            var oldPanel = (oldIndex >= 0 && oldIndex < panels.Length) ? panels[oldIndex] : null;
+            if (oldPanel != null && oldPanel.IsVisible)
+            {
+                oldPanel.Opacity = 0;
+                await Task.Delay(AnimationConfig.TabPanelFadeDuration);
+                oldPanel.IsVisible = false;
+            }
+
+            var newPanel = (newIndex >= 0 && newIndex < panels.Length) ? panels[newIndex] : null;
+            if (newPanel != null)
+            {
+                newPanel.Opacity = 0;
+                newPanel.IsVisible = true;
+                await Task.Delay(20);
+                newPanel.Opacity = 1;
+            }
+        }
+
+        private void AnimateTabSliderTo(int index)
+        {
+            if (_tabSliderTransform == null || _tabSlider == null) return;
+
+            double targetX = index * AnimationConfig.TabStep;
+            double startX = _tabSliderTransform.X;
+
+            _tabAnimTimer?.Stop();
+
+            _tabAnimStartX = startX;
+            _tabAnimTargetX = targetX;
+            _tabAnimStartTime = DateTime.Now;
+
+            double halfW = AnimationConfig.TabWidth / 2.0;
+            double halfH = AnimationConfig.TabHeight / 2.0;
+
+            _tabAnimTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(16) };
+            _tabAnimTimer.Tick += (s, e) =>
+            {
+                var elapsed = DateTime.Now - _tabAnimStartTime;
+                double progress = elapsed.TotalMilliseconds / AnimationConfig.TabMoveDuration.TotalMilliseconds;
+                if (progress >= 1.0)
+                {
+                    progress = 1.0;
+                    _tabAnimTimer.Stop();
+                }
+
+                double eased = progress < 0.5 ? 4 * progress * progress * progress : 1 - Math.Pow(-2 * progress + 2, 3) / 2;
+                double baseX = _tabAnimStartX + (_tabAnimTargetX - _tabAnimStartX) * eased;
+
+                double scaleCurve;
+                if (progress <= AnimationConfig.TabScaleRiseEnd)
+                {
+                    double t = progress / AnimationConfig.TabScaleRiseEnd;
+                    scaleCurve = t * t * (3 - 2 * t);
+                }
+                else if (progress <= AnimationConfig.TabScaleFallStart)
+                {
+                    scaleCurve = 1.0;
+                }
+                else
+                {
+                    double t = (progress - AnimationConfig.TabScaleFallStart) / (1.0 - AnimationConfig.TabScaleFallStart);
+                    scaleCurve = 1.0 - t * t * (3 - 2 * t);
+                }
+                double currentScale = 1.0 + (AnimationConfig.TabPeakScale - 1.0) * scaleCurve;
+
+                double blurCurve = 1.0 - Math.Abs(progress * 2.0 - 1.0);
+                _tabSlider.BlurRadius = AnimationConfig.TabBlurPeak * blurCurve;
+
+                double xComp = -(currentScale - 1.0) * halfW;
+                double yComp = -(currentScale - 1.0) * halfH;
+
+                _tabSliderTransform.X = baseX + xComp;
+                _tabSliderTransform.Y = yComp;
+
+                if (_tabSliderScale != null)
+                {
+                    _tabSliderScale.ScaleX = currentScale;
+                    _tabSliderScale.ScaleY = currentScale;
+                }
+
+                if (progress >= 1.0)
+                {
+                    _tabSliderTransform.X = _tabAnimTargetX;
+                    _tabSliderTransform.Y = 0;
+                    if (_tabSliderScale != null)
+                    {
+                        _tabSliderScale.ScaleX = 1.0;
+                        _tabSliderScale.ScaleY = 1.0;
+                    }
+                    _tabSlider.BlurRadius = 0;
+                }
+            };
+            _tabAnimTimer.Start();
+        }
+
+        private void InitializeEditionSelector()
+        {
+            _bedrockEditionBtn = this.FindControl<Button>("BedrockEditionButton");
+            _javaEditionBtn = this.FindControl<Button>("JavaEditionButton");
+            _bedrockPanel = this.FindControl<StackPanel>("BedrockPanel");
+            _javaPanel = this.FindControl<Grid>("JavaPanel");
+
+            _editionSlider = this.FindControl<LiquidGlassSurface>("EditionSlider");
+            if (_editionSlider != null)
+            {
+                var group = _editionSlider.RenderTransform as TransformGroup;
+                if (group != null)
+                {
+                    _editionSliderTransform = group.Children.OfType<TranslateTransform>().FirstOrDefault();
+                    _editionSliderScale = group.Children.OfType<ScaleTransform>().FirstOrDefault();
+                }
+
+                if (_editionSliderTransform != null)
+                {
+                    _editionSliderTransform.X = 0;
+                    _editionSliderTransform.Y = 0;
+                }
+                if (_editionSliderScale != null)
+                {
+                    _editionSliderScale.ScaleX = 1.0;
+                    _editionSliderScale.ScaleY = 1.0;
+                }
+            }
+
+            if (_bedrockEditionBtn != null) _bedrockEditionBtn.Click += (s, e) => SelectEdition(0);
+            if (_javaEditionBtn != null) _javaEditionBtn.Click += (s, e) => SelectEdition(1);
+
+            UpdateEditionVisuals(0);
+        }
+
+        private void SelectEdition(int index)
+        {
+            if (index == _selectedEdition) return;
+            _selectedEdition = index;
+            AnimateEditionSliderTo(index);
+            UpdateEditionVisuals(index);
+        }
+
+        private void UpdateEditionVisuals(int index)
+        {
+            var buttons = new[] { _bedrockEditionBtn, _javaEditionBtn };
+            for (int i = 0; i < buttons.Length; i++)
+            {
+                if (buttons[i] != null)
+                {
+                    buttons[i]!.Foreground = (i == index)
+                        ? new SolidColorBrush(Colors.Black)
+                        : new SolidColorBrush(Color.Parse("#666666"));
+                    buttons[i]!.IsHitTestVisible = (i != index);
+                }
+            }
+
+            if (_bedrockPanel != null) _bedrockPanel.IsVisible = (index == 0);
+            if (_javaPanel != null) _javaPanel.IsVisible = (index == 1);
+        }
+
+        private void AnimateEditionSliderTo(int index)
+        {
+            if (_editionSliderTransform == null || _editionSlider == null) return;
+
+            double targetX = index * 120;
+            double startX = _editionSliderTransform.X;
+
+            _editionAnimTimer?.Stop();
+
+            _editionAnimStartX = startX;
+            _editionAnimTargetX = targetX;
+            _editionAnimStartTime = DateTime.Now;
+
+            TimeSpan duration = AnimationConfig.SliderMoveDuration;
+            double peakScale = AnimationConfig.SliderPeakScale;
+            double riseEnd = AnimationConfig.SliderScaleRiseEnd;
+            double fallStart = AnimationConfig.SliderScaleFallStart;
+            double blurPeak = AnimationConfig.SliderBlurPeak;
+            double halfW = AnimationConfig.SliderWidth / 2.0;
+            double halfH = AnimationConfig.SliderHeight / 2.0;
+
+            _editionAnimTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(16) };
+            _editionAnimTimer.Tick += (s, e) =>
+            {
+                var elapsed = DateTime.Now - _editionAnimStartTime;
+                double progress = elapsed.TotalMilliseconds / duration.TotalMilliseconds;
+                if (progress >= 1.0)
+                {
+                    progress = 1.0;
+                    _editionAnimTimer.Stop();
+                }
+
+                double eased = progress < 0.5 ? 4 * progress * progress * progress : 1 - Math.Pow(-2 * progress + 2, 3) / 2;
+                double baseX = _editionAnimStartX + (_editionAnimTargetX - _editionAnimStartX) * eased;
+
+                double scaleCurve;
+                if (progress <= riseEnd)
+                {
+                    double t = progress / riseEnd;
+                    scaleCurve = t * t * (3 - 2 * t);
+                }
+                else if (progress <= fallStart)
+                {
+                    scaleCurve = 1.0;
+                }
+                else
+                {
+                    double t = (progress - fallStart) / (1.0 - fallStart);
+                    scaleCurve = 1.0 - t * t * (3 - 2 * t);
+                }
+                double currentScale = 1.0 + (peakScale - 1.0) * scaleCurve;
+
+                double blurCurve = 1.0 - Math.Abs(progress * 2.0 - 1.0);
+                _editionSlider.BlurRadius = blurPeak * blurCurve;
+
+                double xComp = -(currentScale - 1.0) * halfW;
+                double yComp = -(currentScale - 1.0) * halfH;
+
+                _editionSliderTransform.X = baseX + xComp;
+                _editionSliderTransform.Y = yComp;
+
+                if (_editionSliderScale != null)
+                {
+                    _editionSliderScale.ScaleX = currentScale;
+                    _editionSliderScale.ScaleY = currentScale;
+                }
+
+                if (progress >= 1.0)
+                {
+                    _editionSliderTransform.X = _editionAnimTargetX;
+                    _editionSliderTransform.Y = 0;
+                    if (_editionSliderScale != null)
+                    {
+                        _editionSliderScale.ScaleX = 1.0;
+                        _editionSliderScale.ScaleY = 1.0;
+                    }
+                    _editionSlider.BlurRadius = 0;
+                }
+            };
+            _editionAnimTimer.Start();
+        }
+
+        private void InitializeVersionList()
+        {
+            _ = LoadVersionManifestAsync();
+        }
+
+        private async Task LoadVersionManifestAsync()
+        {
+            if (_isVersionsLoading) return;
+            _isVersionsLoading = true;
+            
+            var loadingPanel = this.FindControl<StackPanel>("VersionLoadingPanel");
+            var errorPanel = this.FindControl<StackPanel>("VersionErrorPanel");
+            var listBox = this.FindControl<ListBox>("VersionListBox");
+            
+            if (loadingPanel != null) loadingPanel.IsVisible = true;
+            if (errorPanel != null) errorPanel.IsVisible = false;
+            if (listBox != null) listBox.IsVisible = false;
+
+            var manifest = await VersionService.GetVersionManifestAsync();
+            
+            if (manifest != null && manifest.Versions.Count > 0)
+            {
+                _allVersions = manifest.Versions.OrderByDescending(v => v.ReleaseTime).ToList();
+                
+                foreach (var version in _allVersions)
+                {
+                    version.IconPath = GetVersionIcon(version);
+                    try
+                    {
+                        using var stream = AssetLoader.Open(new Uri(version.IconPath));
+                        version.IconBitmap = new Bitmap(stream);
+                    }
+                    catch (Exception ex)
+                    {
+                        Log($"加载图标失败: {version.IconPath} - {ex.Message}", $"Failed to load icon: {version.IconPath} - {ex.Message}");
+                    }
+                }
+
+                ApplyVersionFilter();
+                
+                if (loadingPanel != null) loadingPanel.IsVisible = false;
+                if (listBox != null) listBox.IsVisible = true;
+            }
+            else
+            {
+                if (loadingPanel != null) loadingPanel.IsVisible = false;
+                if (errorPanel != null) errorPanel.IsVisible = true;
+            }
+            
+            _isVersionsLoading = false;
+        }
+
+        private string GetVersionIcon(VersionEntry version)
+        {
+            const string iconBase = "avares://Project.Launch/MainSrc/Views/imgs/Main/images/Blocks/";
+            
+            var aprilFoolsIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            {
+                "15w14a", "1.rv-pre1", "3d shareware v1.34", "20w14infinite",
+                "22w13oneblockatatime", "23w13a_or_b", "24w14potato", "25w14craftmine"
+            };
+
+            if (aprilFoolsIds.Contains(version.VersionId) || version.VersionId.Contains("potato"))
+            {
+                return iconBase + "chest.png";
+            }
+
+            if (version.Type.Equals("release", StringComparison.OrdinalIgnoreCase))
+            {
+                return iconBase + "grass2.png";
+            }
+
+            if (version.Type.Equals("snapshot", StringComparison.OrdinalIgnoreCase))
+            {
+                return iconBase + "GrassPath.png";
+            }
+            
+            return iconBase + "furnace.png";
+        }
+
+        private void ApplyVersionFilter()
+        {
+            if (_allVersions == null) return;
+            
+            var listBox = this.FindControl<ListBox>("VersionListBox");
+            var filterCombo = this.FindControl<ComboBox>("VersionTypeFilter");
+            var searchBox = this.FindControl<TextBox>("VersionSearchBox");
+            
+            if (listBox == null || filterCombo == null || searchBox == null) return;
+            
+            string filter = (filterCombo.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "all";
+            string search = searchBox.Text?.Trim().ToLowerInvariant() ?? "";
+            
+            var filtered = _allVersions.Where(v => 
+            {
+                if (filter != "all" && !v.Type.Equals(filter, StringComparison.OrdinalIgnoreCase)) 
+                    return false;
+                if (!string.IsNullOrEmpty(search) && !v.VersionId.ToLowerInvariant().Contains(search)) 
+                    return false;
+                return true;
+            }).ToList();
+            
+            listBox.ItemsSource = filtered;
+        }
+
+        private void OnVersionFilterChanged(object? sender, SelectionChangedEventArgs e) => ApplyVersionFilter();
+        private void OnVersionSearchChanged(object? sender, TextChangedEventArgs e) => ApplyVersionFilter();
+        private void OnRetryVersionsClicked(object? sender, Avalonia.Interactivity.RoutedEventArgs e) => _ = LoadVersionManifestAsync();
+
+        private void OnVersionSelected(object? sender, SelectionChangedEventArgs e)
+        {
+            var listBox = this.FindControl<ListBox>("VersionListBox");
+            _selectedVersion = listBox?.SelectedItem as VersionEntry;
+            
+            if (_selectedVersion != null)
+            {
+                Log($"用户选中了版本: {_selectedVersion.VersionId}", $"User selected version: {_selectedVersion.VersionId}");
+            }
+        }
+
+        private async void OnVersionListDoubleTapped(object? sender, TappedEventArgs e)
+        {
+            if (_selectedVersion == null) return;
+
+            // 1. 选择安装目录（选择器本身可能抛异常，必须兜住，否则 async void 会把整个进程带崩）
+            string? targetPath = await PickFolderSafeAsync(
+                $"选择 {_selectedVersion.VersionId} 的安装目录（即 .minecraft 文件夹）");
+
+            if (string.IsNullOrEmpty(targetPath)) return;
+
+            // 2. 准备后台下载 CTS
+            var cts = new System.Threading.CancellationTokenSource();
+
+            // 3. 弹窗接管 UI（逻辑类似 LoginWindow 模态窗）
+            UpdateTitleBarGradient(_defaultStartColor, _defaultEndColor);
+            var contentArea = this.FindControl<Grid>("ContentArea");
+            if (contentArea != null) contentArea.IsVisible = false;
+
+            bool success = false;
+            InstallResult? installResult = null;
+            try
+            {
+                var downloadWindow = new DownloadWindow(_selectedVersion, targetPath, cts);
+                success = await downloadWindow.ShowDialog<bool>(this);
+                installResult = downloadWindow.LastResult;
+            }
+            catch (Exception ex)
+            {
+                Log($"下载窗异常: {ex.Message}", $"Download window error: {ex.Message}");
+            }
+            finally
+            {
+                if (contentArea != null) contentArea.IsVisible = true;
+                await SetTransparentTitleBarAsync();
+            }
+
+            // 4. 根据结果处理
+            if (success)
+            {
+                await ShowToastAsync($"安装 {_selectedVersion.VersionId} 成功！", "DownloadDone");
+                var result = MinecraftDirectoryAnalyzer.Analyze(targetPath);
+                if (result.IsValid)
+                {
+                    var instance = new InstanceInfo
+                    {
+                        Name = _selectedVersion.VersionId,
+                        RootPath = targetPath,
+                        Layout = result.Layout,
+                        VersionId = _selectedVersion.VersionId,
+                        ImportedAt = DateTime.UtcNow,
+                        LastUsed = DateTime.UtcNow
+                    };
+                    InstanceService.SetSelectedInstance(instance);
+                    _currentInstance = instance;
+                    UpdateLoginStatus();
+                }
+            }
+            else
+            {
+                if (!cts.IsCancellationRequested)
+                {
+                    string msg = installResult != null && installResult.FailedFiles > 0
+                        ? $"安装未完成：失败 {installResult.FailedFiles} / {installResult.TotalFiles} 个文件"
+                        : "下载失败，请查看日志";
+                    await ShowToastAsync(msg, "Errors");
+                }
+            }
+        }
+
+        private async void OnMainButtonClicked(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+        {
+            if (_currentInstance == null) await ImportInstanceAsync();
+            else await StartGameAsync();
+        }
+
+        private async Task StartGameAsync()
+        {
+            if (_currentInstance == null) return;
+
+            try
+            {
+                string versionsDir = Path.Combine(_currentInstance.RootPath, "versions");
+                string jsonPath = Path.Combine(versionsDir, _currentInstance.VersionId, _currentInstance.VersionId + ".json");
+                if (!File.Exists(jsonPath))
+                {
+                    Log($"版本 json 不存在: {jsonPath}", $"Version json not found: {jsonPath}");
+                    await ShowToastAsync("版本文件缺失", "Messages");
+                    return;
+                }
+
+                var vj = MinecraftVersionJson.Load(jsonPath);
+                if (vj == null)
+                {
+                    await ShowToastAsync("版本解析失败", "Messages");
+                    return;
+                }
+
+                int requiredJava = vj.JavaVersion?.MajorVersion ?? 8;
+                Log($"版本要求 Java {requiredJava}", $"Version requires Java {requiredJava}");
+
+                var javas = await JavaDetector.DetectAllAsync();
+                Log($"检测到 {javas.Count} 个 Java", $"Detected {javas.Count} Java(s)");
+                foreach (var j in javas)
+                    Log($"  Java: {j.Path} (major={j.MajorVersion})", $"  Java: {j.Path} (major={j.MajorVersion})");
+
+                var matched = JavaDetector.Match(javas, requiredJava);
+                if (matched == null)
+                {
+                    Log($"未找到合适的 Java（需要 {requiredJava}）", $"No suitable Java (need {requiredJava})");
+                    await ShowToastAsync($"Java 环境异常：需要 Java {requiredJava}", "Messages");
+                    return;
+                }
+
+                Log($"匹配到 Java: {matched.Path}", $"Matched Java: {matched.Path}");
+
+                _currentInstance.JavaPath = matched.Path;
+                InstanceService.SetSelectedInstance(_currentInstance);
+
+                string playerName = App.PlayerName ?? "Steve";
+                string playerUuid = App.OfflineUuid ?? OfflineUuidGenerator.GenerateUuidString(playerName).Replace("-", "");
+
+                await ShowToastAsync("正在启动游戏...", "Messages");
+
+                bool ok = await GameLauncher.LaunchAsync(_currentInstance, vj, matched, playerName, playerUuid);
+
+                if (ok) await ShowToastAsync("游戏已启动", "Messages");
+                else await ShowToastAsync("启动失败，查看日志", "Messages");
+            }
+            catch (Exception ex)
+            {
+                Log($"启动游戏异常: {ex.Message}", $"Start game exception: {ex.Message}");
+                await ShowToastAsync("启动失败", "Messages");
+            }
+        }
+
+        private async void OnExpandClicked(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+        {
+            await ImportInstanceAsync();
+        }
+
+        private async Task ImportInstanceAsync()
+        {
+            try
+            {
+                string? path = await PickFolderSafeAsync("选择 Minecraft 目录（.minecraft 根目录或隔离实例目录）");
+                if (string.IsNullOrEmpty(path))
+                {
+                    Log("用户取消导入", "User cancelled import");
+                    return;
+                }
+
+                var result = MinecraftDirectoryAnalyzer.Analyze(path);
+                if (!result.IsValid)
+                {
+                    Log("目录无效（未找到 versions/ 或 .minecraft/versions/）", "Invalid directory (no versions/ or .minecraft/versions/)");
+                    await ShowToastAsync("未找到有效的 Minecraft 目录", "Messages");
+                    return;
+                }
+
+                Log($"分析结果: Layout={result.Layout}, Versions={string.Join(",", result.Versions)}", $"Analysis: Layout={result.Layout}, Versions={string.Join(",", result.Versions)}");
+
+                string versionId = result.Versions[result.Versions.Count - 1];
+
+                var instance = new InstanceInfo
+                {
+                    Name = versionId,
+                    RootPath = result.RootPath,
+                    Layout = result.Layout,
+                    VersionId = versionId,
+                    ImportedAt = DateTime.UtcNow,
+                    LastUsed = DateTime.UtcNow
+                };
+
+                InstanceService.SetSelectedInstance(instance);
+                _currentInstance = instance;
+
+                Log($"实例导入成功: {versionId}", $"Instance imported: {versionId}");
+
+                UpdateLoginStatus();
+                await ShowToastAsync($"已导入 {versionId}", "Messages");
+            }
+            catch (Exception ex)
+            {
+                Log($"导入实例异常: {ex.Message}", $"Import instance exception: {ex.Message}");
+                await ShowToastAsync("导入失败", "Messages");
+            }
+        }
+
+        private async void OnReLoginClicked(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+        {
+            try
+            {
+                UpdateTitleBarGradient(_defaultStartColor, _defaultEndColor);
+                await ShowLoginDialog();
+                UpdateLoginStatus();
+                await RefreshAvatarAsync();
+                await SetTransparentTitleBarAsync();
+            }
+            catch (Exception ex)
+            {
+                Log($"重新登录异常: {ex.Message}", $"ReLogin exception: {ex.Message}");
+            }
+        }
+
+        private async void OnSwitchAccountClicked(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+        {
+            await ShowAccountManagerAsync();
+        }
+
+        private async Task ShowAccountManagerAsync()
+        {
+            UpdateTitleBarGradient(_defaultStartColor, _defaultEndColor);
+            var contentArea = this.FindControl<Grid>("ContentArea");
+            if (contentArea != null) contentArea.IsVisible = false;
+
+            await Task.Delay(150);
+
+            try
+            {
+                var win = new AccountManagerWindow();
+                await win.ShowDialog(this);
+                if (win.ShouldOpenLogin) await RunLoginWindowAsync();
+
+                UpdateLoginStatus();
+                await RefreshAvatarAsync();
+            }
+            finally
+            {
+                if (contentArea != null) contentArea.IsVisible = true;
+                await SetTransparentTitleBarAsync();
+            }
+        }
+
+        private async Task RunLoginWindowAsync()
+        {
+            var loginWindow = new LoginWindow();
+            await loginWindow.ShowDialog(this);
+
+            UpdateLoginStatus();
+
+            if (App.IsLoggedIn && loginWindow.FaceBitmap != null && loginWindow.HatBitmap != null)
+            {
+                var faceImg = this.FindControl<Image>("HomeFaceImage");
+                var hatImg = this.FindControl<Image>("HomeHatImage");
+                if (faceImg != null)
+                {
+                    faceImg.Source = loginWindow.FaceBitmap;
+                    RenderOptions.SetBitmapInterpolationMode(faceImg, BitmapInterpolationMode.None);
+                }
+                if (hatImg != null)
+                {
+                    hatImg.Source = loginWindow.HatBitmap;
+                    RenderOptions.SetBitmapInterpolationMode(hatImg, BitmapInterpolationMode.None);
+                }
+            }
+
+            if (!App.IsLoggedIn) _ = ShowCancelToastAsync();
+        }
+
+        private async Task ShowLoginDialog()
+        {
+            var contentArea = this.FindControl<Grid>("ContentArea");
+            if (contentArea != null) contentArea.IsVisible = false;
+
+            await Task.Delay(150);
+
+            try
+            {
+                await RunLoginWindowAsync();
+            }
+            finally
+            {
+                if (contentArea != null) contentArea.IsVisible = true;
+            }
+        }
+
+        private async Task SetTransparentTitleBarAsync(bool animate = true)
+        {
+            var titleBar = this.FindControl<Border>("TitleBarBorder");
+            var titleText = this.FindControl<TextBlock>("TitleText");
+            var minImg = this.FindControl<Image>("MinimizeImage");
+            var closeImg = this.FindControl<Image>("CloseImage");
+
+            if (!animate)
+            {
+                if (titleBar != null) titleBar.Background = Brushes.Transparent;
+                if (titleText != null) titleText.Foreground = new SolidColorBrush(Colors.Black);
+                SetBlackIcons(minImg, closeImg);
                 return;
             }
 
-            emptyAddBtn.IsVisible = false;
-            listContainer.IsVisible = true;
+            if (minImg != null) minImg.Opacity = 0;
+            if (closeImg != null) closeImg.Opacity = 0;
 
-            foreach (var kv in accounts)
-            {
-                bool isSelected = kv.Key == root.SelectedAccount;
-                var item = CreateAccountItem(kv.Key, kv.Value, isSelected);
-                listPanel.Children.Add(item);
-            }
+            if (titleBar != null) titleBar.Background = Brushes.Transparent;
+            if (titleText != null) titleText.Foreground = new SolidColorBrush(Colors.Black);
+
+            await Task.Delay(200);
+
+            SetBlackIcons(minImg, closeImg);
+
+            if (minImg != null) minImg.Opacity = 1;
+            if (closeImg != null) closeImg.Opacity = 1;
         }
 
-        // ============================================================
-        // 创建单个账户项（方形头像，无边框）
-        // ============================================================
-        private Control CreateAccountItem(string id, AccountInfo info, bool isSelected)
+        private void SetBlackIcons(Image? minImg, Image? closeImg)
         {
-            var button = new Button
-            {
-                Background = isSelected
-                    ? new SolidColorBrush(Color.Parse("#E0D8F0"))
-                    : new SolidColorBrush(Color.Parse("#F0F0F0"))
-            };
-            button.Classes.Add("AccountItem");
-
-            var grid = new Grid
-            {
-                ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto,Auto,Auto"),
-                VerticalAlignment = VerticalAlignment.Center
-            };
-
-            // ★ 方形头像（40×40，无边框，用裁切好的 face）
-            var avatar = new Image
-            {
-                Width = 40,
-                Height = 40,
-                Stretch = Stretch.Uniform,
-                VerticalAlignment = VerticalAlignment.Center
-            };
-
-            // ★ 用附加属性设置 Nearest 采样
-            RenderOptions.SetBitmapInterpolationMode(avatar, BitmapInterpolationMode.None);
-
             try
             {
-                string skinAsset = DefaultSkinSelector.GetSkinAssetPath(info.Uuid);
-                var face = SkinCropper.CropFaceFromAsset(skinAsset);
-                if (face != null)
-                    avatar.Source = face;
+                if (minImg != null)
+                {
+                    var uri = new Uri("avares://Project.Launch/MainSrc/Views/imgs/Main/images/Buttons/black-.png");
+                    using var stream = AssetLoader.Open(uri);
+                    minImg.Source = new Bitmap(stream);
+                }
+                if (closeImg != null)
+                {
+                    var uri = new Uri("avares://Project.Launch/MainSrc/Views/imgs/Main/images/Buttons/blackx.png");
+                    using var stream = AssetLoader.Open(uri);
+                    closeImg.Source = new Bitmap(stream);
+                }
             }
             catch { }
-
-            Grid.SetColumn(avatar, 0);
-            grid.Children.Add(avatar);
-
-            // 用户名
-            var nameText = new TextBlock
-            {
-                Text = info.Username,
-                FontSize = 15,
-                FontWeight = FontWeight.SemiBold,
-                Foreground = new SolidColorBrush(Color.Parse("#333")),
-                VerticalAlignment = VerticalAlignment.Center,
-                Margin = new Thickness(12, 0, 0, 0)
-            };
-            Grid.SetColumn(nameText, 1);
-            grid.Children.Add(nameText);
-
-            // 类型标签
-            var typeText = new TextBlock
-            {
-                Text = info.Type == "microsoft" ? "正版" : "离线",
-                FontSize = 11,
-                Foreground = new SolidColorBrush(
-                    info.Type == "microsoft" ? Color.Parse("#4C8F4C") : Color.Parse("#888888")),
-                VerticalAlignment = VerticalAlignment.Center,
-                Margin = new Thickness(10, 0, 10, 0)
-            };
-            Grid.SetColumn(typeText, 2);
-            grid.Children.Add(typeText);
-
-            // UUID 简写
-            string uuidShort = string.IsNullOrEmpty(info.Uuid)
-                ? "-------"
-                : info.Uuid.Substring(0, Math.Min(8, info.Uuid.Length));
-            var uuidText = new TextBlock
-            {
-                Text = uuidShort,
-                FontSize = 11,
-                FontFamily = new FontFamily("Consolas,monospace"),
-                Foreground = new SolidColorBrush(Color.Parse("#AAA")),
-                VerticalAlignment = VerticalAlignment.Center,
-                Margin = new Thickness(0, 0, 12, 0)
-            };
-            Grid.SetColumn(uuidText, 3);
-            grid.Children.Add(uuidText);
-
-            // 删除按钮
-            var deleteBtn = new Button { Content = "✕" };
-            deleteBtn.Classes.Add("DeleteAccount");
-            deleteBtn.Click += (s, e) =>
-            {
-                e.Handled = true;
-                _ = OnDeleteAccountAsync(id, info.Username);
-            };
-            Grid.SetColumn(deleteBtn, 4);
-            grid.Children.Add(deleteBtn);
-
-            button.Content = grid;
-            button.Click += (s, e) => OnSelectAccount(id, info);
-
-            return button;
         }
 
-        // ============================================================
-        // 点击账户 → 切换
-        // ============================================================
-        private void OnSelectAccount(string id, AccountInfo info)
+        private void UpdateLoginStatus()
         {
+            var homeNotLoggedIn = this.FindControl<StackPanel>("HomeNotLoggedIn");
+            var homeLoggedIn = this.FindControl<StackPanel>("HomeLoggedIn");
+            var homePlayerName = this.FindControl<TextBlock>("HomePlayerName");
+            var launchBtn = this.FindControl<Button>("LaunchGameButton");
+            var launchImg = this.FindControl<Image>("LaunchGameImage");
+            var launchTxt = this.FindControl<TextBlock>("LaunchGameText");
+            var expandBtn = this.FindControl<Button>("ExpandButton");
+            var expandImg = this.FindControl<Image>("ExpandImage");
+            var reLoginBtn = this.FindControl<Button>("ReLoginButton");
+            var reLoginContainer = this.FindControl<Grid>("ReLoginContainer");
+
+            var launchNotLoggedIn = this.FindControl<StackPanel>("LaunchNotLoggedIn");
+            var skinViewer = this.FindControl<Pivot3DControl>("SkinViewer");
+            var launchButtonsPanel = this.FindControl<StackPanel>("LaunchButtonsPanel");
+
+            bool loggedIn = App.IsLoggedIn && !string.IsNullOrEmpty(App.PlayerName);
+            bool hasInstance = _currentInstance != null;
+
+            if (homeNotLoggedIn != null) homeNotLoggedIn.IsVisible = !loggedIn;
+            if (homeLoggedIn != null) homeLoggedIn.IsVisible = loggedIn;
+            if (homePlayerName != null) homePlayerName.Text = App.PlayerName ?? "Steve";
+
+            if (launchNotLoggedIn != null) launchNotLoggedIn.IsVisible = !loggedIn;
+            if (skinViewer != null) skinViewer.IsVisible = loggedIn;
+            if (launchButtonsPanel != null) launchButtonsPanel.IsVisible = loggedIn;
+
             try
             {
-                App.PlayerName = info.Username;
-                App.OfflineUuid = info.Uuid;
-                App.IsLoggedIn = true;
-                App.LoginCheck = true;
+                string mainIcon = hasInstance ? "button-Start1.png" : "button-Start3.png";
+                string subIcon = hasInstance ? "button-Start2.png" : "button-Start4.png";
 
-                var root = AccountService.LoadAccounts();
-                root.SelectedAccount = id;
-                AccountService.SaveAccounts(root);
+                if (launchImg != null)
+                {
+                    using var stream = AssetLoader.Open(new Uri($"avares://Project.Launch/MainSrc/Views/imgs/Main/images/Buttons/{mainIcon}"));
+                    launchImg.Source = new Bitmap(stream);
+                }
+                if (launchTxt != null) launchTxt.Text = hasInstance ? "开始游戏" : "导入实例";
 
-                Close();
+                if (expandImg != null)
+                {
+                    using var stream = AssetLoader.Open(new Uri($"avares://Project.Launch/MainSrc/Views/imgs/Main/images/Buttons/{subIcon}"));
+                    expandImg.Source = new Bitmap(stream);
+                }
             }
             catch (Exception ex)
             {
-                LogHelper.Write(LauncherPaths.AppLog,
-                    $"切换账户失败: {ex.Message}",
-                    $"Switch account failed: {ex.Message}");
+                Log($"更新按钮图像失败: {ex.Message}", $"Update button icon failed: {ex.Message}");
             }
+
+            bool showMainBtn = loggedIn;
+            bool showReLogin = !loggedIn;
+
+            if (launchBtn != null) launchBtn.IsVisible = showMainBtn;
+            if (expandBtn != null) expandBtn.IsVisible = showMainBtn;
+            if (reLoginBtn != null) reLoginBtn.IsVisible = showReLogin;
+            if (reLoginContainer != null) reLoginContainer.IsVisible = showReLogin;
         }
 
-        // ============================================================
-        // 删除账户（含确认框）
-        // ============================================================
-        private async Task OnDeleteAccountAsync(string id, string username)
+        private async Task RefreshAvatarAsync()
         {
-            bool confirmed = await ShowConfirmDialogAsync(
-                $"确认删除账户「{username}」？",
-                "删除",
-                "取消");
-            if (!confirmed) return;
+            if (!App.IsLoggedIn) { Log("未登录，跳过皮肤加载", "Not logged in, skip skin loading"); return; }
+
+            var account = AccountService.GetSelectedAccount();
+            Bitmap? skinBitmap = null;
+
+            if (account != null && account.Type == "microsoft" && !string.IsNullOrEmpty(account.SkinUrl))
+            {
+                try
+                {
+                    Log($"正在下载正版皮肤: {account.SkinUrl}", $"Downloading official skin: {account.SkinUrl}");
+                    byte[] bytes = await _httpClient.GetByteArrayAsync(account.SkinUrl);
+                    using var ms = new MemoryStream(bytes);
+                    skinBitmap = new Bitmap(ms);
+                    Log("正版皮肤下载成功", "Official skin downloaded successfully");
+                }
+                catch (Exception ex)
+                {
+                    Log($"正版皮肤下载失败，将回退到默认皮肤: {ex.Message}", $"Skin download failed, falling back to default: {ex.Message}");
+                }
+            }
+
+            if (skinBitmap == null)
+            {
+                string skinAssetPath = DefaultSkinSelector.GetSkinAssetPath(account?.Uuid ?? App.OfflineUuid);
+                Log($"使用默认皮肤: {skinAssetPath}", $"Using default skin: {skinAssetPath}");
+                try
+                {
+                    using var stream = AssetLoader.Open(new Uri(skinAssetPath));
+                    skinBitmap = new Bitmap(stream);
+                }
+                catch (Exception ex)
+                {
+                    Log($"加载默认皮肤失败: {ex.Message}", $"Failed to load default skin: {ex.Message}");
+                }
+            }
+
+            if (skinBitmap == null) return;
 
             try
             {
-                AccountService.RemoveAccount(id);
+                _fullSkinBitmap?.Dispose();
+                _fullSkinBitmap = skinBitmap;
+                var skinViewer = this.FindControl<Pivot3DControl>("SkinViewer");
+                if (skinViewer != null) skinViewer.Skin = _fullSkinBitmap;
+                Log("3D 皮肤视图已更新", "3D skin view updated");
+            }
+            catch (Exception ex)
+            {
+                Log($"更新 3D 皮肤视图失败: {ex.Message}", $"Failed to update 3D skin view: {ex.Message}");
+            }
 
-                var root = AccountService.LoadAccounts();
-                if (string.IsNullOrEmpty(root.SelectedAccount))
+            var faceImg = this.FindControl<Image>("HomeFaceImage");
+            var hatImg = this.FindControl<Image>("HomeHatImage");
+            if (faceImg != null && hatImg != null)
+            {
+                try
                 {
-                    App.IsLoggedIn = false;
-                    App.PlayerName = null;
-                    App.OfflineUuid = null;
+                    if (_fullSkinBitmap != null)
+                    {
+                        var (face, hat) = CropSkinFromBitmap(_fullSkinBitmap);
+                        if (face != null && hat != null)
+                        {
+                            faceImg.Source = face;
+                            hatImg.Source = hat;
+                            RenderOptions.SetBitmapInterpolationMode(faceImg, BitmapInterpolationMode.None);
+                            RenderOptions.SetBitmapInterpolationMode(hatImg, BitmapInterpolationMode.None);
+                            Log("2D 头像已更新", "2D avatar updated");
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Log($"更新 2D 头像失败: {ex.Message}", $"Failed to update 2D avatar: {ex.Message}");
+                }
+            }
+        }
+
+        private void Log(string zh, string en) => LogHelper.Write(LauncherPaths.MainWindowLog, zh, en);
+
+        // ============================================================
+        // 目录选择（不能崩）
+        // ============================================================
+
+        /// <summary>上一次成功选中的目录，手动输入时作为默认值。</summary>
+        private string? _lastPickPath;
+
+        /// <summary>
+        /// 安全地选目录：
+        ///   1) Avalonia 的 Win32 选择器在「选中项已失效 / 非本地路径」时会直接抛
+        ///      ArgumentException("Directory must exist")，必须兜住；
+        ///   2) 即便选择器没抛，也要自己校验路径真实存在；
+        ///   3) 选择器不可用时退化成手动输入路径，保证用户仍能继续。
+        /// </summary>
+        private async Task<string?> PickFolderSafeAsync(string title)
+        {
+            try
+            {
+                var topLevel = TopLevel.GetTopLevel(this);
+                if (topLevel == null) return null;
+
+                var folders = await topLevel.StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
+                {
+                    Title = title,
+                    AllowMultiple = false
+                });
+
+                if (folders == null || folders.Count < 1)
+                {
+                    Log("用户取消目录选择", "User cancelled folder picking");
+                    return null;
                 }
 
-                RebuildAccountList();
+                string? path = null;
+                try
+                {
+                    path = folders[0].TryGetLocalPath();
+                }
+                catch (Exception ex)
+                {
+                    Log($"取本地路径失败: {ex.Message}", $"TryGetLocalPath failed: {ex.Message}");
+                }
+
+                path = path?.Trim().TrimEnd('\\', '/');
+
+                if (string.IsNullOrWhiteSpace(path) || !Directory.Exists(path))
+                {
+                    Log($"所选目录不可用: {path}", $"Picked folder unavailable: {path}");
+                    await ShowToastAsync("所选目录不可用，请重新选择", "Errors");
+                    return await PromptForLocalPathAsync(title);
+                }
+
+                Log($"用户选择目录: {path}", $"User selected directory: {path}");
+                _lastPickPath = path;
+                return path;
             }
             catch (Exception ex)
             {
+                // 这里曾经直接把整个启动器带崩（async void + Avalonia 选择器内部异常）
+                Log($"文件夹选择器异常: {ex.Message}", $"Folder picker failed: {ex.Message}");
                 LogHelper.Write(LauncherPaths.AppLog,
-                    $"删除账户失败: {ex.Message}",
-                    $"Delete account failed: {ex.Message}");
+                    $"文件夹选择器异常: {ex}",
+                    $"Folder picker exception: {ex}");
+
+                await ShowToastAsync("无法打开文件夹选择器，改为手动输入", "Errors");
+                return await PromptForLocalPathAsync(title);
             }
         }
 
-        // ============================================================
-        // 确认对话框
-        // ============================================================
-        private async Task<bool> ShowConfirmDialogAsync(string message, string yesText, string noText)
+        /// <summary>选择器不可用时的兜底：手动输入目录。</summary>
+        private async Task<string?> PromptForLocalPathAsync(string title)
         {
-            var dialog = new Window
+            var window = new Window
             {
-                Title = "确认",
-                Width = 360,
-                Height = 180,
-                WindowStartupLocation = WindowStartupLocation.CenterOwner,
+                Title = title,
+                Width = 580,
+                Height = 220,
                 CanResize = false,
-                Background = new SolidColorBrush(Colors.White),
-                WindowDecorations = WindowDecorations.None,
-                TransparencyLevelHint = new[] { WindowTransparencyLevel.Transparent },
-                ShowInTaskbar = false
+                WindowStartupLocation = WindowStartupLocation.CenterOwner,
+                Background = Brushes.White
             };
 
-            var border = new Border
+            var inputBox = new TextBox
             {
-                CornerRadius = new CornerRadius(12),
-                Background = new SolidColorBrush(Colors.White),
-                BorderBrush = new SolidColorBrush(Color.Parse("#20000000")),
-                BorderThickness = new Thickness(1),
-                Padding = new Thickness(24)
+                Text = _lastPickPath ?? string.Empty,
+                PlaceholderText = @"例如 E:\Minecraft",
+                FontSize = 15
             };
 
-            var panel = new StackPanel { Spacing = 20 };
+            string? result = null;
 
-            panel.Children.Add(new TextBlock
+            var okButton = new Button
             {
-                Text = message,
-                FontSize = 14,
-                Foreground = new SolidColorBrush(Color.Parse("#333")),
-                HorizontalAlignment = HorizontalAlignment.Center,
-                TextWrapping = TextWrapping.Wrap,
-                TextAlignment = TextAlignment.Center
-            });
+                Content = "确定",
+                Width = 110,
+                Height = 36,
+                Classes = { "Miret" }
+            };
+            var cancelButton = new Button
+            {
+                Content = "取消",
+                Width = 110,
+                Height = 36,
+                Classes = { "Miret" }
+            };
 
-            var btnPanel = new StackPanel
+            okButton.Click += (_, _) => { result = inputBox.Text; window.Close(); };
+            cancelButton.Click += (_, _) => { result = null; window.Close(); };
+
+            var buttonRow = new StackPanel
             {
-                Orientation = Orientation.Horizontal,
-                HorizontalAlignment = HorizontalAlignment.Center,
+                Orientation = Avalonia.Layout.Orientation.Horizontal,
+                HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right,
                 Spacing = 12
             };
+            buttonRow.Children.Add(cancelButton);
+            buttonRow.Children.Add(okButton);
 
-            var yesBtn = new Button
+            var panel = new StackPanel { Margin = new Thickness(20), Spacing = 14 };
+            panel.Children.Add(new TextBlock
             {
-                Content = yesText,
-                Padding = new Thickness(24, 8),
-                Background = new SolidColorBrush(Color.Parse("#CC5555")),
-                Foreground = new SolidColorBrush(Colors.White),
-                FontWeight = FontWeight.SemiBold,
-                CornerRadius = new CornerRadius(8),
-                Cursor = new Cursor(StandardCursorType.Hand)
-            };
-            var noBtn = new Button
+                Text = "请输入 Minecraft 安装目录（.minecraft 文件夹）：",
+                FontSize = 13,
+                Foreground = new SolidColorBrush(Color.Parse("#666666"))
+            });
+            panel.Children.Add(inputBox);
+            panel.Children.Add(buttonRow);
+
+            window.Content = panel;
+            await window.ShowDialog(this);
+
+            string? path = result?.Trim().Trim('"').TrimEnd('\\', '/');
+            if (string.IsNullOrWhiteSpace(path)) return null;
+
+            if (!Directory.Exists(path))
             {
-                Content = noText,
-                Padding = new Thickness(24, 8),
-                Background = new SolidColorBrush(Color.Parse("#EEEEEE")),
-                Foreground = new SolidColorBrush(Color.Parse("#333")),
-                CornerRadius = new CornerRadius(8),
-                Cursor = new Cursor(StandardCursorType.Hand)
-            };
+                await ShowToastAsync("目录不存在，请重新选择", "Errors");
+                return null;
+            }
 
-            yesBtn.Click += (s, e) => dialog.Close(true);
-            noBtn.Click += (s, e) => dialog.Close(false);
-
-            btnPanel.Children.Add(yesBtn);
-            btnPanel.Children.Add(noBtn);
-            panel.Children.Add(btnPanel);
-
-            border.Child = panel;
-            dialog.Content = border;
-
-            return await dialog.ShowDialog<bool>(this);
+            Log($"用户手动输入目录: {path}", $"User entered directory: {path}");
+            _lastPickPath = path;
+            return path;
         }
 
-        // ============================================================
-        // 添加账户
-        // ============================================================
-        private void OnAddAccountClicked(object? sender, RoutedEventArgs e)
+        private async Task ShowToastAsync(string message, string sound = "Messages")
         {
-            ShouldOpenLogin = true;
-            Close();
+            SoundService.Play(sound);
+            var toast = this.FindControl<Border>("CancelToast");
+            var toastText = this.FindControl<TextBlock>("ToastText");
+            if (toast == null) return;
+
+            if (toastText != null) toastText.Text = message;
+
+            toast.IsVisible = true;
+            toast.Opacity = 0;
+
+            await Task.Delay(20);
+            toast.Opacity = 1;
+            await Task.Delay(2500);
+
+            toast.Opacity = 0;
+            await Task.Delay(320);
+            toast.IsVisible = false;
         }
 
-        private void OnCloseClicked(object? sender, RoutedEventArgs e)
+        private Task ShowCancelToastAsync() => ShowToastAsync("用户取消登录", "Messages");
+
+        private (Bitmap? face, Bitmap? hat) CropSkinFromBitmap(Bitmap bitmap)
         {
-            Close();
+            try
+            {
+                int width = bitmap.PixelSize.Width;
+                int height = bitmap.PixelSize.Height;
+                
+                int scale = width / 64;
+                if (scale < 1) return (null, null);
+                
+                int faceX = 8 * scale;
+                int faceY = 8 * scale;
+                int faceSize = 8 * scale;
+                int hatX = 40 * scale;
+                int hatY = 8 * scale;
+
+                var faceCropped = new CroppedBitmap(bitmap, new PixelRect(faceX, faceY, faceSize, faceSize));
+                var hatCropped = new CroppedBitmap(bitmap, new PixelRect(hatX, hatY, faceSize, faceSize));
+
+                var faceBmp = new RenderTargetBitmap(new PixelSize(faceSize, faceSize), new Vector(96, 96));
+                using (var ctx = faceBmp.CreateDrawingContext()) ctx.DrawImage(faceCropped, new Rect(0, 0, faceSize, faceSize));
+
+                var hatBmp = new RenderTargetBitmap(new PixelSize(faceSize, faceSize), new Vector(96, 96));
+                using (var ctx = hatBmp.CreateDrawingContext()) ctx.DrawImage(hatCropped, new Rect(0, 0, faceSize, faceSize));
+
+                return (faceBmp, hatBmp);
+            }
+            catch { return (null, null); }
+        }
+
+        private void UpdateTitleBarGradient(Color startColor, Color endColor)
+        {
+            var titleBar = this.FindControl<Border>("TitleBarBorder");
+            if (titleBar == null) return;
+
+            var gradient = new LinearGradientBrush
+            {
+                StartPoint = new RelativePoint(0, 0, RelativeUnit.Relative),
+                EndPoint = new RelativePoint(1, 0, RelativeUnit.Relative),
+                GradientStops = new GradientStops
+                {
+                    new GradientStop(startColor, 0.0),
+                    new GradientStop(endColor, 1.0)
+                }
+            };
+
+            titleBar.Background = gradient;
+            UpdateTitleBarForeground(startColor, endColor);
+        }
+
+        private void UpdateTitleBarForeground(Color startColor, Color endColor)
+        {
+            double avgLuminance = (GetLuminance(startColor) + GetLuminance(endColor)) / 2.0;
+            bool useDark = avgLuminance > 0.5;
+
+            var titleText = this.FindControl<TextBlock>("TitleText");
+            if (titleText != null) titleText.Foreground = useDark ? new SolidColorBrush(Colors.Black) : new SolidColorBrush(Colors.White);
+
+            var minImg = this.FindControl<Image>("MinimizeImage");
+            if (minImg != null)
+            {
+                var path = useDark ? "avares://Project.Launch/MainSrc/Views/imgs/Main/images/Buttons/black-.png" : "avares://Project.Launch/MainSrc/Views/imgs/Main/images/Buttons/white-.png";
+                try { var uri = new Uri(path); using var stream = AssetLoader.Open(uri); minImg.Source = new Bitmap(stream); } catch { }
+            }
+
+            var closeImg = this.FindControl<Image>("CloseImage");
+            if (closeImg != null)
+            {
+                var path = useDark ? "avares://Project.Launch/MainSrc/Views/imgs/Main/images/Buttons/blackx.png" : "avares://Project.Launch/MainSrc/Views/imgs/Main/images/Buttons/whitex.png";
+                try { var uri = new Uri(path); using var stream = AssetLoader.Open(uri); closeImg.Source = new Bitmap(stream); } catch { }
+            }
+        }
+
+        private static double GetLuminance(Color color)
+        {
+            double r = color.R / 255.0;
+            double g = color.G / 255.0;
+            double b = color.B / 255.0;
+
+            r = r <= 0.03928 ? r / 12.92 : Math.Pow((r + 0.055) / 1.055, 2.4);
+            g = g <= 0.03928 ? g / 12.92 : Math.Pow((g + 0.055) / 1.055, 2.4);
+            b = b <= 0.03928 ? b / 12.92 : Math.Pow((b + 0.055) / 1.055, 2.4);
+
+            return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+        }
+
+        private void TitleBar_PointerPressed(object? sender, PointerPressedEventArgs e)
+        {
+            if (e.GetCurrentPoint(this).Properties.IsLeftButtonPressed) BeginMoveDrag(e);
+        }
+
+        public void SetTitleBarGradient(Color start, Color end)
+        {
+            UpdateTitleBarGradient(start, end);
         }
     }
 }
 ```
 
-### `MainSrc\Views\Styles.axaml`
+### `MainSrc\Views\read.md`
 
-<!-- 192 行 / 8.8 KB -->
+```markdown
+--By Erics   九条开源
+Gui层  图标源文件引用  美化
+
+GUI Layer | Icon Asset References | Theme/Skin Scripts Directory
+```
+
+### `MainSrc\Views\Styles.axaml`
 
 ```xml
 <Styles xmlns="https://github.com/avaloniaui"
@@ -5201,178 +8430,10 @@ namespace Project.Launch.Views
 </Styles>
 ```
 
-### `MainSrc\Views\Glass.axaml`
 
-<!-- 147 行 / 7.5 KB -->
+## 6.5 MainSrc\Tools\JavaConfig —— 启动内核
 
-```xml
-<Styles xmlns="https://github.com/avaloniaui"
-        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:media="using:Avalonia.Media">
-
-    <Styles.Resources>
-        <!-- ============================================================ -->
-        <!-- 液态玻璃参数总表 - 调参只改这里                              -->
-        <!-- ============================================================ -->
-
-        <!-- ★ 透明度控制（0~1）— 大幅降低，让窗口的亚克力透出来 -->
-        <x:Double x:Key="GlassTintOpacity">0.12</x:Double>
-        <x:Double x:Key="GlassTintOpacityHover">0.25</x:Double>
-        <x:Double x:Key="GlassTintOpacityPressed">0.35</x:Double>
-
-        <!-- ★ 边框 — 加强，让玻璃边缘有"实感" -->
-        <Thickness x:Key="GlassBorderThickness">1.2</Thickness>
-        <x:Double x:Key="GlassBorderOpacity">0.55</x:Double>
-        <x:Double x:Key="GlassBorderOpacityHover">0.75</x:Double>
-
-        <!-- ★ 圆角 -->
-        <CornerRadius x:Key="GlassCornerRadius">14</CornerRadius>
-
-        <!-- ★ 阴影 — 更柔更淡，避免显脏 -->
-        <x:Double x:Key="GlassShadowBlur">14</x:Double>
-        <x:Double x:Key="GlassShadowBlurHover">20</x:Double>
-        <x:Double x:Key="GlassShadowOffsetY">6</x:Double>
-        <x:Double x:Key="GlassShadowOffsetYHover">8</x:Double>
-        <Color x:Key="GlassShadowColor">#33000000</Color>
-        <Color x:Key="GlassShadowColorHover">#55000000</Color>
-
-        <!-- ★ 高光 — 加强，模拟玻璃反射 -->
-        <Color x:Key="GlassHighlightColor">#B3FFFFFF</Color>
-        <x:Double x:Key="GlassHighlightEndOffset">0.7</x:Double>
-
-        <!-- ============================================================ -->
-        <!-- 派生资源                                                     -->
-        <!-- ============================================================ -->
-
-        <SolidColorBrush x:Key="GlassBrush"
-                         Color="{StaticResource MiretPrimaryColor}"
-                         Opacity="{StaticResource GlassTintOpacity}" />
-        <SolidColorBrush x:Key="GlassBrushHover"
-                         Color="{StaticResource MiretHoverColor}"
-                         Opacity="{StaticResource GlassTintOpacityHover}" />
-        <SolidColorBrush x:Key="GlassBrushPressed"
-                         Color="{StaticResource MiretPressedColor}"
-                         Opacity="{StaticResource GlassTintOpacityPressed}" />
-
-        <SolidColorBrush x:Key="GlassBorderBrush"
-                         Color="White"
-                         Opacity="{StaticResource GlassBorderOpacity}" />
-        <SolidColorBrush x:Key="GlassBorderBrushHover"
-                         Color="White"
-                         Opacity="{StaticResource GlassBorderOpacityHover}" />
-
-        <media:DropShadowEffect x:Key="GlassShadow"
-                                BlurRadius="{StaticResource GlassShadowBlur}"
-                                OffsetX="0"
-                                OffsetY="{StaticResource GlassShadowOffsetY}"
-                                Color="{StaticResource GlassShadowColor}" />
-        <media:DropShadowEffect x:Key="GlassShadowHover"
-                                BlurRadius="{StaticResource GlassShadowBlurHover}"
-                                OffsetX="0"
-                                OffsetY="{StaticResource GlassShadowOffsetYHover}"
-                                Color="{StaticResource GlassShadowColorHover}" />
-
-        <LinearGradientBrush x:Key="GlassHighlight"
-                             StartPoint="0,0"
-                             EndPoint="1,1">
-            <GradientStop Color="{StaticResource GlassHighlightColor}"
-                          Offset="0.0" />
-            <GradientStop Color="#00FFFFFF"
-                          Offset="{StaticResource GlassHighlightEndOffset}" />
-        </LinearGradientBrush>
-
-        <!-- ★ 文字投影 — 让字从半透明背景中"浮"出来 -->
-        <media:DropShadowEffect x:Key="GlassTextShadow"
-                                BlurRadius="4"
-                                OffsetX="0"
-                                OffsetY="1"
-                                Color="#55000000" />
-    </Styles.Resources>
-
-    <!-- ============================================================ -->
-    <!-- 液态玻璃按钮样式                                             -->
-    <!-- ============================================================ -->
-    <Style Selector="Button.Glass">
-        <Setter Property="ClipToBounds" Value="True" />
-        <Setter Property="Background" Value="{StaticResource GlassBrush}" />
-        <Setter Property="Foreground" Value="White" />
-        <Setter Property="BorderBrush" Value="{StaticResource GlassBorderBrush}" />
-        <Setter Property="BorderThickness" Value="{StaticResource GlassBorderThickness}" />
-        <Setter Property="CornerRadius" Value="{StaticResource GlassCornerRadius}" />
-        <Setter Property="Effect" Value="{StaticResource GlassShadow}" />
-        <Setter Property="Cursor" Value="Hand" />
-        <Setter Property="Padding" Value="20,8" />
-        <Setter Property="Template">
-            <Setter.Value>
-                <ControlTemplate>
-                    <Grid>
-                        <!-- 玻璃主层 -->
-                        <Border Background="{TemplateBinding Background}"
-                                BorderBrush="{TemplateBinding BorderBrush}"
-                                BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="{TemplateBinding CornerRadius}" />
-                        <!-- 左上角高光层（不阻挡鼠标） -->
-                        <Border Background="{StaticResource GlassHighlight}"
-                                CornerRadius="{TemplateBinding CornerRadius}"
-                                IsHitTestVisible="False" />
-                        <!-- 内容 -->
-                        <ContentPresenter Content="{TemplateBinding Content}"
-                                          HorizontalAlignment="Center"
-                                          VerticalAlignment="Center" />
-                    </Grid>
-                </ControlTemplate>
-            </Setter.Value>
-        </Setter>
-        <Setter Property="Transitions">
-            <Setter.Value>
-                <Transitions>
-                    <BrushTransition Property="Background" Duration="0:0:0.2" />
-                    <BrushTransition Property="BorderBrush" Duration="0:0:0.2" />
-                </Transitions>
-            </Setter.Value>
-        </Setter>
-    </Style>
-
-    <!-- 悬停 -->
-    <Style Selector="Button.Glass:pointerover">
-        <Setter Property="Background" Value="{StaticResource GlassBrushHover}" />
-        <Setter Property="BorderBrush" Value="{StaticResource GlassBorderBrushHover}" />
-        <Setter Property="Effect" Value="{StaticResource GlassShadowHover}" />
-    </Style>
-
-    <!-- 按下 -->
-    <Style Selector="Button.Glass:pressed">
-        <Setter Property="Background" Value="{StaticResource GlassBrushPressed}" />
-        <Setter Property="Effect" Value="{StaticResource GlassShadow}" />
-    </Style>
-
-    <!-- ★ 玻璃按钮内文字：加投影，字清晰 -->
-    <Style Selector="Button.Glass TextBlock">
-        <Setter Property="Foreground" Value="White" />
-        <Setter Property="FontWeight" Value="Bold" />
-        <Setter Property="Effect" Value="{StaticResource GlassTextShadow}" />
-    </Style>
-</Styles>
-```
-
-### `MainSrc\Views\read.md`
-
-<!-- 4 行 / 0.1 KB -->
-
-```markdown
---By Erics   九条开源
-Gui层  图标源文件引用  美化
-
-GUI Layer | Icon Asset References | Theme/Skin Scripts Directory
-```
-
-## 6.3 MainSrc\Tools —— 内核工具层
-
-启动链路、Java 检测、实例管理、账户持久化、3D 皮肤投影、音效与配置。**这是启动器的"引擎"**。
-
-### `MainSrc\Tools\GameLauncher.cs`
-
-<!-- 431 行 / 17.8 KB -->
+### `MainSrc\Tools\JavaConfig\GameLauncher.cs`
 
 ```csharp
 using System;
@@ -5386,7 +8447,9 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace Project.Launch.Tools
+using Project.Launch.Tools.AppConstants;
+using Project.Launch.Tools.LogsConfig;
+namespace Project.Launch.Tools.JavaConfig
 {
     public static class GameLauncher
     {
@@ -5775,8 +8838,8 @@ namespace Project.Launch.Tools
         {
             return template
                 .Replace("${natives_directory}", nativesDir)
-                .Replace("${launcher_name}", "Kilim")
-                .Replace("${launcher_version}", "0.2.1")
+                .Replace("${launcher_name}", SetConstants.LauncherName)
+                .Replace("${launcher_version}", SetConstants.Version)
                 .Replace("${classpath}", classpath)
                 .Replace("${classpath_separator}", Path.PathSeparator.ToString())
                 .Replace("${library_directory}", Path.Combine(instance.RootPath, "libraries"))
@@ -5808,9 +8871,159 @@ namespace Project.Launch.Tools
 }
 ```
 
-### `MainSrc\Tools\JavaDetector.cs`
+### `MainSrc\Tools\JavaConfig\InstanceData.cs`
 
-<!-- 183 行 / 6.1 KB -->
+```csharp
+using System;
+using System.Collections.Generic;
+
+namespace Project.Launch.Tools.JavaConfig
+{
+    public class InstanceInfo
+    {
+        public string Id { get; set; } = Guid.NewGuid().ToString("N");
+        public string Name { get; set; } = string.Empty;
+        public string RootPath { get; set; } = string.Empty;
+        /// <summary>"standard"（.minecraft 根目录） 或 "isolated"（隔离实例）</summary>
+        public string Layout { get; set; } = "standard";
+        public string VersionId { get; set; } = string.Empty;
+        public string JavaPath { get; set; } = string.Empty;
+        public DateTime ImportedAt { get; set; } = DateTime.UtcNow;
+        public DateTime LastUsed { get; set; } = DateTime.UtcNow;
+    }
+
+    public class InstancesRoot
+    {
+        public List<InstanceInfo> Instances { get; set; } = new();
+        public string SelectedInstanceId { get; set; } = string.Empty;
+    }
+}
+```
+
+### `MainSrc\Tools\JavaConfig\InstanceService.cs`
+
+```csharp
+using System;
+using System.IO;
+using System.Linq;
+using System.Text.Json;
+
+using Project.Launch.Tools.LogsConfig;
+namespace Project.Launch.Tools.JavaConfig
+{
+    public static class InstanceService
+    {
+        private static readonly object _lock = new object();
+
+        private static string FilePath => Path.Combine(LauncherPaths.Root, "instances.json");
+
+        public static InstancesRoot LoadInstances()
+        {
+            lock (_lock)
+            {
+                if (!File.Exists(FilePath))
+                    return new InstancesRoot();
+
+                try
+                {
+                    string json = File.ReadAllText(FilePath);
+                    return JsonSerializer.Deserialize<InstancesRoot>(json) ?? new InstancesRoot();
+                }
+                catch (Exception ex)
+                {
+                    LogHelper.Write(LauncherPaths.AppLog,
+                        $"读取实例失败: {ex.Message}",
+                        $"Failed to load instances: {ex.Message}");
+                    return new InstancesRoot();
+                }
+            }
+        }
+
+        public static void SaveInstances(InstancesRoot root)
+        {
+            lock (_lock)
+            {
+                try
+                {
+                    string json = JsonSerializer.Serialize(root,
+                        new JsonSerializerOptions { WriteIndented = true });
+                    string tmp = FilePath + ".tmp";
+                    File.WriteAllText(tmp, json);
+                    File.Move(tmp, FilePath, overwrite: true);
+                }
+                catch (Exception ex)
+                {
+                    LogHelper.Write(LauncherPaths.AppLog,
+                        $"保存实例失败: {ex.Message}",
+                        $"Failed to save instances: {ex.Message}");
+                }
+            }
+        }
+
+        public static InstanceInfo? GetSelectedInstance()
+        {
+            var root = LoadInstances();
+            if (string.IsNullOrEmpty(root.SelectedInstanceId))
+                return null;
+            return root.Instances.FirstOrDefault(i => i.Id == root.SelectedInstanceId);
+        }
+
+        public static void SetSelectedInstance(InstanceInfo instance)
+        {
+            var root = LoadInstances();
+            var existing = root.Instances.FirstOrDefault(i => i.Id == instance.Id);
+            if (existing == null)
+                root.Instances.Add(instance);
+            else
+            {
+                existing.Name = instance.Name;
+                existing.RootPath = instance.RootPath;
+                existing.Layout = instance.Layout;
+                existing.VersionId = instance.VersionId;
+                existing.JavaPath = instance.JavaPath;
+                existing.LastUsed = DateTime.UtcNow;
+            }
+            root.SelectedInstanceId = instance.Id;
+            SaveInstances(root);
+        }
+    }
+}
+```
+
+### `MainSrc\Tools\JavaConfig\InteractionConfig.cs`
+
+```csharp
+namespace Project.Launch.Tools.JavaConfig
+{
+    /// <summary>
+    /// 交互配置——鼠标拖拽、手势等
+    /// 后期"设置"页面可在这里读写
+    /// </summary>
+    public static class InteractionConfig
+    {
+        /// <summary>
+        /// 3D 皮肤拖拽：水平方向反转
+        /// false = 鼠标向右拖 → 人物向右转（当前默认）
+        /// true  = 鼠标向右拖 → 人物向左转
+        /// </summary>
+        public static bool PivotInvertX { get; set; } = false;
+
+        /// <summary>
+        /// 3D 皮肤拖拽：垂直方向反转
+        /// false = 鼠标向上拖 → 人物向上看（当前默认）
+        /// true  = 鼠标向上拖 → 人物向下看
+        /// </summary>
+        public static bool PivotInvertY { get; set; } = false;
+
+        /// <summary>
+        /// 3D 皮肤拖拽灵敏度（0.5 = 鼠标 1 像素转 0.5°）
+        /// </summary>
+        public static float PivotSensitivity { get; set; } = 0.5f;
+    }
+}
+```
+
+### `MainSrc\Tools\JavaConfig\JavaDetector.cs`
 
 ```csharp
 using System;
@@ -5821,7 +9034,7 @@ using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
-namespace Project.Launch.Tools
+namespace Project.Launch.Tools.JavaConfig
 {
     public class JavaInfo
     {
@@ -5998,9 +9211,60 @@ namespace Project.Launch.Tools
 }
 ```
 
-### `MainSrc\Tools\MinecraftDirectoryAnalyzer.cs`
+### `MainSrc\Tools\JavaConfig\LauncherPaths.cs`
 
-<!-- 98 行 / 3.5 KB -->
+```csharp
+using System;
+using System.IO;
+
+namespace Project.Launch.Tools.JavaConfig
+{
+    /// <summary>
+    /// 启动器所有关键路径集中管理
+    /// Launcher path definitions - centralized
+    /// </summary>
+    public static class LauncherPaths
+    {
+        /// <summary>
+        /// 启动器根目录：exe 同级 KilimLauncher/
+        /// Launcher root: KilimLauncher/ next to exe
+        /// </summary>
+        public static readonly string Root = Path.Combine(
+            AppDomain.CurrentDomain.BaseDirectory,
+            "KilimLauncher"
+        );
+
+        // ================== 配置文件 ==================
+        /// <summary>账户文件 / Accounts file</summary>
+        public static readonly string AccountsFile = Path.Combine(Root, "accounts.json");
+
+        // ================== 日志文件 ==================
+        /// <summary>主窗口日志 / Main window log</summary>
+        public static readonly string MainWindowLog = Path.Combine(Root, "MainWindowLog.txt");
+
+        /// <summary>启动日志 / Startup log</summary>
+        public static readonly string StartupLog = Path.Combine(Root, "startup.log");
+
+        /// <summary>崩溃日志 / Crash log</summary>
+        public static readonly string CrashLog = Path.Combine(Root, "crash.log");
+
+        /// <summary>App 启动日志 / App startup log</summary>
+        public static readonly string AppLog = Path.Combine(Root, "app.log");
+
+        static LauncherPaths()
+        {
+            try
+            {
+                if (!Directory.Exists(Root))
+                    Directory.CreateDirectory(Root);
+            }
+            catch { }
+        }
+    }
+}
+```
+
+### `MainSrc\Tools\JavaConfig\MinecraftDirectoryAnalyzer.cs`
 
 ```csharp
 using System;
@@ -6008,7 +9272,8 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 
-namespace Project.Launch.Tools
+using Project.Launch.Tools.LogsConfig;
+namespace Project.Launch.Tools.JavaConfig
 {
     public class AnalysisResult
     {
@@ -6103,9 +9368,7 @@ namespace Project.Launch.Tools
 }
 ```
 
-### `MainSrc\Tools\MinecraftVersionJson.cs`
-
-<!-- 109 行 / 3.5 KB -->
+### `MainSrc\Tools\JavaConfig\MinecraftVersionJson.cs`
 
 ```csharp
 using System;
@@ -6113,7 +9376,8 @@ using System.Collections.Generic;
 using System.IO;
 using System.Text.Json;
 
-namespace Project.Launch.Tools
+using Project.Launch.Tools.LogsConfig;
+namespace Project.Launch.Tools.JavaConfig
 {
     /// <summary>
     /// Minecraft 版本 JSON 的数据模型
@@ -6219,447 +9483,7 @@ namespace Project.Launch.Tools
 }
 ```
 
-### `MainSrc\Tools\InstanceData.cs`
-
-<!-- 24 行 / 0.9 KB -->
-
-```csharp
-using System;
-using System.Collections.Generic;
-
-namespace Project.Launch.Tools
-{
-    public class InstanceInfo
-    {
-        public string Id { get; set; } = Guid.NewGuid().ToString("N");
-        public string Name { get; set; } = string.Empty;
-        public string RootPath { get; set; } = string.Empty;
-        /// <summary>"standard"（.minecraft 根目录） 或 "isolated"（隔离实例）</summary>
-        public string Layout { get; set; } = "standard";
-        public string VersionId { get; set; } = string.Empty;
-        public string JavaPath { get; set; } = string.Empty;
-        public DateTime ImportedAt { get; set; } = DateTime.UtcNow;
-        public DateTime LastUsed { get; set; } = DateTime.UtcNow;
-    }
-
-    public class InstancesRoot
-    {
-        public List<InstanceInfo> Instances { get; set; } = new();
-        public string SelectedInstanceId { get; set; } = string.Empty;
-    }
-}
-```
-
-### `MainSrc\Tools\InstanceService.cs`
-
-<!-- 84 行 / 2.9 KB -->
-
-```csharp
-using System;
-using System.IO;
-using System.Linq;
-using System.Text.Json;
-
-namespace Project.Launch.Tools
-{
-    public static class InstanceService
-    {
-        private static readonly object _lock = new object();
-
-        private static string FilePath => Path.Combine(LauncherPaths.Root, "instances.json");
-
-        public static InstancesRoot LoadInstances()
-        {
-            lock (_lock)
-            {
-                if (!File.Exists(FilePath))
-                    return new InstancesRoot();
-
-                try
-                {
-                    string json = File.ReadAllText(FilePath);
-                    return JsonSerializer.Deserialize<InstancesRoot>(json) ?? new InstancesRoot();
-                }
-                catch (Exception ex)
-                {
-                    LogHelper.Write(LauncherPaths.AppLog,
-                        $"读取实例失败: {ex.Message}",
-                        $"Failed to load instances: {ex.Message}");
-                    return new InstancesRoot();
-                }
-            }
-        }
-
-        public static void SaveInstances(InstancesRoot root)
-        {
-            lock (_lock)
-            {
-                try
-                {
-                    string json = JsonSerializer.Serialize(root,
-                        new JsonSerializerOptions { WriteIndented = true });
-                    string tmp = FilePath + ".tmp";
-                    File.WriteAllText(tmp, json);
-                    File.Move(tmp, FilePath, overwrite: true);
-                }
-                catch (Exception ex)
-                {
-                    LogHelper.Write(LauncherPaths.AppLog,
-                        $"保存实例失败: {ex.Message}",
-                        $"Failed to save instances: {ex.Message}");
-                }
-            }
-        }
-
-        public static InstanceInfo? GetSelectedInstance()
-        {
-            var root = LoadInstances();
-            if (string.IsNullOrEmpty(root.SelectedInstanceId))
-                return null;
-            return root.Instances.FirstOrDefault(i => i.Id == root.SelectedInstanceId);
-        }
-
-        public static void SetSelectedInstance(InstanceInfo instance)
-        {
-            var root = LoadInstances();
-            var existing = root.Instances.FirstOrDefault(i => i.Id == instance.Id);
-            if (existing == null)
-                root.Instances.Add(instance);
-            else
-            {
-                existing.Name = instance.Name;
-                existing.RootPath = instance.RootPath;
-                existing.Layout = instance.Layout;
-                existing.VersionId = instance.VersionId;
-                existing.JavaPath = instance.JavaPath;
-                existing.LastUsed = DateTime.UtcNow;
-            }
-            root.SelectedInstanceId = instance.Id;
-            SaveInstances(root);
-        }
-    }
-}
-```
-
-### `MainSrc\Tools\AccountData.cs`
-
-<!-- 36 行 / 1.4 KB -->
-
-```csharp
-using System;
-using System.Collections.Generic;
-
-namespace Project.Launch.Tools
-{
-    public class AccountInfo
-    {
-        public string Type { get; set; } = "offline";
-        public string Username { get; set; } = string.Empty;
-        public string Uuid { get; set; } = string.Empty;
-        public DateTime LastUsed { get; set; } = DateTime.UtcNow;
-
-        // ============================================================
-        // 正版账户专属字段（离线账户留空）
-        // ============================================================
-
-        /// <summary>微软 refresh_token（长期，用于静默刷新）</summary>
-        public string MicrosoftRefreshToken { get; set; } = string.Empty;
-
-        /// <summary>Minecraft access_token（短期，24 小时）</summary>
-        public string MinecraftAccessToken { get; set; } = string.Empty;
-
-        /// <summary>token 过期时间（UTC）</summary>
-        public DateTime TokenExpireAt { get; set; } = DateTime.MinValue;
-
-        /// <summary>皮肤 URL（正版专属，留空则用 UUID 推算 Steve/Alex）</summary>
-        public string SkinUrl { get; set; } = string.Empty;
-    }
-
-    public class AccountsRoot
-    {
-        public Dictionary<string, AccountInfo> Accounts { get; set; } = new();
-        public string SelectedAccount { get; set; } = string.Empty;
-        public bool LoginCheck { get; set; } = false;
-    }
-}
-```
-
-### `MainSrc\Tools\AccountService.cs`
-
-<!-- 131 行 / 4.4 KB -->
-
-```csharp
-using System;
-using System.IO;
-using System.Text.Json;
-
-namespace Project.Launch.Tools
-{
-    public static class AccountService
-    {
-        // ★ P1-5 修复：路径统一走 LauncherPaths，不再自己拼一份
-        private static readonly object _lock = new object();
-
-        public static AccountsRoot LoadAccounts()
-        {
-            lock (_lock)
-            {
-                if (!File.Exists(LauncherPaths.AccountsFile))
-                    return new AccountsRoot();
-
-                try
-                {
-                    string json = File.ReadAllText(LauncherPaths.AccountsFile);
-                    return JsonSerializer.Deserialize<AccountsRoot>(json) ?? new AccountsRoot();
-                }
-                catch (Exception ex)
-                {
-                    LogHelper.Write(LauncherPaths.AppLog,
-                        $"读取账户失败: {ex.Message}",
-                        $"Failed to load accounts: {ex.Message}");
-                    return new AccountsRoot();
-                }
-            }
-        }
-
-        // ★ P0-5 修复：写 tmp + Move 覆盖 + try-catch
-        public static void SaveAccounts(AccountsRoot root)
-        {
-            lock (_lock)
-            {
-                SaveAccountsInternal(root);
-            }
-        }
-
-        // ★ P1-1 修复：read-modify-write 收口在单个 lock 内
-        private static void ModifyAccounts(Action<AccountsRoot> mutate)
-        {
-            lock (_lock)
-            {
-                AccountsRoot root;
-                if (!File.Exists(LauncherPaths.AccountsFile))
-                {
-                    root = new AccountsRoot();
-                }
-                else
-                {
-                    try
-                    {
-                        string json = File.ReadAllText(LauncherPaths.AccountsFile);
-                        root = JsonSerializer.Deserialize<AccountsRoot>(json) ?? new AccountsRoot();
-                    }
-                    catch (Exception ex)
-                    {
-                        LogHelper.Write(LauncherPaths.AppLog,
-                            $"读取账户失败（将重置）: {ex.Message}",
-                            $"Failed to load accounts (will reset): {ex.Message}");
-                        root = new AccountsRoot();
-                    }
-                }
-
-                mutate(root);
-                SaveAccountsInternal(root);
-            }
-        }
-
-        private static void SaveAccountsInternal(AccountsRoot root)
-        {
-            try
-            {
-                string json = JsonSerializer.Serialize(root,
-                    new JsonSerializerOptions { WriteIndented = true });
-
-                // 原子写：先写临时文件，再 Move 覆盖
-                string tmpPath = LauncherPaths.AccountsFile + ".tmp";
-                File.WriteAllText(tmpPath, json);
-                File.Move(tmpPath, LauncherPaths.AccountsFile, overwrite: true);
-            }
-            catch (Exception ex)
-            {
-                LogHelper.Write(LauncherPaths.AppLog,
-                    $"保存账户失败: {ex.Message}",
-                    $"Failed to save accounts: {ex.Message}");
-            }
-        }
-
-        public static AccountInfo? GetSelectedAccount()
-        {
-            var root = LoadAccounts();
-            if (string.IsNullOrEmpty(root.SelectedAccount) || !root.Accounts.ContainsKey(root.SelectedAccount))
-                return null;
-            return root.Accounts[root.SelectedAccount];
-        }
-
-        public static void SetSelectedAccount(string accountId, AccountInfo account)
-        {
-            ModifyAccounts(root =>
-            {
-                root.Accounts[accountId] = account;
-                root.SelectedAccount = accountId;
-            });
-        }
-
-        public static void RemoveAccount(string accountId)
-        {
-            ModifyAccounts(root =>
-            {
-                if (root.Accounts.Remove(accountId) && root.SelectedAccount == accountId)
-                    root.SelectedAccount = string.Empty;
-            });
-        }
-
-        public static bool GetLoginCheck()
-        {
-            var root = LoadAccounts();
-            return root.LoginCheck;
-        }
-
-        public static void SetLoginCheck(bool value)
-        {
-            ModifyAccounts(root => root.LoginCheck = value);
-        }
-    }
-}
-```
-
-### `MainSrc\Tools\OfflineUuidGenerator.cs`
-
-<!-- 50 行 / 1.9 KB -->
-
-```csharp
-using System;
-using System.Security.Cryptography;
-using System.Text;
-
-namespace Project.Launch.Tools
-{
-    public static class OfflineUuidGenerator
-    {
-        /// <summary>
-        /// 生成标准离线 UUID（兼容 HMCL / Java 实现）
-        /// 算法：MD5("OfflinePlayer:" + username) → 设置 version/variant → 按大端序输出 hex
-        /// </summary>
-        public static string GenerateUuidString(string username)
-        {
-            // 1. 构造输入字符串
-            string input = $"OfflinePlayer:{username}";
-
-            // 2. 计算 MD5 哈希
-            byte[] hash;
-            using (MD5 md5 = MD5.Create())
-            {
-                hash = md5.ComputeHash(Encoding.UTF8.GetBytes(input));
-            }
-
-            // 3. 设置 UUID 版本（version 3）
-            hash[6] = (byte)((hash[6] & 0x0F) | 0x30);
-            // 4. 设置变体（IETF variant）
-            hash[8] = (byte)((hash[8] & 0x3F) | 0x80);
-
-            // 5. ★ 手动拼接 hex 字符串（按大端序，不用 Guid 类）
-            // 格式：xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
-            return string.Format(
-                "{0:x2}{1:x2}{2:x2}{3:x2}-{4:x2}{5:x2}-{6:x2}{7:x2}-{8:x2}{9:x2}-{10:x2}{11:x2}{12:x2}{13:x2}{14:x2}{15:x2}",
-                hash[0], hash[1], hash[2], hash[3],
-                hash[4], hash[5],
-                hash[6], hash[7],
-                hash[8], hash[9],
-                hash[10], hash[11], hash[12], hash[13], hash[14], hash[15]
-            );
-        }
-
-        // 如果你还需要返回 Guid 类型（用于现有代码），保留此方法并标记为 Obsolete
-        [Obsolete("此方法返回的 Guid 可能与 Java 服务器不兼容，请使用 GenerateUuidString 替代")]
-        public static Guid Generate(string username)
-        {
-            string uuidString = GenerateUuidString(username);
-            return Guid.ParseExact(uuidString, "D");
-        }
-    }
-}
-```
-
-### `MainSrc\Tools\DefaultSkinSelector.cs`
-
-<!-- 71 行 / 2.6 KB -->
-
-```csharp
-using System;
-
-namespace Project.Launch.Tools
-{
-    /// <summary>
-    /// 根据 UUID 决定默认皮肤（Steve / Alex）
-    ///
-    /// 算法来源：Minecraft Java 版官方逻辑
-    ///   取 UUID 第 8、16、24、32 位（0-based 索引 7、15、23、31）的 hex 值
-    ///   异或后取末位：奇数 → Alex，偶数 → Steve
-    /// </summary>
-    public static class DefaultSkinSelector
-    {
-        public const string SteveAssetPath =
-            "avares://Project.Launch/MainSrc/Views/imgs/skin/Steve.png";
-
-        public const string AlexAssetPath =
-            "avares://Project.Launch/MainSrc/Views/imgs/skin/Alex.png";
-
-        /// <summary>
-        /// 根据 UUID 判断是否应使用 Alex 模型
-        /// </summary>
-        public static bool ShouldUseAlex(string? uuid)
-        {
-            // ★ UUID 缺失是错误状态，不静默兜底，写日志暴露
-            if (string.IsNullOrEmpty(uuid))
-            {
-                LogHelper.Write(LauncherPaths.AppLog,
-                    "[错误] UUID 为空，无法判定 Steve/Alex（异常状态）",
-                    "[ERROR] UUID is null/empty, cannot determine Steve/Alex");
-                return false;
-            }
-
-            string hex = uuid.Replace("-", "");
-
-            if (hex.Length < 32)
-            {
-                LogHelper.Write(LauncherPaths.AppLog,
-                    $"[错误] UUID 长度不足（{uuid}），无法判定 Steve/Alex（异常状态）",
-                    $"[ERROR] UUID too short ({uuid}), cannot determine Steve/Alex");
-                return false;
-            }
-
-            try
-            {
-                int a = Convert.ToInt32(hex[7].ToString(), 16);
-                int b = Convert.ToInt32(hex[15].ToString(), 16);
-                int c = Convert.ToInt32(hex[23].ToString(), 16);
-                int d = Convert.ToInt32(hex[31].ToString(), 16);
-
-                int xor = a ^ b ^ c ^ d;
-                return (xor & 1) == 1;
-            }
-            catch (Exception ex)
-            {
-                LogHelper.Write(LauncherPaths.AppLog,
-                    $"[错误] UUID 解析失败（{uuid}）: {ex.Message}",
-                    $"[ERROR] UUID parse failed ({uuid}): {ex.Message}");
-                return false;
-            }
-        }
-
-        /// <summary>
-        /// 根据 UUID 返回对应的皮肤资源路径
-        /// </summary>
-        public static string GetSkinAssetPath(string? uuid)
-        {
-            return ShouldUseAlex(uuid) ? AlexAssetPath : SteveAssetPath;
-        }
-    }
-}
-```
-
-### `MainSrc\Tools\SkinCropper.cs`
-
-<!-- 88 行 / 2.8 KB -->
+### `MainSrc\Tools\JavaConfig\SkinCropper.cs`
 
 ```csharp
 using System;
@@ -6668,7 +9492,7 @@ using Avalonia;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform;
 
-namespace Project.Launch.Tools
+namespace Project.Launch.Tools.JavaConfig
 {
     /// <summary>
     /// 皮肤裁切工具：从皮肤 PNG 裁出方形头像
@@ -6752,14 +9576,15 @@ namespace Project.Launch.Tools
 }
 ```
 
-### `MainSrc\Tools\MinecraftSkinModel.cs`
 
-<!-- 284 行 / 10.6 KB -->
+## 6.6 MainSrc\Tools\Player3DConfig —— 3D 皮肤
+
+### `MainSrc\Tools\Player3DConfig\MinecraftSkinModel.cs`
 
 ```csharp
 using System.Collections.Generic;
 
-namespace Project.Launch.Tools
+namespace Project.Launch.Tools.Player3DConfig
 {
     public struct Vec3
     {
@@ -7043,9 +9868,7 @@ namespace Project.Launch.Tools
 }
 ```
 
-### `MainSrc\Tools\Pivot3DControl.cs`
-
-<!-- 337 行 / 12.1 KB -->
+### `MainSrc\Tools\Player3DConfig\Pivot3DControl.cs`
 
 ```csharp
 using System;
@@ -7061,7 +9884,10 @@ using Avalonia.Threading;
 using Project.Launch.Tools;
 using SkiaSharp;
 
-namespace Project.Launch.Views
+
+using Project.Launch.Tools.JavaConfig;
+using Project.Launch.Tools.LogsConfig;
+namespace Project.Launch.Tools.Player3DConfig
 {
     public class Pivot3DControl : Control
     {
@@ -7387,16 +10213,14 @@ namespace Project.Launch.Views
 }
 ```
 
-### `MainSrc\Tools\Pivot3DRenderer.cs`
-
-<!-- 136 行 / 5.2 KB -->
+### `MainSrc\Tools\Player3DConfig\Pivot3DRenderer.cs`
 
 ```csharp
 using System;
 using System.Collections.Generic;
 using System.Numerics;
 
-namespace Project.Launch.Tools
+namespace Project.Launch.Tools.Player3DConfig
 {
     public class ProjectedFace
     {
@@ -7530,70 +10354,146 @@ namespace Project.Launch.Tools
 }
 ```
 
-### `MainSrc\Tools\LauncherPaths.cs`
 
-<!-- 48 行 / 1.6 KB -->
+## 6.7 MainSrc\Tools 其余（AnimSettings / AppConstants / LogsConfig / SoundControl）
+
+### `MainSrc\Tools\AnimSettings\AnimationConfig.cs`
 
 ```csharp
 using System;
-using System.IO;
 
-namespace Project.Launch.Tools
+namespace Project.Launch.Tools.AnimSettings
 {
     /// <summary>
-    /// 启动器所有关键路径集中管理
-    /// Launcher path definitions - centralized
+    /// 全局动画参数配置
+    /// 后期"设置"页面只需修改这里的属性值即可统一调整动画手感
     /// </summary>
-    public static class LauncherPaths
+    public static class AnimationConfig
     {
-        /// <summary>
-        /// 启动器根目录：exe 同级 KilimLauncher/
-        /// Launcher root: KilimLauncher/ next to exe
-        /// </summary>
-        public static readonly string Root = Path.Combine(
-            AppDomain.CurrentDomain.BaseDirectory,
-            "KilimLauncher"
-        );
+        // ============================================================
+        // LoginWindow 登录滑块动画
+        // ============================================================
 
-        // ================== 配置文件 ==================
-        /// <summary>账户文件 / Accounts file</summary>
-        public static readonly string AccountsFile = Path.Combine(Root, "accounts.json");
+        /// <summary>登录滑块移动总时长</summary>
+        public static TimeSpan SliderMoveDuration { get; set; } = TimeSpan.FromMilliseconds(700);
 
-        // ================== 日志文件 ==================
-        /// <summary>主窗口日志 / Main window log</summary>
-        public static readonly string MainWindowLog = Path.Combine(Root, "MainWindowLog.txt");
+        /// <summary>登录滑块放大峰值倍数</summary>
+        public static double SliderPeakScale { get; set; } = 1.2;
 
-        /// <summary>启动日志 / Startup log</summary>
-        public static readonly string StartupLog = Path.Combine(Root, "startup.log");
+        /// <summary>梯形曲线上升段结束位置</summary>
+        public static double SliderScaleRiseEnd { get; set; } = 0.25;
 
-        /// <summary>崩溃日志 / Crash log</summary>
-        public static readonly string CrashLog = Path.Combine(Root, "crash.log");
+        /// <summary>梯形曲线下降段开始位置</summary>
+        public static double SliderScaleFallStart { get; set; } = 0.75;
 
-        /// <summary>App 启动日志 / App startup log</summary>
-        public static readonly string AppLog = Path.Combine(Root, "app.log");
+        /// <summary>登录滑块最大模糊值</summary>
+        public static double SliderBlurPeak { get; set; } = 1.4;
 
-        static LauncherPaths()
-        {
-            try
-            {
-                if (!Directory.Exists(Root))
-                    Directory.CreateDirectory(Root);
-            }
-            catch { }
-        }
+        /// <summary>登录滑块宽度</summary>
+        public static double SliderWidth { get; set; } = 114;
+
+        /// <summary>登录滑块高度</summary>
+        public static double SliderHeight { get; set; } = 36;
+
+        // ============================================================
+        // LoginWindow 输入面板淡出淡入
+        // ============================================================
+
+        /// <summary>输入面板淡出时长</summary>
+        public static TimeSpan InputPanelFadeDuration { get; set; } = TimeSpan.FromMilliseconds(250);
+
+        // ============================================================
+        // MainWindow 底部导航滑块动画
+        // 曲线形状与 LoginWindow 完全一致（EaseInOut + 梯形缩放 + 三角形模糊）
+        // ============================================================
+
+        /// <summary>导航滑块移动总时长</summary>
+        public static TimeSpan TabMoveDuration { get; set; } = TimeSpan.FromMilliseconds(700);
+
+        /// <summary>导航滑块放大峰值倍数</summary>
+        public static double TabPeakScale { get; set; } = 1.30;
+
+        /// <summary>导航滑块梯形曲线上升段结束位置</summary>
+        public static double TabScaleRiseEnd { get; set; } = 0.25;
+
+        /// <summary>导航滑块梯形曲线下降段开始位置</summary>
+        public static double TabScaleFallStart { get; set; } = 0.75;
+
+        /// <summary>导航滑块最大模糊值</summary>
+        public static double TabBlurPeak { get; set; } = 0.8;
+
+        /// <summary>导航滑块宽度（用于缩放中心补偿）</summary>
+        public static double TabWidth { get; set; } = 96;
+
+        /// <summary>导航滑块高度（用于缩放中心补偿）</summary>
+        public static double TabHeight { get; set; } = 44;
+
+        /// <summary>导航步长（每格宽度）</summary>
+        public static double TabStep { get; set; } = 104;
+
+        // ============================================================
+        // MainWindow 页面切换淡入淡出
+        // ============================================================
+
+        /// <summary>页面切换淡出/淡入时长</summary>
+        public static TimeSpan TabPanelFadeDuration { get; set; } = TimeSpan.FromMilliseconds(200);
     }
 }
 ```
 
-### `MainSrc\Tools\LogHelper.cs`
+### `MainSrc\Tools\AppConstants\SetConstants.cs`
 
-<!-- 51 行 / 1.6 KB -->
+```csharp
+namespace Project.Launch.Tools.AppConstants
+{
+    /// <summary>
+    /// ★ 启动器全局常量 —— 版本号 / 应用名的**唯一来源**。
+    ///
+    /// 想改版本号或应用标题，**只改这个文件**，其余位置全部自动跟随：
+    ///   · <see cref="Version"/>            → 登录窗左下角显示的版本号
+    ///                                      + 传给 Minecraft 的 ${launcher_version}
+    ///   · <see cref="AppName"/>             → 主窗标题（任务栏） + 自绘标题栏文字
+    ///   · <see cref="DisplayName"/>         → 需要好看排版的展示名（带空格）
+    ///   · <see cref="LoginHeader"/>         → 登录窗顶部大字（"登录 " + DisplayName）
+    ///   · <see cref="LauncherName"/>        → 传给 Minecraft 的 ${launcher_name}（游戏日志里可见）
+    ///
+    /// 注意：这些是编译期常量（const），改完必须重新编译才生效。
+    /// </summary>
+    public static class SetConstants
+    {
+        // ============================================================
+        //  ★★★ 只需修改下面这几行 ★★★
+        // ============================================================
+
+        /// <summary>版本号 —— 登录窗左下角显示；同时作为 Minecraft 的 ${launcher_version}</summary>
+        public const string Version = "rc-8";
+
+        /// <summary>应用名（不含空格）—— 主窗标题与自绘标题栏文字</summary>
+        public const string AppName = "KML!Launcherz";
+
+        // ============================================================
+        //  以下由上面派生，通常不需要改
+        // ============================================================
+
+        /// <summary>展示名（含空格，排版更好看）</summary>
+        public const string DisplayName = "Kilim Minecraft Launcher";
+
+        /// <summary>登录窗顶部大字</summary>
+        public const string LoginHeader = "登录 " + DisplayName;
+
+        /// <summary>传给 Minecraft 的 ${launcher_name}（显示在游戏日志/崩溃报告中）</summary>
+        public const string LauncherName = "Kilim";
+    }
+}
+```
+
+### `MainSrc\Tools\LogsConfig\LogHelper.cs`
 
 ```csharp
 using System;
 using System.IO;
 
-namespace Project.Launch.Tools
+namespace Project.Launch.Tools.LogsConfig
 {
     /// <summary>
     /// 统一日志写入工具（中英双语）
@@ -7643,14 +10543,12 @@ namespace Project.Launch.Tools
 }
 ```
 
-### `MainSrc\Tools\SoundConfig.cs`
-
-<!-- 54 行 / 1.9 KB -->
+### `MainSrc\Tools\SoundControl\SoundConfig.cs`
 
 ```csharp
 using System.Collections.Generic;
 
-namespace Project.Launch.Tools
+namespace Project.Launch.Tools.SoundControl
 {
     /// <summary>
     /// 音效配置——逻辑名直接映射到文件名
@@ -7704,9 +10602,7 @@ namespace Project.Launch.Tools
 }
 ```
 
-### `MainSrc\Tools\SoundService.cs`
-
-<!-- 88 行 / 2.9 KB -->
+### `MainSrc\Tools\SoundControl\SoundService.cs`
 
 ```csharp
 using System;
@@ -7716,7 +10612,9 @@ using System.Threading.Tasks;
 using Avalonia.Platform;
 using NAudio.Wave;
 
-namespace Project.Launch.Tools
+using Project.Launch.Tools.JavaConfig;
+using Project.Launch.Tools.LogsConfig;
+namespace Project.Launch.Tools.SoundControl
 {
     /// <summary>
     /// 音效播放服务——从内嵌资源读取 wav
@@ -7799,1136 +10697,40 @@ namespace Project.Launch.Tools
 }
 ```
 
-### `MainSrc\Tools\AnimationConfig.cs`
 
-<!-- 79 行 / 3.4 KB -->
+## 6.8 MainSrc\Tools\LiquidGlassAvaloniaUI —— 液态玻璃库（vendored, MIT）
 
-```csharp
-using System;
-
-namespace Project.Launch.Tools
-{
-    /// <summary>
-    /// 全局动画参数配置
-    /// 后期"设置"页面只需修改这里的属性值即可统一调整动画手感
-    /// </summary>
-    public static class AnimationConfig
-    {
-        // ============================================================
-        // LoginWindow 登录滑块动画
-        // ============================================================
-
-        /// <summary>登录滑块移动总时长</summary>
-        public static TimeSpan SliderMoveDuration { get; set; } = TimeSpan.FromMilliseconds(700);
-
-        /// <summary>登录滑块放大峰值倍数</summary>
-        public static double SliderPeakScale { get; set; } = 1.2;
-
-        /// <summary>梯形曲线上升段结束位置</summary>
-        public static double SliderScaleRiseEnd { get; set; } = 0.25;
-
-        /// <summary>梯形曲线下降段开始位置</summary>
-        public static double SliderScaleFallStart { get; set; } = 0.75;
-
-        /// <summary>登录滑块最大模糊值</summary>
-        public static double SliderBlurPeak { get; set; } = 1.4;
-
-        /// <summary>登录滑块宽度</summary>
-        public static double SliderWidth { get; set; } = 114;
-
-        /// <summary>登录滑块高度</summary>
-        public static double SliderHeight { get; set; } = 36;
-
-        // ============================================================
-        // LoginWindow 输入面板淡出淡入
-        // ============================================================
-
-        /// <summary>输入面板淡出时长</summary>
-        public static TimeSpan InputPanelFadeDuration { get; set; } = TimeSpan.FromMilliseconds(250);
-
-        // ============================================================
-        // MainWindow 底部导航滑块动画
-        // 曲线形状与 LoginWindow 完全一致（EaseInOut + 梯形缩放 + 三角形模糊）
-        // ============================================================
-
-        /// <summary>导航滑块移动总时长</summary>
-        public static TimeSpan TabMoveDuration { get; set; } = TimeSpan.FromMilliseconds(700);
-
-        /// <summary>导航滑块放大峰值倍数</summary>
-        public static double TabPeakScale { get; set; } = 1.30;
-
-        /// <summary>导航滑块梯形曲线上升段结束位置</summary>
-        public static double TabScaleRiseEnd { get; set; } = 0.25;
-
-        /// <summary>导航滑块梯形曲线下降段开始位置</summary>
-        public static double TabScaleFallStart { get; set; } = 0.75;
-
-        /// <summary>导航滑块最大模糊值</summary>
-        public static double TabBlurPeak { get; set; } = 0.8;
-
-        /// <summary>导航滑块宽度（用于缩放中心补偿）</summary>
-        public static double TabWidth { get; set; } = 96;
-
-        /// <summary>导航滑块高度（用于缩放中心补偿）</summary>
-        public static double TabHeight { get; set; } = 44;
-
-        /// <summary>导航步长（每格宽度）</summary>
-        public static double TabStep { get; set; } = 104;
-
-        // ============================================================
-        // MainWindow 页面切换淡入淡出
-        // ============================================================
-
-        /// <summary>页面切换淡出/淡入时长</summary>
-        public static TimeSpan TabPanelFadeDuration { get; set; } = TimeSpan.FromMilliseconds(200);
-    }
-}
-```
-
-### `MainSrc\Tools\InteractionConfig.cs`
-
-<!-- 28 行 / 1 KB -->
+### `MainSrc\Tools\LiquidGlassAvaloniaUI\LiquidGlassAppBuilderExtensions.cs`
 
 ```csharp
-namespace Project.Launch.Tools
+using Avalonia;
+using Avalonia.Rendering.Composition;
+
+namespace LiquidGlassAvaloniaUI
 {
-    /// <summary>
-    /// 交互配置——鼠标拖拽、手势等
-    /// 后期"设置"页面可在这里读写
-    /// </summary>
-    public static class InteractionConfig
+    public static class LiquidGlassAppBuilderExtensions
     {
-        /// <summary>
-        /// 3D 皮肤拖拽：水平方向反转
-        /// false = 鼠标向右拖 → 人物向右转（当前默认）
-        /// true  = 鼠标向右拖 → 人物向左转
-        /// </summary>
-        public static bool PivotInvertX { get; set; } = false;
-
-        /// <summary>
-        /// 3D 皮肤拖拽：垂直方向反转
-        /// false = 鼠标向上拖 → 人物向上看（当前默认）
-        /// true  = 鼠标向上拖 → 人物向下看
-        /// </summary>
-        public static bool PivotInvertY { get; set; } = false;
-
-        /// <summary>
-        /// 3D 皮肤拖拽灵敏度（0.5 = 鼠标 1 像素转 0.5°）
-        /// </summary>
-        public static float PivotSensitivity { get; set; } = 0.5f;
-    }
-}
-```
-
-### `MainSrc\Tools\read.me`
-
-<!-- 5 行 / 0.2 KB -->
-
-```text
---By Erics  九条开源
-内核级别 应用文件夹操作、内部操作 校验工具 下载 api握手
-
-Kernel-level：Application Folder Operations, Internal
-Operations, Verification Tools, Download API Handshake
-```
-
-## 6.4 MainSrc\Tools\Auth —— 微软正版登录
-
-MSA → Xbox Live → XSTS → Minecraft 全链路。⚠️ `DeviceCodeAuthService.ClientId` 目前是**占位 ID**，正版登录走不通。
-
-### `MainSrc\Tools\Auth\AuthModels.cs`
-
-<!-- 186 行 / 5.4 KB -->
-
-```csharp
-using System.Collections.Generic;
-using System.Text.Json.Serialization;
-
-namespace Project.Launch.Tools.Auth
-{
-    // ============================================================
-    // 微软 OAuth 设备代码流
-    // ============================================================
-
-    public class DeviceCodeResponse
-    {
-        [JsonPropertyName("device_code")]
-        public string DeviceCode { get; set; } = "";
-
-        [JsonPropertyName("user_code")]
-        public string UserCode { get; set; } = "";
-
-        [JsonPropertyName("verification_uri")]
-        public string VerificationUri { get; set; } = "";
-
-        [JsonPropertyName("expires_in")]
-        public int ExpiresIn { get; set; }
-
-        [JsonPropertyName("interval")]
-        public int Interval { get; set; } = 5;
-
-        [JsonPropertyName("message")]
-        public string Message { get; set; } = "";
-    }
-
-    public class MicrosoftTokenResponse
-    {
-        [JsonPropertyName("access_token")]
-        public string AccessToken { get; set; } = "";
-
-        [JsonPropertyName("refresh_token")]
-        public string RefreshToken { get; set; } = "";
-
-        [JsonPropertyName("expires_in")]
-        public int ExpiresIn { get; set; }
-
-        [JsonPropertyName("token_type")]
-        public string TokenType { get; set; } = "Bearer";
-    }
-
-    public class MicrosoftErrorResponse
-    {
-        [JsonPropertyName("error")]
-        public string Error { get; set; } = "";
-
-        [JsonPropertyName("error_description")]
-        public string ErrorDescription { get; set; } = "";
-    }
-
-    // ============================================================
-    // Xbox Live 认证
-    // ============================================================
-
-    public class XboxAuthRequest
-    {
-        [JsonPropertyName("Properties")]
-        public XboxAuthProperties Properties { get; set; } = new();
-
-        [JsonPropertyName("RelyingParty")]
-        public string RelyingParty { get; set; } = "http://auth.xboxlive.com";
-
-        [JsonPropertyName("TokenType")]
-        public string TokenType { get; set; } = "JWT";
-    }
-
-    public class XboxAuthProperties
-    {
-        [JsonPropertyName("AuthMethod")]
-        public string AuthMethod { get; set; } = "RPS";
-
-        [JsonPropertyName("SiteName")]
-        public string SiteName { get; set; } = "user.auth.xboxlive.com";
-
-        [JsonPropertyName("RpsTicket")]
-        public string RpsTicket { get; set; } = "";
-    }
-
-    public class XboxAuthResponse
-    {
-        [JsonPropertyName("Token")]
-        public string Token { get; set; } = "";
-
-        [JsonPropertyName("DisplayClaims")]
-        public XboxDisplayClaims? DisplayClaims { get; set; }
-
-        [JsonPropertyName("XErr")]
-        public long? XErr { get; set; }
-
-        [JsonPropertyName("Message")]
-        public string? Message { get; set; }
-    }
-
-    public class XboxDisplayClaims
-    {
-        [JsonPropertyName("xui")]
-        public List<XboxXui> Xui { get; set; } = new();
-    }
-
-    public class XboxXui
-    {
-        [JsonPropertyName("uhs")]
-        public string Uhs { get; set; } = "";
-    }
-
-    // ============================================================
-    // XSTS 认证
-    // ============================================================
-
-    public class XstsAuthRequest
-    {
-        [JsonPropertyName("Properties")]
-        public XstsAuthProperties Properties { get; set; } = new();
-
-        [JsonPropertyName("RelyingParty")]
-        public string RelyingParty { get; set; } = "rp://api.minecraftservices.com/";
-
-        [JsonPropertyName("TokenType")]
-        public string TokenType { get; set; } = "JWT";
-    }
-
-    public class XstsAuthProperties
-    {
-        [JsonPropertyName("SandboxId")]
-        public string SandboxId { get; set; } = "RETAIL";
-
-        [JsonPropertyName("UserTokens")]
-        public List<string> UserTokens { get; set; } = new();
-    }
-
-    // ============================================================
-    // Minecraft 认证
-    // ============================================================
-
-    public class MinecraftAuthRequest
-    {
-        [JsonPropertyName("identityToken")]
-        public string IdentityToken { get; set; } = "";
-    }
-
-    public class MinecraftAuthResponse
-    {
-        [JsonPropertyName("username")]
-        public string Username { get; set; } = "";
-
-        [JsonPropertyName("access_token")]
-        public string AccessToken { get; set; } = "";
-
-        [JsonPropertyName("token_type")]
-        public string TokenType { get; set; } = "Bearer";
-
-        [JsonPropertyName("expires_in")]
-        public int ExpiresIn { get; set; }
-    }
-
-    public class MinecraftProfile
-    {
-        [JsonPropertyName("id")]
-        public string Id { get; set; } = "";
-
-        [JsonPropertyName("name")]
-        public string Name { get; set; } = "";
-
-        [JsonPropertyName("skins")]
-        public List<MinecraftSkin> Skins { get; set; } = new();
-    }
-
-    public class MinecraftSkin
-    {
-        [JsonPropertyName("id")]
-        public string Id { get; set; } = "";
-
-        [JsonPropertyName("state")]
-        public string State { get; set; } = "";
-
-        [JsonPropertyName("url")]
-        public string Url { get; set; } = "";
-
-        [JsonPropertyName("variant")]
-        public string Variant { get; set; } = "";
-    }
-}
-```
-
-### `MainSrc\Tools\Auth\MicrosoftAuthFlow.cs`
-
-<!-- 167 行 / 6.7 KB -->
-
-```csharp
-using System;
-using System.Threading;
-using System.Threading.Tasks;
-
-namespace Project.Launch.Tools.Auth
-{
-    /// <summary>
-    /// 微软正版登录全流程协调器
-    /// 阶段 1-3：微软 OAuth 设备代码流
-    /// 阶段 4-5：Xbox Live + XSTS
-    /// 阶段 6：Minecraft 认证 + profile
-    /// </summary>
-    public class MicrosoftAuthFlow
-    {
-        /// <summary>登录过程中触发，参数是给用户看的提示</summary>
-        public event Action<string>? Progress;
-
-        /// <summary>拿到设备代码后触发（user_code + verification_uri）</summary>
-        public event Action<string, string>? DeviceCodeReady;
-
-        /// <summary>
-        /// 完整登录流程
-        /// 成功返回 AccountInfo，失败返回 null 并把错误抛给 Progress
-        /// </summary>
-        public async Task<AccountInfo?> LoginAsync(CancellationToken ct = default)
+        public static AppBuilder UseLiquidGlassPerformanceDefaults(
+            this AppBuilder builder,
+            long skiaMaxGpuResourceSizeBytes = 256L * 1024L * 1024L,
+            int maxDirtyRects = 8)
         {
-            try
-            {
-                // ============================================================
-                // 阶段 1：申请设备代码
-                // ============================================================
-                Progress?.Invoke("正在申请设备代码...");
-
-                var devSvc = new DeviceCodeAuthService();
-                var deviceCode = await devSvc.RequestDeviceCodeAsync();
-                if (deviceCode == null)
+            return builder
+                .With(new CompositionOptions
                 {
-                    Progress?.Invoke("❌ 无法连接微软服务器");
-                    return null;
-                }
-
-                // 通知 UI 显示代码
-                DeviceCodeReady?.Invoke(deviceCode.UserCode, deviceCode.VerificationUri);
-
-                // ============================================================
-                // 阶段 3：轮询等待授权
-                // ============================================================
-                Progress?.Invoke($"等待授权中（{deviceCode.ExpiresIn / 60} 分钟）...");
-
-                var msToken = await devSvc.PollForTokenAsync(
-                    deviceCode.DeviceCode,
-                    deviceCode.Interval,
-                    deviceCode.ExpiresIn,
-                    ct);
-
-                if (msToken == null)
+                    UseRegionDirtyRectClipping = true,
+                    MaxDirtyRects = maxDirtyRects
+                })
+                .With(new SkiaOptions
                 {
-                    if (ct.IsCancellationRequested)
-                        Progress?.Invoke("❌ 已取消");
-                    else
-                        Progress?.Invoke("❌ 授权超时或已拒绝");
-                    return null;
-                }
-
-                // ============================================================
-                // 阶段 4：XBL 认证
-                // ============================================================
-                Progress?.Invoke("正在验证 Xbox Live...");
-
-                var xboxSvc = new XboxAuthService();
-                var xblResp = await xboxSvc.AuthenticateWithXboxLiveAsync(msToken.AccessToken);
-                if (xblResp == null)
-                {
-                    Progress?.Invoke("❌ Xbox Live 认证失败");
-                    return null;
-                }
-
-                // ============================================================
-                // 阶段 5：XSTS 认证
-                // ============================================================
-                Progress?.Invoke("正在验证 XSTS...");
-
-                XboxAuthResponse? xstsResp;
-                try
-                {
-                    xstsResp = await xboxSvc.AuthenticateWithXstsAsync(xblResp.Token);
-                }
-                catch (Exception ex)
-                {
-                    // XboxAuthService 会把用户友好错误通过 Exception 抛出
-                    Progress?.Invoke($"❌ {ex.Message}");
-                    return null;
-                }
-
-                if (xstsResp == null || xstsResp.DisplayClaims == null
-                    || xstsResp.DisplayClaims.Xui.Count == 0)
-                {
-                    Progress?.Invoke("❌ XSTS 认证失败");
-                    return null;
-                }
-
-                string uhs = xstsResp.DisplayClaims.Xui[0].Uhs;
-
-                // ============================================================
-                // 阶段 6：Minecraft 认证 + profile
-                // ============================================================
-                Progress?.Invoke("正在获取 Minecraft 档案...");
-
-                var mcSvc = new MinecraftAuthService();
-                var mcToken = await mcSvc.AuthenticateWithMinecraftAsync(xstsResp.Token, uhs);
-                if (mcToken == null)
-                {
-                    Progress?.Invoke("❌ Minecraft 认证失败");
-                    return null;
-                }
-
-                MinecraftProfile? profile;
-                try
-                {
-                    profile = await mcSvc.GetProfileAsync(mcToken.AccessToken);
-                }
-                catch (Exception ex)
-                {
-                    Progress?.Invoke($"❌ {ex.Message}");
-                    return null;
-                }
-
-                if (profile == null)
-                {
-                    Progress?.Invoke("❌ 无法获取 Minecraft 档案");
-                    return null;
-                }
-
-                // ============================================================
-                // 阶段 7：构造 AccountInfo
-                // ============================================================
-                var account = new AccountInfo
-                {
-                    Type = "microsoft",
-                    Username = profile.Name,
-                    Uuid = profile.Id,   // 无连字符的 32 位 hex
-                    LastUsed = DateTime.UtcNow,
-
-                    MicrosoftRefreshToken = msToken.RefreshToken,
-                    MinecraftAccessToken = mcToken.AccessToken,
-                    TokenExpireAt = DateTime.UtcNow.AddSeconds(mcToken.ExpiresIn),
-                    SkinUrl = profile.Skins.Count > 0 ? profile.Skins[0].Url : ""
-                };
-
-                Progress?.Invoke($"✅ 登录成功：{profile.Name}");
-                LogHelper.Write(LauncherPaths.AppLog,
-                    $"正版登录成功: {profile.Name} ({profile.Id})",
-                    $"Microsoft login success: {profile.Name} ({profile.Id})");
-
-                return account;
-            }
-            catch (Exception ex)
-            {
-                LogHelper.Write(LauncherPaths.AppLog,
-                    $"正版登录流程异常: {ex.Message}",
-                    $"Microsoft auth flow exception: {ex.Message}");
-                Progress?.Invoke($"❌ 登录异常: {ex.Message}");
-                return null;
-            }
-        }
-    }
-}
-```
-
-### `MainSrc\Tools\Auth\DeviceCodeAuthService.cs`
-
-<!-- 186 行 / 7.1 KB -->
-
-```csharp
-using System;
-using System.Collections.Generic;
-using System.Net.Http;
-using System.Text.Json;
-using System.Threading;
-using System.Threading.Tasks;
-
-namespace Project.Launch.Tools.Auth
-{
-    /// <summary>
-    /// 微软 OAuth 2.0 设备代码流
-    /// </summary>
-    public class DeviceCodeAuthService
-    {
-        public const string ClientId = "7dddbcf7-5d7d-46cf-96fc-292d6f392cd0";
-
-        // ★ 修复：个人账户必须用 consumers 端点
-        public const string Tenant = "consumers";
-
-        // ★ 修复：XboxLive.offline_access 而非 offline_access
-        public const string Scope = "XboxLive.signin XboxLive.offline_access";
-
-        private static readonly HttpClient _http = new HttpClient
-        {
-            Timeout = TimeSpan.FromSeconds(30)
-        };
-
-        private const string DeviceCodeUrl =
-            "https://login.microsoftonline.com/" + Tenant + "/oauth2/v2.0/devicecode";
-        private const string TokenUrl =
-            "https://login.microsoftonline.com/" + Tenant + "/oauth2/v2.0/token";
-
-        // ============================================================
-        // 阶段 1：申请设备代码
-        // ============================================================
-        public async Task<DeviceCodeResponse?> RequestDeviceCodeAsync()
-        {
-            try
-            {
-                var content = new FormUrlEncodedContent(new[]
-                {
-                    new KeyValuePair<string, string>("client_id", ClientId),
-                    new KeyValuePair<string, string>("scope", Scope)
+                    MaxGpuResourceSizeBytes = skiaMaxGpuResourceSizeBytes
                 });
-
-                var resp = await _http.PostAsync(DeviceCodeUrl, content);
-                var json = await resp.Content.ReadAsStringAsync();
-
-                if (!resp.IsSuccessStatusCode)
-                {
-                    LogHelper.Write(LauncherPaths.AppLog,
-                        $"设备代码申请失败: {resp.StatusCode} {json}",
-                        $"Device code request failed: {resp.StatusCode} {json}");
-                    return null;
-                }
-
-                var result = JsonSerializer.Deserialize<DeviceCodeResponse>(json);
-                LogHelper.Write(LauncherPaths.AppLog,
-                    $"设备代码已申请: {result?.UserCode}",
-                    $"Device code obtained: {result?.UserCode}");
-                return result;
-            }
-            catch (Exception ex)
-            {
-                LogHelper.Write(LauncherPaths.AppLog,
-                    $"设备代码申请异常: {ex.Message}",
-                    $"Device code request exception: {ex.Message}");
-                return null;
-            }
-        }
-
-        // ============================================================
-        // 阶段 3：轮询等待用户授权
-        // ============================================================
-        public async Task<MicrosoftTokenResponse?> PollForTokenAsync(
-            string deviceCode,
-            int intervalSeconds,
-            int expiresInSeconds,
-            CancellationToken ct = default)
-        {
-            var startTime = DateTime.UtcNow;
-            var timeout = TimeSpan.FromSeconds(expiresInSeconds);
-            int interval = Math.Max(3, intervalSeconds);
-
-            while (true)
-            {
-                if (ct.IsCancellationRequested)
-                {
-                    LogHelper.Write(LauncherPaths.AppLog,
-                        "用户取消轮询",
-                        "User cancelled polling");
-                    return null;
-                }
-
-                if (DateTime.UtcNow - startTime > timeout)
-                {
-                    LogHelper.Write(LauncherPaths.AppLog,
-                        "设备代码已超时",
-                        "Device code expired");
-                    return null;
-                }
-
-                // 先等，再轮询
-                try
-                {
-                    await Task.Delay(interval * 1000, ct);
-                }
-                catch (OperationCanceledException)
-                {
-                    return null;
-                }
-
-                try
-                {
-                    var content = new FormUrlEncodedContent(new[]
-                    {
-                        new KeyValuePair<string, string>(
-                            "grant_type",
-                            "urn:ietf:params:oauth:grant-type:device_code"),
-                        new KeyValuePair<string, string>("client_id", ClientId),
-                        new KeyValuePair<string, string>("device_code", deviceCode)
-                    });
-
-                    var resp = await _http.PostAsync(TokenUrl, content, ct);
-                    var json = await resp.Content.ReadAsStringAsync(ct);
-
-                    if (resp.IsSuccessStatusCode)
-                    {
-                        var token = JsonSerializer.Deserialize<MicrosoftTokenResponse>(json);
-                        LogHelper.Write(LauncherPaths.AppLog,
-                            "微软账号授权成功，已获取 access_token",
-                            "Microsoft auth success, access_token obtained");
-                        return token;
-                    }
-
-                    // 错误处理
-                    MicrosoftErrorResponse? err = null;
-                    try
-                    {
-                        err = JsonSerializer.Deserialize<MicrosoftErrorResponse>(json);
-                    }
-                    catch { }
-
-                    switch (err?.Error)
-                    {
-                        case "authorization_pending":
-                            continue;
-
-                        case "slow_down":
-                            interval += 5;
-                            continue;
-
-                        case "access_denied":
-                            LogHelper.Write(LauncherPaths.AppLog,
-                                "用户拒绝了授权",
-                                "User denied authorization");
-                            return null;
-
-                        case "expired_token":
-                            LogHelper.Write(LauncherPaths.AppLog,
-                                "设备代码已过期",
-                                "Device code expired");
-                            return null;
-
-                        default:
-                            LogHelper.Write(LauncherPaths.AppLog,
-                                $"OAuth 错误: {err?.Error} - {err?.ErrorDescription}",
-                                $"OAuth error: {err?.Error} - {err?.ErrorDescription}");
-                            return null;
-                    }
-                }
-                catch (OperationCanceledException)
-                {
-                    return null;
-                }
-                catch (Exception ex)
-                {
-                    LogHelper.Write(LauncherPaths.AppLog,
-                        $"轮询异常: {ex.Message}",
-                        $"Poll exception: {ex.Message}");
-                    continue;
-                }
-            }
         }
     }
 }
 ```
 
-### `MainSrc\Tools\Auth\XboxAuthService.cs`
-
-<!-- 138 行 / 5.4 KB -->
-
-```csharp
-using System;
-using System.Net.Http;
-using System.Text;
-using System.Text.Json;
-using System.Threading.Tasks;
-
-namespace Project.Launch.Tools.Auth
-{
-    /// <summary>
-    /// Xbox Live (XBL) + XSTS 认证
-    /// </summary>
-    public class XboxAuthService
-    {
-        private static readonly HttpClient _http = new HttpClient
-        {
-            Timeout = TimeSpan.FromSeconds(30)
-        };
-
-        private const string XblUrl = "https://user.auth.xboxlive.com/user/authenticate";
-        private const string XstsUrl = "https://xsts.auth.xboxlive.com/xsts/authorize";
-
-        // ============================================================
-        // 阶段 4：MS access_token → XBL token
-        // ============================================================
-        public async Task<XboxAuthResponse?> AuthenticateWithXboxLiveAsync(string msAccessToken)
-        {
-            try
-            {
-                var req = new XboxAuthRequest
-                {
-                    Properties = new XboxAuthProperties
-                    {
-                        AuthMethod = "RPS",
-                        SiteName = "user.auth.xboxlive.com",
-                        // ★ 官方要求加前缀 "d="
-                        RpsTicket = "d=" + msAccessToken
-                    },
-                    RelyingParty = "http://auth.xboxlive.com",
-                    TokenType = "JWT"
-                };
-
-                var json = JsonSerializer.Serialize(req);
-                var content = new StringContent(json, Encoding.UTF8, "application/json");
-
-                var resp = await _http.PostAsync(XblUrl, content);
-                var respJson = await resp.Content.ReadAsStringAsync();
-
-                if (!resp.IsSuccessStatusCode)
-                {
-                    LogHelper.Write(LauncherPaths.AppLog,
-                        $"XBL 认证失败: {resp.StatusCode} {respJson}",
-                        $"XBL auth failed: {resp.StatusCode} {respJson}");
-                    return null;
-                }
-
-                var result = JsonSerializer.Deserialize<XboxAuthResponse>(respJson);
-                LogHelper.Write(LauncherPaths.AppLog,
-                    "XBL 认证成功",
-                    "XBL auth success");
-                return result;
-            }
-            catch (Exception ex)
-            {
-                LogHelper.Write(LauncherPaths.AppLog,
-                    $"XBL 认证异常: {ex.Message}",
-                    $"XBL auth exception: {ex.Message}");
-                return null;
-            }
-        }
-
-        // ============================================================
-        // 阶段 5：XBL token → XSTS token
-        // ============================================================
-        public async Task<XboxAuthResponse?> AuthenticateWithXstsAsync(string xblToken)
-        {
-            try
-            {
-                var req = new XstsAuthRequest
-                {
-                    Properties = new XstsAuthProperties
-                    {
-                        SandboxId = "RETAIL",
-                        UserTokens = new System.Collections.Generic.List<string> { xblToken }
-                    },
-                    RelyingParty = "rp://api.minecraftservices.com/",
-                    TokenType = "JWT"
-                };
-
-                var json = JsonSerializer.Serialize(req);
-                var content = new StringContent(json, Encoding.UTF8, "application/json");
-
-                var resp = await _http.PostAsync(XstsUrl, content);
-                var respJson = await resp.Content.ReadAsStringAsync();
-
-                if (!resp.IsSuccessStatusCode)
-                {
-                    // XSTS 有专属错误码
-                    XboxAuthResponse? errResp = null;
-                    try
-                    {
-                        errResp = JsonSerializer.Deserialize<XboxAuthResponse>(respJson);
-                    }
-                    catch { }
-
-                    string errMsg = errResp?.XErr switch
-                    {
-                        2148916233 => "此微软账号没有 Xbox 账号，请先去 xbox.com 创建",
-                        2148916235 => "此账号所在地区不支持 Xbox Live",
-                        2148916236 => "此账号需要成人验证",
-                        2148916237 => "此账号需要成人验证",
-                        2148916238 => "此账号未成年，需要加入家庭组",
-                        _ => $"XSTS 认证失败: {resp.StatusCode}"
-                    };
-
-                    LogHelper.Write(LauncherPaths.AppLog,
-                        $"XSTS 认证失败 [{errResp?.XErr}]: {errMsg}",
-                        $"XSTS auth failed [{errResp?.XErr}]: {errMsg}");
-
-                    // 把用户友好的错误存起来，供上层显示
-                    throw new Exception(errMsg);
-                }
-
-                var result = JsonSerializer.Deserialize<XboxAuthResponse>(respJson);
-                LogHelper.Write(LauncherPaths.AppLog,
-                    "XSTS 认证成功",
-                    "XSTS auth success");
-                return result;
-            }
-            catch (Exception ex)
-            {
-                LogHelper.Write(LauncherPaths.AppLog,
-                    $"XSTS 认证异常: {ex.Message}",
-                    $"XSTS auth exception: {ex.Message}");
-                throw;
-            }
-        }
-    }
-}
-```
-
-### `MainSrc\Tools\Auth\MinecraftAuthService.cs`
-
-<!-- 116 行 / 4.6 KB -->
-
-```csharp
-using System;
-using System.Net.Http;
-using System.Net.Http.Headers;
-using System.Text;
-using System.Text.Json;
-using System.Threading.Tasks;
-
-namespace Project.Launch.Tools.Auth
-{
-    /// <summary>
-    /// Minecraft 认证 + 拉取 profile
-    /// </summary>
-    public class MinecraftAuthService
-    {
-        private static readonly HttpClient _http = new HttpClient
-        {
-            Timeout = TimeSpan.FromSeconds(30)
-        };
-
-        private const string McAuthUrl =
-            "https://api.minecraftservices.com/authentication/login_with_xbox";
-        private const string McProfileUrl =
-            "https://api.minecraftservices.com/minecraft/profile";
-
-        // ============================================================
-        // 阶段 6a：XSTS token → Minecraft access_token
-        // ============================================================
-        public async Task<MinecraftAuthResponse?> AuthenticateWithMinecraftAsync(
-            string xstsToken, string uhs)
-        {
-            try
-            {
-                // ★ 官方格式：XBL3.0 x=<uhs>;<xsts_token>
-                string identityToken = $"XBL3.0 x={uhs};{xstsToken}";
-
-                var req = new MinecraftAuthRequest
-                {
-                    IdentityToken = identityToken
-                };
-
-                var json = JsonSerializer.Serialize(req);
-                var content = new StringContent(json, Encoding.UTF8, "application/json");
-
-                var resp = await _http.PostAsync(McAuthUrl, content);
-                var respJson = await resp.Content.ReadAsStringAsync();
-
-                if (!resp.IsSuccessStatusCode)
-                {
-                    LogHelper.Write(LauncherPaths.AppLog,
-                        $"Minecraft 认证失败: {resp.StatusCode} {respJson}",
-                        $"Minecraft auth failed: {resp.StatusCode} {respJson}");
-                    return null;
-                }
-
-                var result = JsonSerializer.Deserialize<MinecraftAuthResponse>(respJson);
-                LogHelper.Write(LauncherPaths.AppLog,
-                    "Minecraft 认证成功",
-                    "Minecraft auth success");
-                return result;
-            }
-            catch (Exception ex)
-            {
-                LogHelper.Write(LauncherPaths.AppLog,
-                    $"Minecraft 认证异常: {ex.Message}",
-                    $"Minecraft auth exception: {ex.Message}");
-                return null;
-            }
-        }
-
-        // ============================================================
-        // 阶段 6b：拉取 profile（UUID + 用户名 + 皮肤 URL）
-        // ============================================================
-        public async Task<MinecraftProfile?> GetProfileAsync(string mcAccessToken)
-        {
-            try
-            {
-                var request = new HttpRequestMessage(HttpMethod.Get, McProfileUrl);
-                request.Headers.Authorization =
-                    new AuthenticationHeaderValue("Bearer", mcAccessToken);
-
-                var resp = await _http.SendAsync(request);
-                var respJson = await resp.Content.ReadAsStringAsync();
-
-                if (!resp.IsSuccessStatusCode)
-                {
-                    if ((int)resp.StatusCode == 404)
-                    {
-                        // 没买 Minecraft
-                        LogHelper.Write(LauncherPaths.AppLog,
-                            "此账号未拥有 Minecraft",
-                            "This account does not own Minecraft");
-                        throw new Exception("此微软账号没有购买 Minecraft");
-                    }
-
-                    LogHelper.Write(LauncherPaths.AppLog,
-                        $"获取 profile 失败: {resp.StatusCode} {respJson}",
-                        $"Get profile failed: {resp.StatusCode} {respJson}");
-                    return null;
-                }
-
-                var profile = JsonSerializer.Deserialize<MinecraftProfile>(respJson);
-                LogHelper.Write(LauncherPaths.AppLog,
-                    $"Profile 获取成功: {profile?.Name} ({profile?.Id})",
-                    $"Profile obtained: {profile?.Name} ({profile?.Id})");
-                return profile;
-            }
-            catch (Exception ex)
-            {
-                LogHelper.Write(LauncherPaths.AppLog,
-                    $"获取 profile 异常: {ex.Message}",
-                    $"Get profile exception: {ex.Message}");
-                throw;
-            }
-        }
-    }
-}
-```
-
-## 6.5 MainSrc\Tools\Download —— 版本清单（下载功能 P1）
-
-下载功能的第一阶段：拉取 `version_manifest_v2`，**BMCLAPI 优先 + 官方源兜底**。目前只有清单，还没有下载/安装。
-
-### `MainSrc\Tools\Download\MinecraftManifest.cs`
-
-<!-- 31 行 / 0.9 KB -->
-
-```csharp
-using System;
-using System.Collections.Generic;
-
-namespace Project.Launch.Tools.Download
-{
-    public class VersionManifest
-    {
-        public LatestVersions Latest { get; set; } = new();
-        public List<VersionEntry> Versions { get; set; } = new();
-    }
-
-    public class LatestVersions
-    {
-        public string Release { get; set; } = "";
-        public string Snapshot { get; set; } = "";
-    }
-
-    public class VersionEntry
-    {
-        public string Id { get; set; } = "";
-        public string Type { get; set; } = "";
-        public string Url { get; set; } = "";
-        public DateTime ReleaseTime { get; set; }
-
-        // 供 UI 显示的格式化时间
-        public string ReleaseTimeStr => ReleaseTime.ToString("yyyy-MM-dd");
-
-        // ★ 新增：用于 UI 显示的图标路径
-        public string IconPath { get; set; } = "";
-    }
-}
-```
-
-### `MainSrc\Tools\Download\VersionService.cs`
-
-<!-- 47 行 / 1.9 KB -->
-
-```csharp
-using System;
-using System.Net.Http;
-using System.Text.Json;
-using System.Threading.Tasks;
-
-namespace Project.Launch.Tools.Download
-{
-    public static class VersionService
-    {
-        // 复用 HttpClient，避免产生过多 Socket
-        private static readonly HttpClient _httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
-
-        public static async Task<VersionManifest?> GetVersionManifestAsync()
-        {
-            // 遵循 BMCLAPI 优先，官方源兜底的策略
-            string[] urls = 
-            {
-                "https://bmclapi2.bangbang93.com/mc/game/version_manifest_v2.json",
-                "https://piston-meta.mojang.com/mc/game/version_manifest_v2.json"
-            };
-
-            foreach (var url in urls)
-            {
-                try
-                {
-                    string json = await _httpClient.GetStringAsync(url);
-                    var manifest = JsonSerializer.Deserialize<VersionManifest>(json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
-                    
-                    if (manifest != null && manifest.Versions.Count > 0)
-                    {
-                        LogHelper.Write(LauncherPaths.AppLog, 
-                            $"成功获取版本清单({url})，共 {manifest.Versions.Count} 个版本", 
-                            $"Successfully fetched manifest from {url}, count: {manifest.Versions.Count}");
-                        return manifest;
-                    }
-                }
-                catch (Exception ex)
-                {
-                    LogHelper.Write(LauncherPaths.AppLog, 
-                        $"获取版本清单失败({url}): {ex.Message}", 
-                        $"Failed to fetch manifest ({url}): {ex.Message}");
-                }
-            }
-            return null;
-        }
-    }
-}
-```
-
-## 6.6 MainSrc\ViewModel 与 MainSrc\Codes
-
-`ViewModel` 是预留的协调接口层（只有一个无人引用的演示文件）；`Codes` 是空目录，规划为"内核级主程序代码"。
-
-### `MainSrc\ViewModel\TestWindowButton.cs`
-
-<!-- 20 行 / 0.5 KB -->
-
-```csharp
-// TestWindowViewModel.cs
-using Avalonia.Controls;
-using System;
-namespace Project.Launch.ViewModel
-{
-    public class TestWindowViewModel
-    {
-        public void ShowHelloWorld()
-        {
-            var messageBox = new Window
-            {
-                Title = "Window",
-                Content = "Hello World!",
-                Width = 200,
-                Height = 100
-            };
-            messageBox.Show();
-        }
-    }
-}
-```
-
-### `MainSrc\ViewModel\read.md`
-
-<!-- 6 行 / 0.3 KB -->
-
-```markdown
---By Erics  九条开源
-内核级别协调接口提前引入，后期进行插入更新、完成其他操作的时候能够更快插入
-
-Kernel-level：Introduce the coordination interface early,
-so that later insertions and updates can be
-plugged in more quickly when performing other operations.
-```
-
-### `MainSrc\Codes\read.md`
-
-<!-- 4 行 / 0.1 KB -->
-
-```markdown
---By Erics  九条开源
-内核级别 主程序代码
-
-Kernel level：Main codes
-```
-
-## 6.7 MainSrc\LiquidGlassAvaloniaUI —— 液态玻璃库（vendored 第三方）
-
-**重要**：这是**内置（vendored）的第三方库**，上游 MIT 项目 `KaranocaVe/LiquidGlassAvaloniaUI`。
-主项目用 `<Compile Remove="MainSrc\LiquidGlassAvaloniaUI\**" />` 把它排除在自己的编译之外，再以 `ProjectReference` 引用它独立编译的 DLL。
-
-**历史根因修复改动了其中两个文件**：
-- `LiquidGlassBackdropProvider.cs` —— 抓取实现改用 Avalonia 自带的 `RenderTargetBitmap.Render(Visual)`（**根因修复**）
-- `LiquidGlassSurface.cs` —— 订阅渲染变换变化
-
-其余文件基本是上游原样。**改之前请先读第三部分 3.8。**
-
-### `MainSrc\LiquidGlassAvaloniaUI\LiquidGlassAvaloniaUI.csproj`
-
-<!-- 40 行 / 1.9 KB -->
+### `MainSrc\Tools\LiquidGlassAvaloniaUI\LiquidGlassAvaloniaUI.csproj`
 
 ```xml
 <Project Sdk="Microsoft.NET.Sdk">
@@ -8972,9 +10774,46 @@ Kernel level：Main codes
 </Project>
 ```
 
-### `MainSrc\LiquidGlassAvaloniaUI\LiquidGlassBackdropProvider.cs`
+### `MainSrc\Tools\LiquidGlassAvaloniaUI\LiquidGlassBackdrop.cs`
 
-<!-- 848 行 / 34 KB -->
+```csharp
+using System;
+using Avalonia;
+using Avalonia.VisualTree;
+
+namespace LiquidGlassAvaloniaUI
+{
+    public sealed class LiquidGlassBackdrop
+    {
+        private LiquidGlassBackdrop()
+        {
+        }
+
+        public static readonly AttachedProperty<bool> IsExcludedFromCaptureProperty =
+            AvaloniaProperty.RegisterAttached<LiquidGlassBackdrop, Visual, bool>(
+                "IsExcludedFromCapture",
+                false);
+
+        public static bool GetIsExcludedFromCapture(Visual visual)
+        {
+            if (visual is null)
+                throw new ArgumentNullException(nameof(visual));
+
+            return visual.GetValue(IsExcludedFromCaptureProperty);
+        }
+
+        public static void SetIsExcludedFromCapture(Visual visual, bool value)
+        {
+            if (visual is null)
+                throw new ArgumentNullException(nameof(visual));
+
+            visual.SetValue(IsExcludedFromCaptureProperty, value);
+        }
+    }
+}
+```
+
+### `MainSrc\Tools\LiquidGlassAvaloniaUI\LiquidGlassBackdropProvider.cs`
 
 ```csharp
 using System;
@@ -9826,9 +11665,2122 @@ namespace LiquidGlassAvaloniaUI
 }
 ```
 
-### `MainSrc\LiquidGlassAvaloniaUI\LiquidGlassSurface.cs`
+### `MainSrc\Tools\LiquidGlassAvaloniaUI\LiquidGlassBackdropSnapshot.cs`
 
-<!-- 969 行 / 38.5 KB -->
+```csharp
+using System;
+using System.Collections.Generic;
+using Avalonia;
+using SkiaSharp;
+
+namespace LiquidGlassAvaloniaUI
+{
+    internal sealed class LiquidGlassBackdropSnapshot : IDisposable
+    {
+        internal readonly struct FilteredKey : IEquatable<FilteredKey>
+        {
+            public FilteredKey(
+                int brightnessQ,
+                int contrastQ,
+                int saturationQ,
+                int exposureEvQ,
+                int opacityQ,
+                int blurSigmaPxQ,
+                int cropX,
+                int cropY,
+                int cropWidth,
+                int cropHeight,
+                int renderContextId)
+            {
+                BrightnessQ = brightnessQ;
+                ContrastQ = contrastQ;
+                SaturationQ = saturationQ;
+                ExposureEvQ = exposureEvQ;
+                OpacityQ = opacityQ;
+                BlurSigmaPxQ = blurSigmaPxQ;
+                CropX = cropX;
+                CropY = cropY;
+                CropWidth = cropWidth;
+                CropHeight = cropHeight;
+                RenderContextId = renderContextId;
+            }
+
+            public int BrightnessQ { get; }
+            public int ContrastQ { get; }
+            public int SaturationQ { get; }
+            public int ExposureEvQ { get; }
+            public int OpacityQ { get; }
+            public int BlurSigmaPxQ { get; }
+            public int CropX { get; }
+            public int CropY { get; }
+            public int CropWidth { get; }
+            public int CropHeight { get; }
+            public int RenderContextId { get; }
+
+            public bool Equals(FilteredKey other)
+            {
+                return BrightnessQ == other.BrightnessQ
+                       && ContrastQ == other.ContrastQ
+                       && SaturationQ == other.SaturationQ
+                       && ExposureEvQ == other.ExposureEvQ
+                       && OpacityQ == other.OpacityQ
+                       && BlurSigmaPxQ == other.BlurSigmaPxQ
+                       && CropX == other.CropX
+                       && CropY == other.CropY
+                       && CropWidth == other.CropWidth
+                       && CropHeight == other.CropHeight
+                       && RenderContextId == other.RenderContextId;
+            }
+
+            public override bool Equals(object? obj)
+            {
+                return obj is FilteredKey other && Equals(other);
+            }
+
+            public override int GetHashCode()
+            {
+                unchecked
+                {
+                    int hashCode = BrightnessQ;
+                    hashCode = hashCode * 397 ^ ContrastQ;
+                    hashCode = hashCode * 397 ^ SaturationQ;
+                    hashCode = hashCode * 397 ^ ExposureEvQ;
+                    hashCode = hashCode * 397 ^ OpacityQ;
+                    hashCode = hashCode * 397 ^ BlurSigmaPxQ;
+                    hashCode = hashCode * 397 ^ CropX;
+                    hashCode = hashCode * 397 ^ CropY;
+                    hashCode = hashCode * 397 ^ CropWidth;
+                    hashCode = hashCode * 397 ^ CropHeight;
+                    hashCode = hashCode * 397 ^ RenderContextId;
+                    return hashCode;
+                }
+            }
+        }
+
+        internal readonly struct FilteredResult
+        {
+            public FilteredResult(SKImage image, PixelPoint originInPixels)
+            {
+                Image = image ?? throw new ArgumentNullException(nameof(image));
+                OriginInPixels = originInPixels;
+            }
+
+            public SKImage Image { get; }
+
+            public PixelPoint OriginInPixels { get; }
+        }
+
+        private int _leases;
+        private int _disposeRequested;
+        private int _disposed;
+        private readonly object _filteredLock = new();
+        private Dictionary<FilteredKey, FilteredResult>? _filtered;
+        private Queue<FilteredKey>? _filteredOrder;
+        private const int MaxFilteredEntries = 8;
+
+        public LiquidGlassBackdropSnapshot(SKImage image, PixelPoint originInPixels, PixelSize pixelSize, double scaling)
+        {
+            Image = image ?? throw new ArgumentNullException(nameof(image));
+            OriginInPixels = originInPixels;
+            PixelSize = pixelSize;
+            Scaling = scaling;
+        }
+
+        public SKImage Image { get; }
+
+        /// <summary>
+        /// Snapshot origin in device pixels (TopLevel coordinate space).
+        /// </summary>
+        public PixelPoint OriginInPixels { get; }
+
+        public PixelSize PixelSize { get; }
+
+        public double Scaling { get; }
+
+        public bool TryGetFiltered(FilteredKey key, out FilteredResult result)
+        {
+            lock (_filteredLock)
+            {
+                if (_filtered is null)
+                {
+                    result = default;
+                    return false;
+                }
+
+                return _filtered.TryGetValue(key, out result);
+            }
+        }
+
+        public void StoreFiltered(FilteredKey key, FilteredResult result)
+        {
+            lock (_filteredLock)
+            {
+                _filtered ??= new Dictionary<FilteredKey, FilteredResult>();
+                _filteredOrder ??= new Queue<FilteredKey>();
+
+                if (_filtered.TryGetValue(key, out FilteredResult existing))
+                {
+                    existing.Image.Dispose();
+                    _filtered[key] = result;
+                    return;
+                }
+
+                _filtered[key] = result;
+                _filteredOrder.Enqueue(key);
+
+                while (_filtered.Count > MaxFilteredEntries && _filteredOrder.Count > 0)
+                {
+                    FilteredKey evictKey = _filteredOrder.Dequeue();
+                    if (_filtered.TryGetValue(evictKey, out FilteredResult evictValue) && !evictKey.Equals(key))
+                    {
+                        _filtered.Remove(evictKey);
+                        evictValue.Image.Dispose();
+                    }
+                }
+            }
+        }
+
+        public bool TryAddLease()
+        {
+            while (true)
+            {
+                if (System.Threading.Volatile.Read(ref _disposed) != 0)
+                    return false;
+
+                int current = System.Threading.Volatile.Read(ref _leases);
+                if (System.Threading.Interlocked.CompareExchange(ref _leases, current + 1, current) == current)
+                {
+                    if (System.Threading.Volatile.Read(ref _disposed) != 0)
+                    {
+                        ReleaseLease();
+                        return false;
+                    }
+
+                    return true;
+                }
+            }
+        }
+
+        public void ReleaseLease()
+        {
+            int remaining = System.Threading.Interlocked.Decrement(ref _leases);
+            if (remaining < 0)
+                return;
+
+            if (remaining == 0 && System.Threading.Volatile.Read(ref _disposeRequested) != 0)
+                Dispose();
+        }
+
+        public void RequestDispose()
+        {
+            System.Threading.Volatile.Write(ref _disposeRequested, 1);
+            if (System.Threading.Volatile.Read(ref _leases) == 0)
+                Dispose();
+        }
+
+        public void Dispose()
+        {
+            if (System.Threading.Interlocked.Exchange(ref _disposed, 1) != 0)
+                return;
+
+            lock (_filteredLock)
+            {
+                if (_filtered is not null)
+                {
+                    foreach (KeyValuePair<FilteredKey, FilteredResult> pair in _filtered)
+                        pair.Value.Image.Dispose();
+                    _filtered = null;
+                    _filteredOrder = null;
+                }
+            }
+
+            Image.Dispose();
+        }
+    }
+}
+```
+
+### `MainSrc\Tools\LiquidGlassAvaloniaUI\LiquidGlassDiagnostics.cs`
+
+```csharp
+using System.Threading;
+
+namespace LiquidGlassAvaloniaUI
+{
+    public readonly struct LiquidGlassDiagnosticsSnapshot
+    {
+        internal LiquidGlassDiagnosticsSnapshot(
+            long captureQueueRequests,
+            long captureQueueCoalesced,
+            long capturesStarted,
+            long capturesSkippedReentrant,
+            long capturesSkippedNoSubscribers,
+            long capturesSkippedEmptyClip,
+            long capturesSkippedByCadence,
+            long capturesSkippedByDirtyRect,
+            long capturesSkippedByHash,
+            long capturesPublished,
+            long scratchBitmapRecreated,
+            long rendererInvalidations,
+            long dirtyRectAvailable,
+            long dirtyRectUnavailable,
+            long subscriberInvalidations,
+            long sampledHashChecks,
+            long sampledHashBytes,
+            long fullBitmapCopies,
+            long fullBitmapCopyBytes,
+            long filterIdentityHits,
+            long filterCacheHits,
+            long filterCacheMisses,
+            long filterGpuSurfaces,
+            long filterCpuSurfaces,
+            long filterSurfaceFailures)
+        {
+            CaptureQueueRequests = captureQueueRequests;
+            CaptureQueueCoalesced = captureQueueCoalesced;
+            CapturesStarted = capturesStarted;
+            CapturesSkippedReentrant = capturesSkippedReentrant;
+            CapturesSkippedNoSubscribers = capturesSkippedNoSubscribers;
+            CapturesSkippedEmptyClip = capturesSkippedEmptyClip;
+            CapturesSkippedByCadence = capturesSkippedByCadence;
+            CapturesSkippedByDirtyRect = capturesSkippedByDirtyRect;
+            CapturesSkippedByHash = capturesSkippedByHash;
+            CapturesPublished = capturesPublished;
+            ScratchBitmapRecreated = scratchBitmapRecreated;
+            RendererInvalidations = rendererInvalidations;
+            DirtyRectAvailable = dirtyRectAvailable;
+            DirtyRectUnavailable = dirtyRectUnavailable;
+            SubscriberInvalidations = subscriberInvalidations;
+            SampledHashChecks = sampledHashChecks;
+            SampledHashBytes = sampledHashBytes;
+            FullBitmapCopies = fullBitmapCopies;
+            FullBitmapCopyBytes = fullBitmapCopyBytes;
+            FilterIdentityHits = filterIdentityHits;
+            FilterCacheHits = filterCacheHits;
+            FilterCacheMisses = filterCacheMisses;
+            FilterGpuSurfaces = filterGpuSurfaces;
+            FilterCpuSurfaces = filterCpuSurfaces;
+            FilterSurfaceFailures = filterSurfaceFailures;
+        }
+
+        public long CaptureQueueRequests { get; }
+        public long CaptureQueueCoalesced { get; }
+        public long CapturesStarted { get; }
+        public long CapturesSkippedReentrant { get; }
+        public long CapturesSkippedNoSubscribers { get; }
+        public long CapturesSkippedEmptyClip { get; }
+        public long CapturesSkippedByCadence { get; }
+        public long CapturesSkippedByDirtyRect { get; }
+        public long CapturesSkippedByHash { get; }
+        public long CapturesPublished { get; }
+        public long ScratchBitmapRecreated { get; }
+        public long RendererInvalidations { get; }
+        public long DirtyRectAvailable { get; }
+        public long DirtyRectUnavailable { get; }
+        public long SubscriberInvalidations { get; }
+        public long SampledHashChecks { get; }
+        public long SampledHashBytes { get; }
+        public long FullBitmapCopies { get; }
+        public long FullBitmapCopyBytes { get; }
+        public long FilterIdentityHits { get; }
+        public long FilterCacheHits { get; }
+        public long FilterCacheMisses { get; }
+        public long FilterGpuSurfaces { get; }
+        public long FilterCpuSurfaces { get; }
+        public long FilterSurfaceFailures { get; }
+    }
+
+    public static class LiquidGlassDiagnostics
+    {
+        private static long s_captureQueueRequests;
+        private static long s_captureQueueCoalesced;
+        private static long s_capturesStarted;
+        private static long s_capturesSkippedReentrant;
+        private static long s_capturesSkippedNoSubscribers;
+        private static long s_capturesSkippedEmptyClip;
+        private static long s_capturesSkippedByCadence;
+        private static long s_capturesSkippedByDirtyRect;
+        private static long s_capturesSkippedByHash;
+        private static long s_capturesPublished;
+        private static long s_scratchBitmapRecreated;
+        private static long s_rendererInvalidations;
+        private static long s_dirtyRectAvailable;
+        private static long s_dirtyRectUnavailable;
+        private static long s_subscriberInvalidations;
+        private static long s_sampledHashChecks;
+        private static long s_sampledHashBytes;
+        private static long s_fullBitmapCopies;
+        private static long s_fullBitmapCopyBytes;
+        private static long s_filterIdentityHits;
+        private static long s_filterCacheHits;
+        private static long s_filterCacheMisses;
+        private static long s_filterGpuSurfaces;
+        private static long s_filterCpuSurfaces;
+        private static long s_filterSurfaceFailures;
+
+        public static LiquidGlassDiagnosticsSnapshot Snapshot
+        {
+            get => new(
+                Volatile.Read(ref s_captureQueueRequests),
+                Volatile.Read(ref s_captureQueueCoalesced),
+                Volatile.Read(ref s_capturesStarted),
+                Volatile.Read(ref s_capturesSkippedReentrant),
+                Volatile.Read(ref s_capturesSkippedNoSubscribers),
+                Volatile.Read(ref s_capturesSkippedEmptyClip),
+                Volatile.Read(ref s_capturesSkippedByCadence),
+                Volatile.Read(ref s_capturesSkippedByDirtyRect),
+                Volatile.Read(ref s_capturesSkippedByHash),
+                Volatile.Read(ref s_capturesPublished),
+                Volatile.Read(ref s_scratchBitmapRecreated),
+                Volatile.Read(ref s_rendererInvalidations),
+                Volatile.Read(ref s_dirtyRectAvailable),
+                Volatile.Read(ref s_dirtyRectUnavailable),
+                Volatile.Read(ref s_subscriberInvalidations),
+                Volatile.Read(ref s_sampledHashChecks),
+                Volatile.Read(ref s_sampledHashBytes),
+                Volatile.Read(ref s_fullBitmapCopies),
+                Volatile.Read(ref s_fullBitmapCopyBytes),
+                Volatile.Read(ref s_filterIdentityHits),
+                Volatile.Read(ref s_filterCacheHits),
+                Volatile.Read(ref s_filterCacheMisses),
+                Volatile.Read(ref s_filterGpuSurfaces),
+                Volatile.Read(ref s_filterCpuSurfaces),
+                Volatile.Read(ref s_filterSurfaceFailures));
+        }
+
+        public static void Reset()
+        {
+            Interlocked.Exchange(ref s_captureQueueRequests, 0);
+            Interlocked.Exchange(ref s_captureQueueCoalesced, 0);
+            Interlocked.Exchange(ref s_capturesStarted, 0);
+            Interlocked.Exchange(ref s_capturesSkippedReentrant, 0);
+            Interlocked.Exchange(ref s_capturesSkippedNoSubscribers, 0);
+            Interlocked.Exchange(ref s_capturesSkippedEmptyClip, 0);
+            Interlocked.Exchange(ref s_capturesSkippedByCadence, 0);
+            Interlocked.Exchange(ref s_capturesSkippedByDirtyRect, 0);
+            Interlocked.Exchange(ref s_capturesSkippedByHash, 0);
+            Interlocked.Exchange(ref s_capturesPublished, 0);
+            Interlocked.Exchange(ref s_scratchBitmapRecreated, 0);
+            Interlocked.Exchange(ref s_rendererInvalidations, 0);
+            Interlocked.Exchange(ref s_dirtyRectAvailable, 0);
+            Interlocked.Exchange(ref s_dirtyRectUnavailable, 0);
+            Interlocked.Exchange(ref s_subscriberInvalidations, 0);
+            Interlocked.Exchange(ref s_sampledHashChecks, 0);
+            Interlocked.Exchange(ref s_sampledHashBytes, 0);
+            Interlocked.Exchange(ref s_fullBitmapCopies, 0);
+            Interlocked.Exchange(ref s_fullBitmapCopyBytes, 0);
+            Interlocked.Exchange(ref s_filterIdentityHits, 0);
+            Interlocked.Exchange(ref s_filterCacheHits, 0);
+            Interlocked.Exchange(ref s_filterCacheMisses, 0);
+            Interlocked.Exchange(ref s_filterGpuSurfaces, 0);
+            Interlocked.Exchange(ref s_filterCpuSurfaces, 0);
+            Interlocked.Exchange(ref s_filterSurfaceFailures, 0);
+        }
+
+        internal static void RecordCaptureQueueRequest() => Interlocked.Increment(ref s_captureQueueRequests);
+        internal static void RecordCaptureQueueCoalesced() => Interlocked.Increment(ref s_captureQueueCoalesced);
+        internal static void RecordCaptureStarted() => Interlocked.Increment(ref s_capturesStarted);
+        internal static void RecordCaptureSkippedReentrant() => Interlocked.Increment(ref s_capturesSkippedReentrant);
+        internal static void RecordCaptureSkippedNoSubscribers() => Interlocked.Increment(ref s_capturesSkippedNoSubscribers);
+        internal static void RecordCaptureSkippedEmptyClip() => Interlocked.Increment(ref s_capturesSkippedEmptyClip);
+        internal static void RecordCaptureSkippedByCadence() => Interlocked.Increment(ref s_capturesSkippedByCadence);
+        internal static void RecordCaptureSkippedByDirtyRect() => Interlocked.Increment(ref s_capturesSkippedByDirtyRect);
+        internal static void RecordCaptureSkippedByHash() => Interlocked.Increment(ref s_capturesSkippedByHash);
+        internal static void RecordCapturePublished() => Interlocked.Increment(ref s_capturesPublished);
+        internal static void RecordScratchBitmapRecreated() => Interlocked.Increment(ref s_scratchBitmapRecreated);
+        internal static void RecordRendererInvalidation() => Interlocked.Increment(ref s_rendererInvalidations);
+        internal static void RecordDirtyRectAvailable() => Interlocked.Increment(ref s_dirtyRectAvailable);
+        internal static void RecordDirtyRectUnavailable() => Interlocked.Increment(ref s_dirtyRectUnavailable);
+        internal static void RecordSubscriberInvalidation() => Interlocked.Increment(ref s_subscriberInvalidations);
+        internal static void RecordSampledHash(long bytesCopied)
+        {
+            Interlocked.Increment(ref s_sampledHashChecks);
+            Interlocked.Add(ref s_sampledHashBytes, bytesCopied);
+        }
+
+        internal static void RecordFullBitmapCopy(long bytesCopied)
+        {
+            Interlocked.Increment(ref s_fullBitmapCopies);
+            Interlocked.Add(ref s_fullBitmapCopyBytes, bytesCopied);
+        }
+
+        internal static void RecordFilterIdentityHit() => Interlocked.Increment(ref s_filterIdentityHits);
+        internal static void RecordFilterCacheHit() => Interlocked.Increment(ref s_filterCacheHits);
+        internal static void RecordFilterCacheMiss() => Interlocked.Increment(ref s_filterCacheMisses);
+        internal static void RecordFilterGpuSurface() => Interlocked.Increment(ref s_filterGpuSurfaces);
+        internal static void RecordFilterCpuSurface() => Interlocked.Increment(ref s_filterCpuSurfaces);
+        internal static void RecordFilterSurfaceFailure() => Interlocked.Increment(ref s_filterSurfaceFailures);
+    }
+}
+```
+
+### `MainSrc\Tools\LiquidGlassAvaloniaUI\LiquidGlassDrawOperation.cs`
+
+```csharp
+using System;
+using System.IO;
+using System.Runtime.CompilerServices;
+using Avalonia;
+using Avalonia.Media;
+using Avalonia.Platform;
+using Avalonia.Rendering.SceneGraph;
+using Avalonia.Skia;
+using SkiaSharp;
+
+namespace LiquidGlassAvaloniaUI
+{
+    internal class LiquidGlassDrawOperation : ICustomDrawOperation
+    {
+        private static SKRuntimeEffect? s_lensEffect;
+        private static SKRuntimeEffect? s_highlightEffect;
+        private static SKRuntimeEffect? s_gammaEffect;
+        private static SKRuntimeEffect? s_interactiveHighlightEffect;
+        private static SKRuntimeEffect? s_progressiveMaskEffect;
+        private static SKRuntimeEffect? s_backdropTransformEffect;
+        private static bool s_loaded;
+
+        private readonly Rect _bounds;
+        private readonly LiquidGlassDrawParameters _parameters;
+        private readonly LiquidGlassBackdropSnapshot? _backdropSnapshot;
+        private readonly LiquidGlassDrawPass _pass;
+
+        public LiquidGlassDrawOperation(
+            Rect bounds,
+            LiquidGlassDrawParameters parameters,
+            LiquidGlassBackdropSnapshot? snapshot,
+            LiquidGlassDrawPass pass)
+        {
+            _bounds = bounds;
+            _parameters = parameters;
+            _backdropSnapshot = snapshot is not null && snapshot.TryAddLease() ? snapshot : null;
+            _pass = pass;
+        }
+
+        public void Dispose()
+        {
+            _backdropSnapshot?.ReleaseLease();
+        }
+
+        public bool HitTest(Point p)
+        {
+            return false;
+        }
+
+        public Rect Bounds
+        {
+            get => _bounds;
+        }
+
+        public bool Equals(ICustomDrawOperation? other)
+        {
+            return false;
+        }
+
+        public void Render(ImmediateDrawingContext context)
+        {
+            ISkiaSharpApiLeaseFeature? leaseFeature = context.TryGetFeature<ISkiaSharpApiLeaseFeature>();
+            if (leaseFeature is null)
+                return;
+
+            LoadShaders();
+
+            using ISkiaSharpApiLease lease = leaseFeature.Lease();
+            SKCanvas canvas = lease.SkCanvas;
+
+            switch (_pass)
+            {
+                case LiquidGlassDrawPass.Lens:
+                    RenderLens(canvas, lease.GrContext);
+                    break;
+                case LiquidGlassDrawPass.InteractiveHighlight:
+                    RenderInteractiveHighlight(canvas);
+                    break;
+                case LiquidGlassDrawPass.Highlight:
+                    RenderHighlight(canvas);
+                    break;
+            }
+        }
+
+        private static void LoadShaders()
+        {
+            if (s_loaded)
+                return;
+            s_loaded = true;
+
+            s_lensEffect = LoadRuntimeEffect("avares://LiquidGlassAvaloniaUI/Assets/Shaders/LiquidGlassShader.sksl");
+            s_highlightEffect = LoadRuntimeEffect("avares://LiquidGlassAvaloniaUI/Assets/Shaders/LiquidGlassHighlight.sksl");
+            s_gammaEffect = LoadRuntimeEffect("avares://LiquidGlassAvaloniaUI/Assets/Shaders/LiquidGlassGamma.sksl");
+            s_interactiveHighlightEffect = LoadRuntimeEffect("avares://LiquidGlassAvaloniaUI/Assets/Shaders/LiquidGlassInteractiveHighlight.sksl");
+            s_progressiveMaskEffect = LoadRuntimeEffect("avares://LiquidGlassAvaloniaUI/Assets/Shaders/LiquidGlassProgressiveMask.sksl");
+            s_backdropTransformEffect = LoadRuntimeEffect("avares://LiquidGlassAvaloniaUI/Assets/Shaders/LiquidGlassBackdropTransform.sksl");
+        }
+
+        private static SKRuntimeEffect? LoadRuntimeEffect(string assetUriString)
+        {
+            try
+            {
+                Uri assetUri = new(assetUriString);
+                using Stream stream = AssetLoader.Open(assetUri);
+                using StreamReader reader = new(stream);
+                string shaderCode = reader.ReadToEnd();
+
+                SKRuntimeEffect? effect = SKRuntimeEffect.CreateShader(shaderCode, out string? errorText);
+                if (effect == null)
+                    Console.WriteLine($"[LiquidGlass] Failed to create SKRuntimeEffect ({assetUriString}): {errorText}");
+
+                return effect;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[LiquidGlass] Exception while loading shader ({assetUriString}): {ex.Message}");
+                return null;
+            }
+        }
+
+        private void RenderLens(SKCanvas canvas, GRContext? grContext)
+        {
+            if (s_lensEffect is null)
+            {
+                DrawErrorHint(canvas);
+                return;
+            }
+
+            if (_backdropSnapshot is null)
+            {
+                DrawBackdropNotReady(canvas);
+                return;
+            }
+
+            SKMatrix currentTransform = canvas.TotalMatrix;
+            if (!currentTransform.TryInvert(out SKMatrix currentInvertedTransform))
+                return;
+
+            SKSize size = new((float)_bounds.Width, (float)_bounds.Height);
+            if (size.Width <= 0 || size.Height <= 0)
+                return;
+
+            float maxRadius = Math.Min(size.Width, size.Height) * 0.5f;
+            float[] cornerRadii = GetCornerRadii(_parameters.CornerRadius, maxRadius);
+
+            // Pipeline order:
+            //   color controls (brightness/contrast/vibrancy) -> blur -> lens -> (optional gamma)
+            //
+            // In Avalonia we approximate the RenderEffect chain by applying an SKImageFilter pipeline to the
+            // captured backdrop snapshot, then sampling the filtered image in the lens runtime shader.
+            LiquidGlassBackdropSnapshot.FilteredResult filtered = GetOrCreateFilteredBackdrop(
+                _backdropSnapshot,
+                _parameters,
+                grContext,
+                currentTransform,
+                size);
+
+            using SKShader? backdropShader = SKShader.CreateImage(
+                filtered.Image,
+                SKShaderTileMode.Clamp,
+                SKShaderTileMode.Clamp,
+                WithPixelOrigin(currentInvertedTransform, filtered.OriginInPixels));
+
+            SKShader? lensInput = (SKShader)backdropShader;
+
+            SKShader? backdropTransformShader = null;
+            try
+            {
+                double zoomValue = _parameters.BackdropZoom;
+                if (zoomValue <= 0.0005 || double.IsNaN(zoomValue) || double.IsInfinity(zoomValue))
+                    zoomValue = 1.0;
+
+                float zoom = (float)Clamp(zoomValue, 0.1, 10.0);
+                Vector offset = _parameters.BackdropOffset;
+                bool needsTransform =
+                    Math.Abs(zoom - 1.0f) > 0.0005f
+                    || Math.Abs(offset.X) > 0.0005
+                    || Math.Abs(offset.Y) > 0.0005;
+
+                if (needsTransform && s_backdropTransformEffect is not null)
+                {
+                    using SKRuntimeEffectUniforms uniforms = new(s_backdropTransformEffect);
+                    uniforms["size"] = new[]
+                    {
+                        size.Width, size.Height
+                    };
+                    uniforms["zoom"] = zoom;
+                    uniforms["offset"] = new[]
+                    {
+                        (float)offset.X, (float)offset.Y
+                    };
+
+                    using SKRuntimeEffectChildren children = new(s_backdropTransformEffect);
+                    children["content"] = lensInput;
+
+                    backdropTransformShader = s_backdropTransformEffect.ToShader(uniforms, children);
+                    if (backdropTransformShader is not null)
+                        lensInput = backdropTransformShader;
+                }
+
+                float refractionHeight = (float)Clamp(_parameters.RefractionHeight, 0.0, Math.Min(size.Width, size.Height) * 0.5);
+                float refractionAmount = (float)_parameters.RefractionAmount;
+                bool applyLens = refractionHeight > 0.001f && Math.Abs(refractionAmount) > 0.001f;
+
+                SKShader? lensShader = null;
+                if (applyLens)
+                {
+                    using SKRuntimeEffectUniforms lensUniforms = new(s_lensEffect);
+                    lensUniforms["size"] = new[]
+                    {
+                        size.Width, size.Height
+                    };
+                    lensUniforms["cornerRadii"] = cornerRadii;
+                    lensUniforms["refractionHeight"] = refractionHeight;
+                    // The lens shader expects a negative refraction amount.
+                    lensUniforms["refractionAmount"] = -refractionAmount;
+                    lensUniforms["depthEffect"] = _parameters.DepthEffect ? 1.0f : 0.0f;
+                    lensUniforms["chromaticAberration"] = _parameters.ChromaticAberration ? 1.0f : 0.0f;
+
+                    using SKRuntimeEffectChildren lensChildren = new(s_lensEffect);
+                    lensChildren["content"] = lensInput;
+
+                    lensShader = s_lensEffect.ToShader(lensUniforms, lensChildren);
+                }
+
+                SKShader? baseShader = lensShader ?? lensInput;
+
+                SKShader? progressiveMaskShader = null;
+                try
+                {
+                    if (_parameters.ProgressiveBlurEnabled
+                        && s_progressiveMaskEffect is not null)
+                    {
+                        using SKRuntimeEffectUniforms uniforms = new(s_progressiveMaskEffect);
+                        uniforms["size"] = new[]
+                        {
+                            size.Width, size.Height
+                        };
+                        uniforms["start"] = (float)Clamp(_parameters.ProgressiveBlurStart, 0.0, 1.0);
+                        uniforms["end"] = (float)Clamp(_parameters.ProgressiveBlurEnd, 0.0, 1.0);
+
+                        Color tint = _parameters.ProgressiveTintColor;
+                        uniforms["tint"] = new[]
+                        {
+                            tint.R / 255f, tint.G / 255f, tint.B / 255f, tint.A / 255f
+                        };
+
+                        float tintIntensity = tint.A > 0
+                            ? (float)Clamp(_parameters.ProgressiveTintIntensity, 0.0, 1.0)
+                            : 0.0f;
+                        uniforms["tintIntensity"] = tintIntensity;
+
+                        using SKRuntimeEffectChildren children = new(s_progressiveMaskEffect);
+                        children["content"] = baseShader;
+
+                        progressiveMaskShader = s_progressiveMaskEffect.ToShader(uniforms, children);
+                        if (progressiveMaskShader is not null)
+                            baseShader = progressiveMaskShader;
+                    }
+
+                    SKShader? gammaShader = null;
+                    try
+                    {
+                        float gammaPower = (float)Clamp(_parameters.GammaPower, 0.0, 10.0);
+                        if (s_gammaEffect is not null && Math.Abs(gammaPower - 1.0f) > 0.0005f)
+                        {
+                            using SKRuntimeEffectUniforms uniforms = new(s_gammaEffect);
+                            uniforms["power"] = gammaPower;
+                            using SKRuntimeEffectChildren children = new(s_gammaEffect);
+                            children["content"] = baseShader;
+                            gammaShader = s_gammaEffect.ToShader(uniforms, children);
+                        }
+
+                        using SKPaint paint = new()
+                        {
+                            Shader = gammaShader ?? baseShader,
+                            IsAntialias = true
+                        };
+
+                        SKRect rect = SKRect.Create(0, 0, size.Width, size.Height);
+                        using SKPath clipPath = CreateRoundRectPath(rect, cornerRadii);
+
+                        canvas.Save();
+                        canvas.ClipPath(clipPath, SKClipOperation.Intersect, true);
+                        canvas.DrawRect(rect, paint);
+
+                        DrawSurfaceOverlay(canvas, rect);
+
+                        canvas.Restore();
+                    }
+                    finally
+                    {
+                        gammaShader?.Dispose();
+                    }
+                }
+                finally
+                {
+                    progressiveMaskShader?.Dispose();
+                    lensShader?.Dispose();
+                }
+            }
+            finally
+            {
+                backdropTransformShader?.Dispose();
+            }
+
+        }
+
+        private static LiquidGlassBackdropSnapshot.FilteredResult GetOrCreateFilteredBackdrop(
+            LiquidGlassBackdropSnapshot snapshot,
+            LiquidGlassDrawParameters parameters,
+            GRContext? grContext,
+            SKMatrix currentTransform,
+            SKSize localSize)
+        {
+            float brightness = (float)Clamp(parameters.Brightness, -1.0, 1.0);
+            float contrast = (float)Clamp(parameters.Contrast, 0.0, 4.0);
+            float saturation = (float)Clamp(parameters.Vibrancy, 0.0, 4.0);
+            float exposureEv = (float)Clamp(parameters.ExposureEv, -8.0, 8.0);
+            float opacity = (float)Clamp(parameters.BackdropOpacity, 0.0, 1.0);
+
+            float blurSigmaPx = (float)(Clamp(parameters.BlurRadius, 0.0, 256.0) * snapshot.Scaling);
+
+            bool isIdentity =
+                Math.Abs(brightness) < 0.0005f
+                && Math.Abs(contrast - 1.0f) < 0.0005f
+                && Math.Abs(saturation - 1.0f) < 0.0005f
+                && Math.Abs(exposureEv) < 0.0005f
+                && Math.Abs(opacity - 1.0f) < 0.0005f
+                && blurSigmaPx <= 0.0005f;
+
+            if (isIdentity)
+            {
+                LiquidGlassDiagnostics.RecordFilterIdentityHit();
+                return new LiquidGlassBackdropSnapshot.FilteredResult(snapshot.Image, snapshot.OriginInPixels);
+            }
+
+            SKRectI cropRect = CalculateFilterCrop(snapshot, parameters, currentTransform, localSize);
+
+            // Quantize to keep the cache size stable during slider drags.
+            const float q = 1000.0f;
+            LiquidGlassBackdropSnapshot.FilteredKey key = new(
+                (int)Math.Round(brightness * q),
+                (int)Math.Round(contrast * q),
+                (int)Math.Round(saturation * q),
+                (int)Math.Round(exposureEv * q),
+                (int)Math.Round(opacity * q),
+                (int)Math.Round(blurSigmaPx * q),
+                cropRect.Left,
+                cropRect.Top,
+                cropRect.Width,
+                cropRect.Height,
+                GetRenderContextId(grContext));
+
+            if (snapshot.TryGetFiltered(key, out LiquidGlassBackdropSnapshot.FilteredResult cached))
+            {
+                LiquidGlassDiagnostics.RecordFilterCacheHit();
+                return cached;
+            }
+
+            LiquidGlassDiagnostics.RecordFilterCacheMiss();
+
+            LiquidGlassBackdropSnapshot.FilteredResult filtered = CreateFilteredBackdrop(snapshot, cropRect, brightness, contrast, saturation, exposureEv, opacity, blurSigmaPx, grContext)
+                                                                  ?? new LiquidGlassBackdropSnapshot.FilteredResult(snapshot.Image, snapshot.OriginInPixels);
+
+            // Never cache the unfiltered snapshot image (it is owned/disposed separately).
+            if (!ReferenceEquals(filtered.Image, snapshot.Image))
+                snapshot.StoreFiltered(key, filtered);
+
+            return filtered;
+        }
+
+        private static LiquidGlassBackdropSnapshot.FilteredResult? CreateFilteredBackdrop(
+            LiquidGlassBackdropSnapshot snapshot,
+            SKRectI cropRect,
+            float brightness,
+            float contrast,
+            float saturation,
+            float exposureEv,
+            float opacity,
+            float blurSigmaPx,
+            GRContext? grContext)
+        {
+            SKImage source = snapshot.Image;
+            bool isFullCrop =
+                cropRect.Left == 0
+                && cropRect.Top == 0
+                && cropRect.Width == source.Width
+                && cropRect.Height == source.Height;
+
+            using SKImage? croppedSource = isFullCrop ? null : source.Subset(cropRect);
+            SKImage filterSource = croppedSource ?? source;
+            PixelPoint filteredOrigin = isFullCrop
+                ? snapshot.OriginInPixels
+                : new PixelPoint(snapshot.OriginInPixels.X + cropRect.Left, snapshot.OriginInPixels.Y + cropRect.Top);
+
+            SKImageFilter? filter = null;
+
+            bool needsColorControls =
+                Math.Abs(brightness) > 0.0005f
+                || Math.Abs(contrast - 1.0f) > 0.0005f
+                || Math.Abs(saturation - 1.0f) > 0.0005f;
+
+            if (needsColorControls)
+            {
+                using SKColorFilter? colorFilter = SKColorFilter.CreateColorMatrix(CreateColorControlsColorMatrix(brightness, contrast, saturation));
+                filter = SKImageFilter.CreateColorFilter(colorFilter, filter);
+            }
+
+            if (Math.Abs(exposureEv) > 0.0005f)
+            {
+                using SKColorFilter? colorFilter = SKColorFilter.CreateColorMatrix(CreateExposureColorMatrix(exposureEv));
+                filter = SKImageFilter.CreateColorFilter(colorFilter, filter);
+            }
+
+            if (Math.Abs(opacity - 1.0f) > 0.0005f)
+            {
+                using SKColorFilter? colorFilter = SKColorFilter.CreateColorMatrix(CreateOpacityColorMatrix(opacity));
+                filter = SKImageFilter.CreateColorFilter(colorFilter, filter);
+            }
+
+            if (blurSigmaPx > 0.0005f)
+            {
+                // Use TileMode.Clamp: Skia's default tile mode can introduce alpha falloff near image edges (kDecal),
+                // which shows up as darkened borders when the snapshot is clipped by the window bounds.
+                SKRect filterCropRect = new(0, 0, filterSource.Width, filterSource.Height);
+                filter = SKImageFilter.CreateBlur(blurSigmaPx, blurSigmaPx, SKShaderTileMode.Clamp, filter, filterCropRect);
+            }
+
+            if (filter is null)
+                return null;
+
+            using (filter)
+            {
+                // ApplyImageFilter() can return a varying offset/subset for blur radii, which can cause the
+                // sampled backdrop to appear to "drift" while dragging the blur slider. Instead, render the
+                // filtered snapshot into an explicit same-size surface at (0,0) so the origin remains stable.
+                SKImageInfo info = new(filterSource.Width, filterSource.Height, filterSource.ColorType, filterSource.AlphaType, filterSource.ColorSpace);
+                using SKSurface? surface = CreateFilterSurface(info, grContext);
+                if (surface is null)
+                {
+                    LiquidGlassDiagnostics.RecordFilterSurfaceFailure();
+                    return null;
+                }
+
+                SKCanvas? canvas = surface.Canvas;
+                canvas.Clear(SKColors.Transparent);
+
+                using SKPaint paint = new()
+                {
+                    ImageFilter = filter,
+                    BlendMode = SKBlendMode.Src
+                };
+
+                canvas.DrawImage(filterSource, 0, 0, paint);
+                canvas.Flush();
+
+                SKImage? filteredImage = surface.Snapshot();
+                return new LiquidGlassBackdropSnapshot.FilteredResult(filteredImage, filteredOrigin);
+            }
+        }
+
+        private static SKRectI CalculateFilterCrop(
+            LiquidGlassBackdropSnapshot snapshot,
+            LiquidGlassDrawParameters parameters,
+            SKMatrix currentTransform,
+            SKSize localSize)
+        {
+            SKImage source = snapshot.Image;
+            SKRectI full = new(0, 0, source.Width, source.Height);
+
+            if (localSize.Width <= 0 || localSize.Height <= 0)
+                return full;
+
+            if (Math.Abs(currentTransform.Persp0) > 0.000001f
+                || Math.Abs(currentTransform.Persp1) > 0.000001f
+                || Math.Abs(currentTransform.Persp2 - 1.0f) > 0.000001f)
+            {
+                return full;
+            }
+
+            SKRect deviceBounds = MapRect(currentTransform, SKRect.Create(0, 0, localSize.Width, localSize.Height));
+            if (deviceBounds.Width <= 0 || deviceBounds.Height <= 0)
+                return full;
+
+            double margin = CalculateFilterMarginPx(parameters, localSize, snapshot.Scaling);
+
+            int left = (int)Math.Floor(deviceBounds.Left - snapshot.OriginInPixels.X - margin);
+            int top = (int)Math.Floor(deviceBounds.Top - snapshot.OriginInPixels.Y - margin);
+            int right = (int)Math.Ceiling(deviceBounds.Right - snapshot.OriginInPixels.X + margin);
+            int bottom = (int)Math.Ceiling(deviceBounds.Bottom - snapshot.OriginInPixels.Y + margin);
+
+            left = Math.Clamp(left, 0, source.Width);
+            top = Math.Clamp(top, 0, source.Height);
+            right = Math.Clamp(right, left, source.Width);
+            bottom = Math.Clamp(bottom, top, source.Height);
+
+            if (right <= left || bottom <= top)
+                return full;
+
+            return new SKRectI(left, top, right, bottom);
+        }
+
+        private static double CalculateFilterMarginPx(LiquidGlassDrawParameters parameters, SKSize localSize, double scaling)
+        {
+            double zoomValue = parameters.BackdropZoom;
+            if (zoomValue <= 0.0005 || double.IsNaN(zoomValue) || double.IsInfinity(zoomValue))
+                zoomValue = 1.0;
+
+            double zoom = Clamp(zoomValue, 0.1, 10.0);
+            Vector offset = parameters.BackdropOffset;
+            double offsetMargin = Math.Max(Math.Abs(offset.X), Math.Abs(offset.Y)) / zoom;
+
+            double zoomOutMargin = 0.0;
+            if (zoom < 1.0)
+            {
+                double halfMaxSize = Math.Max(localSize.Width, localSize.Height) * 0.5;
+                zoomOutMargin = (1.0 / zoom - 1.0) * halfMaxSize;
+            }
+
+            double refractionMargin = Math.Abs(parameters.RefractionAmount) * (parameters.ChromaticAberration ? 2.0 : 1.0);
+            double blurMargin = parameters.BlurRadius * 3.0;
+
+            return Math.Max(8.0, refractionMargin + blurMargin + offsetMargin + zoomOutMargin + 8.0) * scaling;
+        }
+
+        private static SKRect MapRect(SKMatrix matrix, SKRect rect)
+        {
+            float x0 = matrix.ScaleX * rect.Left + matrix.SkewX * rect.Top + matrix.TransX;
+            float y0 = matrix.SkewY * rect.Left + matrix.ScaleY * rect.Top + matrix.TransY;
+            float x1 = matrix.ScaleX * rect.Right + matrix.SkewX * rect.Top + matrix.TransX;
+            float y1 = matrix.SkewY * rect.Right + matrix.ScaleY * rect.Top + matrix.TransY;
+            float x2 = matrix.ScaleX * rect.Right + matrix.SkewX * rect.Bottom + matrix.TransX;
+            float y2 = matrix.SkewY * rect.Right + matrix.ScaleY * rect.Bottom + matrix.TransY;
+            float x3 = matrix.ScaleX * rect.Left + matrix.SkewX * rect.Bottom + matrix.TransX;
+            float y3 = matrix.SkewY * rect.Left + matrix.ScaleY * rect.Bottom + matrix.TransY;
+
+            float left = Math.Min(Math.Min(x0, x1), Math.Min(x2, x3));
+            float top = Math.Min(Math.Min(y0, y1), Math.Min(y2, y3));
+            float right = Math.Max(Math.Max(x0, x1), Math.Max(x2, x3));
+            float bottom = Math.Max(Math.Max(y0, y1), Math.Max(y2, y3));
+
+            return new SKRect(left, top, right, bottom);
+        }
+
+        private static SKSurface? CreateFilterSurface(SKImageInfo info, GRContext? grContext)
+        {
+            if (grContext is not null)
+            {
+                SKSurface? gpuSurface = SKSurface.Create(grContext, false, info);
+                if (gpuSurface is not null)
+                {
+                    LiquidGlassDiagnostics.RecordFilterGpuSurface();
+                    return gpuSurface;
+                }
+            }
+
+            SKSurface? cpuSurface = SKSurface.Create(info);
+            if (cpuSurface is not null)
+                LiquidGlassDiagnostics.RecordFilterCpuSurface();
+
+            return cpuSurface;
+        }
+
+        private static int GetRenderContextId(GRContext? grContext)
+        {
+            return grContext is null ? 0 : RuntimeHelpers.GetHashCode(grContext);
+        }
+
+        private static float[] CreateColorControlsColorMatrix(float brightness, float contrast, float saturation)
+        {
+            // Color-controls matrix (brightness/contrast/saturation).
+            // Note: Skia's color matrix operates on normalized (0..1) colors.
+            float invSat = 1f - saturation;
+            float r = 0.213f * invSat;
+            float g = 0.715f * invSat;
+            float b = 0.072f * invSat;
+
+            float c = contrast;
+            // Translation terms must also be normalized.
+            float t = 0.5f - c * 0.5f + brightness;
+            float s = saturation;
+
+            float cr = c * r;
+            float cg = c * g;
+            float cb = c * b;
+            float cs = c * s;
+
+            return new[]
+            {
+                cr + cs, cg, cb, 0f, t, cr, cg + cs, cb, 0f, t, cr, cg, cb + cs, 0f, t, 0f, 0f, 0f, 1f, 0f
+            };
+        }
+
+        private static float[] CreateExposureColorMatrix(float ev)
+        {
+            float scale = (float)Math.Pow(2.0, ev / 2.2);
+            return new[]
+            {
+                scale, 0f, 0f, 0f, 0f, 0f, scale, 0f, 0f, 0f, 0f, 0f, scale, 0f, 0f, 0f, 0f, 0f, 1f, 0f
+            };
+        }
+
+        private static float[] CreateOpacityColorMatrix(float alpha)
+        {
+            return new[]
+            {
+                1f, 0f, 0f, 0f, 0f, 0f, 1f, 0f, 0f, 0f, 0f, 0f, 1f, 0f, 0f, 0f, 0f, 0f, alpha, 0f
+            };
+        }
+
+        private void RenderInteractiveHighlight(SKCanvas canvas)
+        {
+            if (s_interactiveHighlightEffect is null)
+                return;
+
+            float progress = (float)Clamp(_parameters.InteractiveProgress, 0.0, 1.0);
+            if (progress <= 0.001f)
+                return;
+
+            SKSize size = new((float)_bounds.Width, (float)_bounds.Height);
+            if (size.Width <= 0 || size.Height <= 0)
+                return;
+
+            float maxRadius = Math.Min(size.Width, size.Height) * 0.5f;
+            float[] cornerRadii = GetCornerRadii(_parameters.CornerRadius, maxRadius);
+
+            SKRect rect = SKRect.Create(0, 0, size.Width, size.Height);
+            using SKPath clipPath = CreateRoundRectPath(rect, cornerRadii);
+
+            canvas.Save();
+            canvas.ClipPath(clipPath, SKClipOperation.Intersect, true);
+
+            using (SKPaint basePaint = new()
+                {
+                    Color = new SKColor(255, 255, 255, (byte)Clamp(0.08f * progress * 255f, 0f, 255f)),
+                    BlendMode = SKBlendMode.Plus,
+                    IsAntialias = true
+                })
+            {
+                canvas.DrawRect(rect, basePaint);
+            }
+
+            using SKRuntimeEffectUniforms uniforms = new(s_interactiveHighlightEffect);
+            uniforms["size"] = new[]
+            {
+                size.Width, size.Height
+            };
+            uniforms["color"] = new[]
+            {
+                1.0f, 1.0f, 1.0f, (float)Clamp(0.15 * progress, 0.0, 1.0)
+            };
+            uniforms["radius"] = Math.Min(size.Width, size.Height) * 1.5f;
+            uniforms["position"] = new[]
+            {
+                (float)Clamp(_parameters.InteractivePosition.X, 0.0, size.Width), (float)Clamp(_parameters.InteractivePosition.Y, 0.0, size.Height)
+            };
+
+            using SKRuntimeEffectChildren children = new(s_interactiveHighlightEffect);
+            using SKShader? shader = s_interactiveHighlightEffect.ToShader(uniforms, children);
+
+            if (shader is not null)
+            {
+                using SKPaint paint = new()
+                {
+                    Shader = shader,
+                    BlendMode = SKBlendMode.Plus,
+                    IsAntialias = true
+                };
+                canvas.DrawRect(rect, paint);
+            }
+
+            canvas.Restore();
+        }
+
+        private void RenderHighlight(SKCanvas canvas)
+        {
+            if (s_highlightEffect is null)
+                return;
+
+            if (_parameters.HighlightOpacity <= 0.001 || _parameters.HighlightWidth <= 0.001)
+                return;
+
+            SKSize size = new((float)_bounds.Width, (float)_bounds.Height);
+            if (size.Width <= 0 || size.Height <= 0)
+                return;
+
+            float maxRadius = Math.Min(size.Width, size.Height) * 0.5f;
+            float[] cornerRadii = GetCornerRadii(_parameters.CornerRadius, maxRadius);
+
+            using SKRuntimeEffectUniforms uniforms = new(s_highlightEffect);
+            uniforms["size"] = new[]
+            {
+                size.Width, size.Height
+            };
+            uniforms["cornerRadii"] = cornerRadii;
+
+            float alpha = (float)Clamp(_parameters.HighlightOpacity, 0.0, 1.0);
+            uniforms["color"] = new[]
+            {
+                1.0f, 1.0f, 1.0f, alpha
+            };
+
+            float angleRad = (float)(_parameters.HighlightAngleDegrees * (Math.PI / 180.0));
+            uniforms["angle"] = angleRad;
+            uniforms["falloff"] = (float)Clamp(_parameters.HighlightFalloff, 0.0, 8.0);
+
+            using SKRuntimeEffectChildren children = new(s_highlightEffect);
+            using SKShader? shader = s_highlightEffect.ToShader(uniforms, children);
+            if (shader is null)
+                return;
+
+            float blurRadius = (float)Clamp(_parameters.HighlightBlurRadius, 0.0, 20.0);
+            using SKMaskFilter? maskFilter = blurRadius > 0.001f
+                ? SKMaskFilter.CreateBlur(SKBlurStyle.Normal, blurRadius)
+                : null;
+
+            float strokeWidth = (float)(Math.Ceiling(Clamp(_parameters.HighlightWidth, 0.0, 100.0)) * 2.0);
+
+            using SKPaint paint = new()
+            {
+                Shader = shader,
+                IsAntialias = true,
+                BlendMode = SKBlendMode.Plus,
+                Style = SKPaintStyle.Stroke,
+                StrokeJoin = SKStrokeJoin.Round,
+                StrokeCap = SKStrokeCap.Round,
+                StrokeWidth = Math.Max(0.5f, strokeWidth),
+                MaskFilter = maskFilter
+            };
+
+            SKRect rect = SKRect.Create(0, 0, size.Width, size.Height);
+            using SKPath path = CreateRoundRectPath(rect, cornerRadii);
+
+            // Pad the highlight layer to avoid edge artifacts when transformed and/or rasterized into an intermediate surface.
+            const float safePad = 1.0f;
+
+            canvas.Save();
+            canvas.Translate(-safePad, -safePad);
+            SKRect layerBounds = SKRect.Create(0, 0, size.Width + safePad * 2.0f, size.Height + safePad * 2.0f);
+            canvas.SaveLayer(layerBounds, null);
+
+            canvas.Translate(safePad, safePad);
+            canvas.ClipPath(path, SKClipOperation.Intersect, true);
+            canvas.DrawPath(path, paint);
+
+            canvas.Restore();
+            canvas.Restore();
+        }
+
+        private void DrawSurfaceOverlay(SKCanvas canvas, SKRect rect)
+        {
+            // Optional tint/surface overlays. If TintColor is specified, it draws it twice: Hue blend + alpha fill.
+            if (_parameters.TintColor.A > 0)
+            {
+                Color tint = _parameters.TintColor;
+                using SKPaint huePaint = new()
+                {
+                    Color = new SKColor(tint.R, tint.G, tint.B, 255),
+                    IsAntialias = true,
+                    BlendMode = SKBlendMode.Hue
+                };
+                canvas.DrawRect(rect, huePaint);
+
+                using SKPaint fillPaint = new()
+                {
+                    Color = new SKColor(tint.R, tint.G, tint.B, (byte)Clamp(tint.A * 0.75, 0.0, 255.0)),
+                    IsAntialias = true,
+                    BlendMode = SKBlendMode.SrcOver
+                };
+                canvas.DrawRect(rect, fillPaint);
+            }
+
+            if (_parameters.SurfaceColor.A > 0)
+            {
+                Color surface = _parameters.SurfaceColor;
+                using SKPaint paint = new()
+                {
+                    Color = new SKColor(surface.R, surface.G, surface.B, surface.A),
+                    IsAntialias = true,
+                    BlendMode = SKBlendMode.SrcOver
+                };
+                canvas.DrawRect(rect, paint);
+            }
+        }
+
+        private static float[] GetCornerRadii(CornerRadius cornerRadius, float maxRadius)
+        {
+            float tl = (float)Clamp(cornerRadius.TopLeft, 0.0, maxRadius);
+            float tr = (float)Clamp(cornerRadius.TopRight, 0.0, maxRadius);
+            float br = (float)Clamp(cornerRadius.BottomRight, 0.0, maxRadius);
+            float bl = (float)Clamp(cornerRadius.BottomLeft, 0.0, maxRadius);
+            return new[]
+            {
+                tl, tr, br, bl
+            };
+        }
+
+        private static SKPath CreateRoundRectPath(SKRect rect, float[] cornerRadii)
+        {
+            using SKRoundRect rr = new();
+            rr.SetRectRadii(rect, new[]
+            {
+                new SKPoint(cornerRadii[0], cornerRadii[0]), new SKPoint(cornerRadii[1], cornerRadii[1]), new SKPoint(cornerRadii[2], cornerRadii[2]), new SKPoint(cornerRadii[3], cornerRadii[3])
+            });
+
+            SKPath path = new();
+            path.AddRoundRect(rr, SKPathDirection.Clockwise);
+            return path;
+        }
+
+        private void DrawErrorHint(SKCanvas canvas)
+        {
+            using SKPaint errorPaint = new()
+            {
+                Color = new SKColor(255, 0, 0, 120),
+                Style = SKPaintStyle.Fill
+            };
+
+            canvas.DrawRect(SKRect.Create(0, 0, (float)_bounds.Width, (float)_bounds.Height), errorPaint);
+        }
+
+        private void DrawBackdropNotReady(SKCanvas canvas)
+        {
+            SKSize size = new((float)_bounds.Width, (float)_bounds.Height);
+            SKRect rect = SKRect.Create(0, 0, size.Width, size.Height);
+
+            float maxRadius = Math.Min(size.Width, size.Height) * 0.5f;
+            float[] cornerRadii = GetCornerRadii(_parameters.CornerRadius, maxRadius);
+            using SKPath path = CreateRoundRectPath(rect, cornerRadii);
+
+            using SKPaint paint = new()
+            {
+                Color = new SKColor(255, 255, 255, 32),
+                IsAntialias = true
+            };
+
+            canvas.Save();
+            canvas.ClipPath(path, SKClipOperation.Intersect, true);
+            canvas.DrawRect(rect, paint);
+            canvas.Restore();
+        }
+
+        private static double Clamp(double value, double min, double max)
+        {
+            if (value < min) return min;
+            if (value > max) return max;
+            return value;
+        }
+
+        private static SKMatrix WithPixelOrigin(SKMatrix invertedTransform, PixelPoint originInPixels)
+        {
+            // localMatrix = invertedTransform * Translate(+originInPixels)
+            //
+            // We first cancel the current canvas transform (so shader coordinates become device pixels),
+            // then shift into the clipped snapshot's coordinate system.
+            float ox = (float)originInPixels.X;
+            float oy = (float)originInPixels.Y;
+            invertedTransform.TransX = invertedTransform.TransX + invertedTransform.ScaleX * ox + invertedTransform.SkewX * oy;
+            invertedTransform.TransY = invertedTransform.TransY + invertedTransform.SkewY * ox + invertedTransform.ScaleY * oy;
+            return invertedTransform;
+        }
+    }
+}
+```
+
+### `MainSrc\Tools\LiquidGlassAvaloniaUI\LiquidGlassDrawParameters.cs`
+
+```csharp
+using Avalonia;
+using Avalonia.Media;
+
+namespace LiquidGlassAvaloniaUI
+{
+    internal enum LiquidGlassDrawPass
+    {
+        Lens,
+        InteractiveHighlight,
+        Highlight
+    }
+
+    internal struct LiquidGlassDrawParameters
+    {
+        public CornerRadius CornerRadius { get; set; }
+
+        public double BackdropZoom { get; set; }
+        public Vector BackdropOffset { get; set; }
+
+        public double RefractionHeight { get; set; }
+        public double RefractionAmount { get; set; }
+        public bool DepthEffect { get; set; }
+        public bool ChromaticAberration { get; set; }
+
+        public double BlurRadius { get; set; }
+        public double Vibrancy { get; set; }
+        public double Brightness { get; set; }
+        public double Contrast { get; set; }
+        public double ExposureEv { get; set; }
+        public double GammaPower { get; set; }
+        public double BackdropOpacity { get; set; }
+
+        public Color TintColor { get; set; }
+        public Color SurfaceColor { get; set; }
+
+        public bool ProgressiveBlurEnabled { get; set; }
+        public double ProgressiveBlurStart { get; set; }
+        public double ProgressiveBlurEnd { get; set; }
+        public Color ProgressiveTintColor { get; set; }
+        public double ProgressiveTintIntensity { get; set; }
+
+        public bool HighlightEnabled { get; set; }
+        public double HighlightWidth { get; set; }
+        public double HighlightBlurRadius { get; set; }
+        public double HighlightOpacity { get; set; }
+        public double HighlightAngleDegrees { get; set; }
+        public double HighlightFalloff { get; set; }
+
+        public double InteractiveProgress { get; set; }
+        public Point InteractivePosition { get; set; }
+
+        public bool ShadowEnabled { get; set; }
+        public double ShadowRadius { get; set; }
+        public Vector ShadowOffset { get; set; }
+        public Color ShadowColor { get; set; }
+        public double ShadowOpacity { get; set; }
+
+        public bool InnerShadowEnabled { get; set; }
+        public double InnerShadowRadius { get; set; }
+        public Vector InnerShadowOffset { get; set; }
+        public Color InnerShadowColor { get; set; }
+        public double InnerShadowOpacity { get; set; }
+    }
+}
+```
+
+### `MainSrc\Tools\LiquidGlassAvaloniaUI\LiquidGlassInteractiveSurface.cs`
+
+```csharp
+using System;
+using Avalonia;
+using Avalonia.Controls;
+using Avalonia.Input;
+using Avalonia.Interactivity;
+using Avalonia.Media;
+using Avalonia.Threading;
+
+namespace LiquidGlassAvaloniaUI
+{
+    /// <summary>
+    /// An interactive variant of <see cref="LiquidGlassSurface"/> that adds press/drag deformation and
+    /// an interactive highlight overlay.
+    /// </summary>
+    public class LiquidGlassInteractiveSurface : LiquidGlassSurface
+    {
+        public static readonly StyledProperty<bool> IsInteractiveProperty =
+            AvaloniaProperty.Register<LiquidGlassInteractiveSurface, bool>(nameof(IsInteractive), true);
+
+        public static readonly StyledProperty<bool> InteractiveHighlightEnabledProperty =
+            AvaloniaProperty.Register<LiquidGlassInteractiveSurface, bool>(nameof(InteractiveHighlightEnabled), true);
+
+        public static readonly StyledProperty<double> InteractiveMaxScaleDipProperty =
+            AvaloniaProperty.Register<LiquidGlassInteractiveSurface, double>(nameof(InteractiveMaxScaleDip), 4.0);
+
+        static LiquidGlassInteractiveSurface()
+        {
+            AffectsRender<LiquidGlassInteractiveSurface>(
+                IsInteractiveProperty,
+                InteractiveHighlightEnabledProperty,
+                InteractiveMaxScaleDipProperty);
+        }
+
+        private const double SpringDampingRatio = 0.5;
+        private const double SpringStiffness = 300.0;
+        private const double SpringProgressThreshold = 0.001;
+        private const double InitialDerivative = 0.05;
+
+        private readonly DispatcherTimer _animationTimer;
+        private DateTime _lastAnimationTickUtc;
+
+        private int? _activePointerId;
+        private TopLevel? _hookedTopLevel;
+
+        private Point _startPosition;
+        private SpringDouble _pressProgress = new(SpringStiffness, SpringDampingRatio, SpringProgressThreshold);
+        private SpringPoint _position = new(SpringStiffness, SpringDampingRatio, 0.5);
+
+        public LiquidGlassInteractiveSurface()
+        {
+            RenderTransformOrigin = RelativePoint.Center;
+
+            _animationTimer = new DispatcherTimer(DispatcherPriority.Render)
+            {
+                Interval = TimeSpan.FromMilliseconds(16)
+            };
+
+            _animationTimer.Tick += (_, _) =>
+            {
+                DateTime now = DateTime.UtcNow;
+                double dt = (now - _lastAnimationTickUtc).TotalSeconds;
+                _lastAnimationTickUtc = now;
+
+                // Clamp dt to avoid huge steps on debugger stops / tab switches.
+                dt = Math.Max(0.0, Math.Min(0.05, dt));
+
+                bool any = false;
+                any |= _pressProgress.Step(dt);
+                any |= _activePointerId is null && _position.Step(dt);
+
+                ApplyDeformation();
+                InvalidateSubscriberVisual();
+                InteractiveOverlay?.InvalidateVisual();
+
+                if (!any)
+                    _animationTimer.Stop();
+            };
+
+            AddHandler(PointerPressedEvent, OnSelfPointerPressed, RoutingStrategies.Tunnel, true);
+        }
+
+        public bool IsInteractive
+        {
+            get => GetValue(IsInteractiveProperty);
+            set => SetValue(IsInteractiveProperty, value);
+        }
+
+        public bool InteractiveHighlightEnabled
+        {
+            get => GetValue(InteractiveHighlightEnabledProperty);
+            set => SetValue(InteractiveHighlightEnabledProperty, value);
+        }
+
+        public double InteractiveMaxScaleDip
+        {
+            get => GetValue(InteractiveMaxScaleDipProperty);
+            set => SetValue(InteractiveMaxScaleDipProperty, value);
+        }
+
+        protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
+        {
+            base.OnDetachedFromVisualTree(e);
+            UnhookTopLevel();
+            _activePointerId = null;
+            _animationTimer.Stop();
+        }
+
+        private void OnSelfPointerPressed(object? sender, PointerPressedEventArgs e)
+        {
+            if (!IsInteractive)
+                return;
+
+            if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
+                return;
+
+            if (_activePointerId is not null)
+                return;
+
+            _activePointerId = e.Pointer.Id;
+            _startPosition = e.GetPosition(this);
+            _position.SnapTo(_startPosition);
+
+            _pressProgress.Target = 1.0;
+            _position.Target = _startPosition;
+
+            HookTopLevel();
+            ApplyDeformation();
+            InvalidateSubscriberVisual();
+            InteractiveOverlay?.InvalidateVisual();
+            StartAnimation();
+        }
+
+        private void OnTopLevelPointerMoved(object? sender, PointerEventArgs e)
+        {
+            if (_activePointerId is null || e.Pointer.Id != _activePointerId.Value)
+                return;
+
+            Point p = e.GetPosition(this);
+            _position.SnapTo(p);
+            ApplyDeformation();
+            InvalidateSubscriberVisual();
+            InteractiveOverlay?.InvalidateVisual();
+            StartAnimation();
+        }
+
+        private void OnTopLevelPointerReleased(object? sender, PointerReleasedEventArgs e)
+        {
+            if (_activePointerId is null || e.Pointer.Id != _activePointerId.Value)
+                return;
+
+            EndInteraction();
+        }
+
+        private void OnTopLevelPointerCaptureLost(object? sender, PointerCaptureLostEventArgs e)
+        {
+            // Treat capture loss as cancellation.
+            if (_activePointerId is null)
+                return;
+
+            EndInteraction();
+        }
+
+        private void EndInteraction()
+        {
+            _activePointerId = null;
+            UnhookTopLevel();
+
+            _pressProgress.Target = 0.0;
+            _position.Target = _startPosition;
+            ApplyDeformation();
+            InvalidateSubscriberVisual();
+            InteractiveOverlay?.InvalidateVisual();
+            StartAnimation();
+        }
+
+        private void HookTopLevel()
+        {
+            TopLevel? topLevel = TopLevel.GetTopLevel(this);
+            if (topLevel is null || ReferenceEquals(topLevel, _hookedTopLevel))
+                return;
+
+            UnhookTopLevel();
+
+            _hookedTopLevel = topLevel;
+            topLevel.AddHandler(PointerMovedEvent, OnTopLevelPointerMoved, RoutingStrategies.Tunnel, true);
+            topLevel.AddHandler(PointerReleasedEvent, OnTopLevelPointerReleased, RoutingStrategies.Tunnel, true);
+            topLevel.AddHandler(PointerCaptureLostEvent, OnTopLevelPointerCaptureLost, RoutingStrategies.Tunnel, true);
+        }
+
+        private void UnhookTopLevel()
+        {
+            if (_hookedTopLevel is null)
+                return;
+
+            _hookedTopLevel.RemoveHandler(PointerMovedEvent, OnTopLevelPointerMoved);
+            _hookedTopLevel.RemoveHandler(PointerReleasedEvent, OnTopLevelPointerReleased);
+            _hookedTopLevel.RemoveHandler(PointerCaptureLostEvent, OnTopLevelPointerCaptureLost);
+            _hookedTopLevel = null;
+        }
+
+        private void StartAnimation()
+        {
+            if (_animationTimer.IsEnabled)
+                return;
+
+            _lastAnimationTickUtc = DateTime.UtcNow;
+            _animationTimer.Start();
+        }
+
+        private void InvalidateSubscriberVisual()
+        {
+            LiquidGlassBackdropProvider.NotifySubscriberOnlyInvalidation(this);
+            InvalidateVisual();
+        }
+
+        private void ApplyDeformation()
+        {
+            if (!IsInteractive || Bounds.Width <= 0 || Bounds.Height <= 0)
+            {
+                RenderTransform = null;
+                return;
+            }
+
+            double width = Bounds.Width;
+            double height = Bounds.Height;
+
+            double progress = Clamp(_pressProgress.Value, 0.0, 1.0);
+            double maxScale = Math.Max(0.0, InteractiveMaxScaleDip);
+
+            // Matches LiquidButton.kt layerBlock math (dp converted to px there; DIPs here).
+            double scale = Lerp(1.0, 1.0 + maxScale / height, progress);
+
+            Point offset = _position.Value - _startPosition;
+
+            double minDim = Math.Min(width, height);
+            double maxDim = Math.Max(width, height);
+
+            double tx = minDim * Math.Tanh(InitialDerivative * offset.X / minDim);
+            double ty = minDim * Math.Tanh(InitialDerivative * offset.Y / minDim);
+
+            double maxDragScale = maxScale / height;
+            double angle = Math.Atan2(offset.Y, offset.X);
+
+            double aspectX = Math.Min(width / height, 1.0);
+            double aspectY = Math.Min(height / width, 1.0);
+
+            double sx =
+                scale +
+                maxDragScale * Math.Abs(Math.Cos(angle) * offset.X / maxDim) * aspectX;
+
+            double sy =
+                scale +
+                maxDragScale * Math.Abs(Math.Sin(angle) * offset.Y / maxDim) * aspectY;
+
+            if (Math.Abs(tx) < 0.01 && Math.Abs(ty) < 0.01 && Math.Abs(sx - 1.0) < 0.0005 && Math.Abs(sy - 1.0) < 0.0005)
+                RenderTransform = null;
+            else
+                RenderTransform = new MatrixTransform(Matrix.CreateScale(sx, sy) * Matrix.CreateTranslation(tx, ty));
+        }
+
+        internal double GetInteractiveHighlightProgress()
+        {
+            if (!IsInteractive || !InteractiveHighlightEnabled)
+                return 0.0;
+
+            return Clamp(_pressProgress.Value, 0.0, 1.0);
+        }
+
+        internal Point GetInteractiveHighlightPosition()
+        {
+            return _position.Value;
+        }
+
+        protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
+        {
+            base.OnPropertyChanged(change);
+
+            if (change.Property == IsInteractiveProperty
+                || change.Property == InteractiveHighlightEnabledProperty
+                || change.Property == InteractiveMaxScaleDipProperty)
+            {
+                LiquidGlassBackdropProvider.NotifySubscriberOnlyInvalidation(this);
+                InteractiveOverlay?.InvalidateVisual();
+            }
+        }
+
+        private static double Lerp(double a, double b, double t)
+        {
+            return a + (b - a) * t;
+        }
+
+        private static double Clamp(double value, double min, double max)
+        {
+            if (value < min) return min;
+            if (value > max) return max;
+            return value;
+        }
+
+        private sealed class SpringDouble
+        {
+            private readonly double _stiffness;
+            private readonly double _dampingRatio;
+            private readonly double _threshold;
+
+            public SpringDouble(double stiffness, double dampingRatio, double threshold)
+            {
+                _stiffness = stiffness;
+                _dampingRatio = dampingRatio;
+                _threshold = threshold;
+            }
+
+            public double Value { get; private set; }
+            public double Velocity { get; private set; }
+            public double Target { get; set; }
+
+            public void SnapTo(double value)
+            {
+                Value = value;
+                Velocity = 0.0;
+            }
+
+            public bool Step(double dt)
+            {
+                double x = Value;
+                double v = Velocity;
+                double target = Target;
+
+                double k = _stiffness;
+                double c = 2.0 * _dampingRatio * Math.Sqrt(k);
+
+                double a = -k * (x - target) - c * v;
+                v += a * dt;
+                x += v * dt;
+
+                Value = x;
+                Velocity = v;
+
+                bool done = Math.Abs(x - target) <= _threshold && Math.Abs(v) <= _threshold;
+                if (done)
+                {
+                    Value = target;
+                    Velocity = 0.0;
+                }
+
+                return !done;
+            }
+        }
+
+        private sealed class SpringPoint
+        {
+            private readonly SpringDouble _x;
+            private readonly SpringDouble _y;
+
+            public SpringPoint(double stiffness, double dampingRatio, double positionThreshold)
+            {
+                _x = new SpringDouble(stiffness, dampingRatio, positionThreshold);
+                _y = new SpringDouble(stiffness, dampingRatio, positionThreshold);
+            }
+
+            public Point Value
+            {
+                get => new(_x.Value, _y.Value);
+            }
+
+            public Point Target
+            {
+                get => new(_x.Target, _y.Target);
+                set
+                {
+                    _x.Target = value.X;
+                    _y.Target = value.Y;
+                }
+            }
+
+            public void SnapTo(Point value)
+            {
+                _x.SnapTo(value.X);
+                _y.SnapTo(value.Y);
+            }
+
+            public bool Step(double dt)
+            {
+                return _x.Step(dt) | _y.Step(dt);
+            }
+        }
+    }
+}
+```
+
+### `MainSrc\Tools\LiquidGlassAvaloniaUI\LiquidGlassOverlays.cs`
+
+```csharp
+using Avalonia;
+using Avalonia.Controls;
+using Avalonia.Media;
+
+namespace LiquidGlassAvaloniaUI
+{
+    internal sealed class LiquidGlassInteractiveOverlay : Control
+    {
+        public override void Render(DrawingContext context)
+        {
+            if (LiquidGlassBackdropProvider.IsCapturing)
+                return;
+
+            if (TemplatedParent is not LiquidGlassInteractiveSurface surface)
+                return;
+
+            if (!surface.InteractiveHighlightEnabled)
+                return;
+
+            double progress = surface.GetInteractiveHighlightProgress();
+            if (progress <= 0.001)
+                return;
+
+            Rect bounds = new(0, 0, Bounds.Width, Bounds.Height);
+            LiquidGlassDrawParameters parameters = surface.CreateDrawParameters();
+            parameters.InteractiveProgress = progress;
+            parameters.InteractivePosition = surface.GetInteractiveHighlightPosition();
+
+            context.Custom(new LiquidGlassDrawOperation(bounds, parameters, null, LiquidGlassDrawPass.InteractiveHighlight));
+        }
+    }
+
+    internal sealed class LiquidGlassFrontOverlay : Control
+    {
+        public override void Render(DrawingContext context)
+        {
+            if (LiquidGlassBackdropProvider.IsCapturing)
+                return;
+
+            if (TemplatedParent is not LiquidGlassSurface surface)
+                return;
+
+            Rect bounds = new(0, 0, Bounds.Width, Bounds.Height);
+            LiquidGlassDrawParameters parameters = surface.CreateDrawParameters();
+
+            if (surface.HighlightEnabled)
+                context.Custom(new LiquidGlassDrawOperation(bounds, parameters, null, LiquidGlassDrawPass.Highlight));
+
+            if (surface.InnerShadowEnabled && parameters.InnerShadowOpacity > 0.001 && parameters.InnerShadowColor.A > 0)
+                context.Custom(new LiquidGlassInnerShadowDrawOperation(bounds, parameters));
+        }
+    }
+}
+```
+
+### `MainSrc\Tools\LiquidGlassAvaloniaUI\LiquidGlassPathUtils.cs`
+
+```csharp
+using System;
+using Avalonia;
+using Avalonia.Media;
+using SkiaSharp;
+
+namespace LiquidGlassAvaloniaUI
+{
+    internal static class LiquidGlassPathUtils
+    {
+        public static float[] GetCornerRadii(CornerRadius cornerRadius, float maxRadius)
+        {
+            float tl = (float)Clamp(cornerRadius.TopLeft, 0.0, maxRadius);
+            float tr = (float)Clamp(cornerRadius.TopRight, 0.0, maxRadius);
+            float br = (float)Clamp(cornerRadius.BottomRight, 0.0, maxRadius);
+            float bl = (float)Clamp(cornerRadius.BottomLeft, 0.0, maxRadius);
+            return new[]
+            {
+                tl, tr, br, bl
+            };
+        }
+
+        public static SKPath CreateRoundRectPath(SKRect rect, float[] cornerRadii)
+        {
+            using SKRoundRect rr = new();
+            rr.SetRectRadii(rect, new[]
+            {
+                new SKPoint(cornerRadii[0], cornerRadii[0]), new SKPoint(cornerRadii[1], cornerRadii[1]), new SKPoint(cornerRadii[2], cornerRadii[2]), new SKPoint(cornerRadii[3], cornerRadii[3])
+            });
+
+            SKPath path = new();
+            path.AddRoundRect(rr, SKPathDirection.Clockwise);
+            return path;
+        }
+
+        private static double Clamp(double value, double min, double max)
+        {
+            if (value < min) return min;
+            if (value > max) return max;
+            return value;
+        }
+    }
+}
+```
+
+### `MainSrc\Tools\LiquidGlassAvaloniaUI\LiquidGlassShadowDrawOperations.cs`
+
+```csharp
+using System;
+using Avalonia;
+using Avalonia.Media;
+using Avalonia.Platform;
+using Avalonia.Rendering.SceneGraph;
+using Avalonia.Skia;
+using SkiaSharp;
+
+namespace LiquidGlassAvaloniaUI
+{
+    internal sealed class LiquidGlassShadowDrawOperation : ICustomDrawOperation
+    {
+        private readonly Rect _controlBounds;
+        private readonly Rect _operationBounds;
+        private readonly LiquidGlassDrawParameters _parameters;
+
+        public LiquidGlassShadowDrawOperation(Rect controlBounds, LiquidGlassDrawParameters parameters)
+        {
+            _controlBounds = controlBounds;
+            _parameters = parameters;
+
+            double radius = Math.Max(0.0, parameters.ShadowRadius);
+            Vector offset = parameters.ShadowOffset;
+            double pad = radius * 2.0;
+
+            double leftPad = pad + Math.Max(0.0, -offset.X);
+            double topPad = pad + Math.Max(0.0, -offset.Y);
+            double rightPad = pad + Math.Max(0.0, offset.X);
+            double bottomPad = pad + Math.Max(0.0, offset.Y);
+
+            _operationBounds = new Rect(
+                -leftPad,
+                -topPad,
+                controlBounds.Width + leftPad + rightPad,
+                controlBounds.Height + topPad + bottomPad);
+        }
+
+        public void Dispose()
+        {
+        }
+
+        public bool HitTest(Point p)
+        {
+            return false;
+        }
+
+        public Rect Bounds
+        {
+            get => _operationBounds;
+        }
+
+        public bool Equals(ICustomDrawOperation? other)
+        {
+            return false;
+        }
+
+        public void Render(ImmediateDrawingContext context)
+        {
+            ISkiaSharpApiLeaseFeature? leaseFeature = context.TryGetFeature<ISkiaSharpApiLeaseFeature>();
+            if (leaseFeature is null)
+                return;
+
+            using ISkiaSharpApiLease lease = leaseFeature.Lease();
+            SKCanvas canvas = lease.SkCanvas;
+
+            SKSize size = new((float)_controlBounds.Width, (float)_controlBounds.Height);
+            if (size.Width <= 0 || size.Height <= 0)
+                return;
+
+            float radius = (float)Clamp(_parameters.ShadowRadius, 0.0, 512.0);
+            if (radius <= 0.001f)
+                return;
+
+            float opacity = (float)Clamp(_parameters.ShadowOpacity, 0.0, 1.0);
+            Color color = _parameters.ShadowColor;
+            byte alpha = (byte)Clamp(color.A * opacity, 0.0, 255.0);
+            if (alpha <= 0)
+                return;
+
+            float offsetX = (float)_parameters.ShadowOffset.X;
+            float offsetY = (float)_parameters.ShadowOffset.Y;
+
+            float maxRadius = Math.Min(size.Width, size.Height) * 0.5f;
+            float[] cornerRadii = LiquidGlassPathUtils.GetCornerRadii(_parameters.CornerRadius, maxRadius);
+            SKRect rect = SKRect.Create(0, 0, size.Width, size.Height);
+
+            using SKPath path = LiquidGlassPathUtils.CreateRoundRectPath(rect, cornerRadii);
+            using SKMaskFilter? blur = SKMaskFilter.CreateBlur(SKBlurStyle.Normal, radius);
+
+            using SKPaint shadowPaint = new()
+            {
+                Color = new SKColor(color.R, color.G, color.B, alpha),
+                MaskFilter = blur,
+                IsAntialias = true
+            };
+
+            using SKPaint clearPaint = new()
+            {
+                BlendMode = SKBlendMode.Clear,
+                IsAntialias = true
+            };
+
+            float pad = radius * 2.0f;
+            SKRect layerBounds = SKRect.Create(-pad, -pad, size.Width + pad * 2.0f, size.Height + pad * 2.0f);
+
+            canvas.SaveLayer(layerBounds, null);
+
+            canvas.Save();
+            canvas.Translate(offsetX, offsetY);
+            canvas.DrawPath(path, shadowPaint);
+            canvas.Restore();
+
+            canvas.DrawPath(path, clearPaint);
+
+            canvas.Restore();
+        }
+
+        private static double Clamp(double value, double min, double max)
+        {
+            if (value < min) return min;
+            if (value > max) return max;
+            return value;
+        }
+    }
+
+    internal sealed class LiquidGlassInnerShadowDrawOperation : ICustomDrawOperation
+    {
+        private readonly Rect _bounds;
+        private readonly LiquidGlassDrawParameters _parameters;
+
+        public LiquidGlassInnerShadowDrawOperation(Rect bounds, LiquidGlassDrawParameters parameters)
+        {
+            _bounds = bounds;
+            _parameters = parameters;
+        }
+
+        public void Dispose()
+        {
+        }
+
+        public bool HitTest(Point p)
+        {
+            return false;
+        }
+
+        public Rect Bounds
+        {
+            get => _bounds;
+        }
+
+        public bool Equals(ICustomDrawOperation? other)
+        {
+            return false;
+        }
+
+        public void Render(ImmediateDrawingContext context)
+        {
+            ISkiaSharpApiLeaseFeature? leaseFeature = context.TryGetFeature<ISkiaSharpApiLeaseFeature>();
+            if (leaseFeature is null)
+                return;
+
+            using ISkiaSharpApiLease lease = leaseFeature.Lease();
+            SKCanvas canvas = lease.SkCanvas;
+
+            SKSize size = new((float)_bounds.Width, (float)_bounds.Height);
+            if (size.Width <= 0 || size.Height <= 0)
+                return;
+
+            float radius = (float)Clamp(_parameters.InnerShadowRadius, 0.0, 512.0);
+            if (radius <= 0.001f)
+                return;
+
+            float opacity = (float)Clamp(_parameters.InnerShadowOpacity, 0.0, 1.0);
+            Color color = _parameters.InnerShadowColor;
+            byte alpha = (byte)Clamp(color.A * opacity, 0.0, 255.0);
+            if (alpha <= 0)
+                return;
+
+            float offsetX = (float)_parameters.InnerShadowOffset.X;
+            float offsetY = (float)_parameters.InnerShadowOffset.Y;
+
+            float maxRadius = Math.Min(size.Width, size.Height) * 0.5f;
+            float[] cornerRadii = LiquidGlassPathUtils.GetCornerRadii(_parameters.CornerRadius, maxRadius);
+            SKRect rect = SKRect.Create(0, 0, size.Width, size.Height);
+
+            using SKPath path = LiquidGlassPathUtils.CreateRoundRectPath(rect, cornerRadii);
+
+            using SKImageFilter blur = SKImageFilter.CreateBlur(radius, radius, SKShaderTileMode.Decal, null, rect);
+            using SKPaint layerPaint = new()
+            {
+                ImageFilter = blur
+            };
+
+            using SKPaint fillPaint = new()
+            {
+                Color = new SKColor(color.R, color.G, color.B, alpha),
+                IsAntialias = true
+            };
+
+            using SKPaint clearPaint = new()
+            {
+                BlendMode = SKBlendMode.Clear,
+                IsAntialias = true
+            };
+
+            canvas.Save();
+            canvas.ClipPath(path, SKClipOperation.Intersect, true);
+
+            canvas.SaveLayer(rect, layerPaint);
+            canvas.DrawPath(path, fillPaint);
+            canvas.Translate(offsetX, offsetY);
+            canvas.DrawPath(path, clearPaint);
+            canvas.Translate(-offsetX, -offsetY);
+            canvas.Restore();
+
+            canvas.Restore();
+        }
+
+        private static double Clamp(double value, double min, double max)
+        {
+            if (value < min) return min;
+            if (value > max) return max;
+            return value;
+        }
+    }
+}
+```
+
+### `MainSrc\Tools\LiquidGlassAvaloniaUI\LiquidGlassSurface.cs`
 
 ```csharp
 using System;
@@ -10801,1188 +14753,7 @@ namespace LiquidGlassAvaloniaUI
 }
 ```
 
-### `MainSrc\LiquidGlassAvaloniaUI\LiquidGlassBackdropSnapshot.cs`
-
-<!-- 231 行 / 7.6 KB -->
-
-```csharp
-using System;
-using System.Collections.Generic;
-using Avalonia;
-using SkiaSharp;
-
-namespace LiquidGlassAvaloniaUI
-{
-    internal sealed class LiquidGlassBackdropSnapshot : IDisposable
-    {
-        internal readonly struct FilteredKey : IEquatable<FilteredKey>
-        {
-            public FilteredKey(
-                int brightnessQ,
-                int contrastQ,
-                int saturationQ,
-                int exposureEvQ,
-                int opacityQ,
-                int blurSigmaPxQ,
-                int cropX,
-                int cropY,
-                int cropWidth,
-                int cropHeight,
-                int renderContextId)
-            {
-                BrightnessQ = brightnessQ;
-                ContrastQ = contrastQ;
-                SaturationQ = saturationQ;
-                ExposureEvQ = exposureEvQ;
-                OpacityQ = opacityQ;
-                BlurSigmaPxQ = blurSigmaPxQ;
-                CropX = cropX;
-                CropY = cropY;
-                CropWidth = cropWidth;
-                CropHeight = cropHeight;
-                RenderContextId = renderContextId;
-            }
-
-            public int BrightnessQ { get; }
-            public int ContrastQ { get; }
-            public int SaturationQ { get; }
-            public int ExposureEvQ { get; }
-            public int OpacityQ { get; }
-            public int BlurSigmaPxQ { get; }
-            public int CropX { get; }
-            public int CropY { get; }
-            public int CropWidth { get; }
-            public int CropHeight { get; }
-            public int RenderContextId { get; }
-
-            public bool Equals(FilteredKey other)
-            {
-                return BrightnessQ == other.BrightnessQ
-                       && ContrastQ == other.ContrastQ
-                       && SaturationQ == other.SaturationQ
-                       && ExposureEvQ == other.ExposureEvQ
-                       && OpacityQ == other.OpacityQ
-                       && BlurSigmaPxQ == other.BlurSigmaPxQ
-                       && CropX == other.CropX
-                       && CropY == other.CropY
-                       && CropWidth == other.CropWidth
-                       && CropHeight == other.CropHeight
-                       && RenderContextId == other.RenderContextId;
-            }
-
-            public override bool Equals(object? obj)
-            {
-                return obj is FilteredKey other && Equals(other);
-            }
-
-            public override int GetHashCode()
-            {
-                unchecked
-                {
-                    int hashCode = BrightnessQ;
-                    hashCode = hashCode * 397 ^ ContrastQ;
-                    hashCode = hashCode * 397 ^ SaturationQ;
-                    hashCode = hashCode * 397 ^ ExposureEvQ;
-                    hashCode = hashCode * 397 ^ OpacityQ;
-                    hashCode = hashCode * 397 ^ BlurSigmaPxQ;
-                    hashCode = hashCode * 397 ^ CropX;
-                    hashCode = hashCode * 397 ^ CropY;
-                    hashCode = hashCode * 397 ^ CropWidth;
-                    hashCode = hashCode * 397 ^ CropHeight;
-                    hashCode = hashCode * 397 ^ RenderContextId;
-                    return hashCode;
-                }
-            }
-        }
-
-        internal readonly struct FilteredResult
-        {
-            public FilteredResult(SKImage image, PixelPoint originInPixels)
-            {
-                Image = image ?? throw new ArgumentNullException(nameof(image));
-                OriginInPixels = originInPixels;
-            }
-
-            public SKImage Image { get; }
-
-            public PixelPoint OriginInPixels { get; }
-        }
-
-        private int _leases;
-        private int _disposeRequested;
-        private int _disposed;
-        private readonly object _filteredLock = new();
-        private Dictionary<FilteredKey, FilteredResult>? _filtered;
-        private Queue<FilteredKey>? _filteredOrder;
-        private const int MaxFilteredEntries = 8;
-
-        public LiquidGlassBackdropSnapshot(SKImage image, PixelPoint originInPixels, PixelSize pixelSize, double scaling)
-        {
-            Image = image ?? throw new ArgumentNullException(nameof(image));
-            OriginInPixels = originInPixels;
-            PixelSize = pixelSize;
-            Scaling = scaling;
-        }
-
-        public SKImage Image { get; }
-
-        /// <summary>
-        /// Snapshot origin in device pixels (TopLevel coordinate space).
-        /// </summary>
-        public PixelPoint OriginInPixels { get; }
-
-        public PixelSize PixelSize { get; }
-
-        public double Scaling { get; }
-
-        public bool TryGetFiltered(FilteredKey key, out FilteredResult result)
-        {
-            lock (_filteredLock)
-            {
-                if (_filtered is null)
-                {
-                    result = default;
-                    return false;
-                }
-
-                return _filtered.TryGetValue(key, out result);
-            }
-        }
-
-        public void StoreFiltered(FilteredKey key, FilteredResult result)
-        {
-            lock (_filteredLock)
-            {
-                _filtered ??= new Dictionary<FilteredKey, FilteredResult>();
-                _filteredOrder ??= new Queue<FilteredKey>();
-
-                if (_filtered.TryGetValue(key, out FilteredResult existing))
-                {
-                    existing.Image.Dispose();
-                    _filtered[key] = result;
-                    return;
-                }
-
-                _filtered[key] = result;
-                _filteredOrder.Enqueue(key);
-
-                while (_filtered.Count > MaxFilteredEntries && _filteredOrder.Count > 0)
-                {
-                    FilteredKey evictKey = _filteredOrder.Dequeue();
-                    if (_filtered.TryGetValue(evictKey, out FilteredResult evictValue) && !evictKey.Equals(key))
-                    {
-                        _filtered.Remove(evictKey);
-                        evictValue.Image.Dispose();
-                    }
-                }
-            }
-        }
-
-        public bool TryAddLease()
-        {
-            while (true)
-            {
-                if (System.Threading.Volatile.Read(ref _disposed) != 0)
-                    return false;
-
-                int current = System.Threading.Volatile.Read(ref _leases);
-                if (System.Threading.Interlocked.CompareExchange(ref _leases, current + 1, current) == current)
-                {
-                    if (System.Threading.Volatile.Read(ref _disposed) != 0)
-                    {
-                        ReleaseLease();
-                        return false;
-                    }
-
-                    return true;
-                }
-            }
-        }
-
-        public void ReleaseLease()
-        {
-            int remaining = System.Threading.Interlocked.Decrement(ref _leases);
-            if (remaining < 0)
-                return;
-
-            if (remaining == 0 && System.Threading.Volatile.Read(ref _disposeRequested) != 0)
-                Dispose();
-        }
-
-        public void RequestDispose()
-        {
-            System.Threading.Volatile.Write(ref _disposeRequested, 1);
-            if (System.Threading.Volatile.Read(ref _leases) == 0)
-                Dispose();
-        }
-
-        public void Dispose()
-        {
-            if (System.Threading.Interlocked.Exchange(ref _disposed, 1) != 0)
-                return;
-
-            lock (_filteredLock)
-            {
-                if (_filtered is not null)
-                {
-                    foreach (KeyValuePair<FilteredKey, FilteredResult> pair in _filtered)
-                        pair.Value.Image.Dispose();
-                    _filtered = null;
-                    _filteredOrder = null;
-                }
-            }
-
-            Image.Dispose();
-        }
-    }
-}
-```
-
-### `MainSrc\LiquidGlassAvaloniaUI\LiquidGlassDrawOperation.cs`
-
-<!-- 864 行 / 35 KB -->
-
-```csharp
-using System;
-using System.IO;
-using System.Runtime.CompilerServices;
-using Avalonia;
-using Avalonia.Media;
-using Avalonia.Platform;
-using Avalonia.Rendering.SceneGraph;
-using Avalonia.Skia;
-using SkiaSharp;
-
-namespace LiquidGlassAvaloniaUI
-{
-    internal class LiquidGlassDrawOperation : ICustomDrawOperation
-    {
-        private static SKRuntimeEffect? s_lensEffect;
-        private static SKRuntimeEffect? s_highlightEffect;
-        private static SKRuntimeEffect? s_gammaEffect;
-        private static SKRuntimeEffect? s_interactiveHighlightEffect;
-        private static SKRuntimeEffect? s_progressiveMaskEffect;
-        private static SKRuntimeEffect? s_backdropTransformEffect;
-        private static bool s_loaded;
-
-        private readonly Rect _bounds;
-        private readonly LiquidGlassDrawParameters _parameters;
-        private readonly LiquidGlassBackdropSnapshot? _backdropSnapshot;
-        private readonly LiquidGlassDrawPass _pass;
-
-        public LiquidGlassDrawOperation(
-            Rect bounds,
-            LiquidGlassDrawParameters parameters,
-            LiquidGlassBackdropSnapshot? snapshot,
-            LiquidGlassDrawPass pass)
-        {
-            _bounds = bounds;
-            _parameters = parameters;
-            _backdropSnapshot = snapshot is not null && snapshot.TryAddLease() ? snapshot : null;
-            _pass = pass;
-        }
-
-        public void Dispose()
-        {
-            _backdropSnapshot?.ReleaseLease();
-        }
-
-        public bool HitTest(Point p)
-        {
-            return false;
-        }
-
-        public Rect Bounds
-        {
-            get => _bounds;
-        }
-
-        public bool Equals(ICustomDrawOperation? other)
-        {
-            return false;
-        }
-
-        public void Render(ImmediateDrawingContext context)
-        {
-            ISkiaSharpApiLeaseFeature? leaseFeature = context.TryGetFeature<ISkiaSharpApiLeaseFeature>();
-            if (leaseFeature is null)
-                return;
-
-            LoadShaders();
-
-            using ISkiaSharpApiLease lease = leaseFeature.Lease();
-            SKCanvas canvas = lease.SkCanvas;
-
-            switch (_pass)
-            {
-                case LiquidGlassDrawPass.Lens:
-                    RenderLens(canvas, lease.GrContext);
-                    break;
-                case LiquidGlassDrawPass.InteractiveHighlight:
-                    RenderInteractiveHighlight(canvas);
-                    break;
-                case LiquidGlassDrawPass.Highlight:
-                    RenderHighlight(canvas);
-                    break;
-            }
-        }
-
-        private static void LoadShaders()
-        {
-            if (s_loaded)
-                return;
-            s_loaded = true;
-
-            s_lensEffect = LoadRuntimeEffect("avares://LiquidGlassAvaloniaUI/Assets/Shaders/LiquidGlassShader.sksl");
-            s_highlightEffect = LoadRuntimeEffect("avares://LiquidGlassAvaloniaUI/Assets/Shaders/LiquidGlassHighlight.sksl");
-            s_gammaEffect = LoadRuntimeEffect("avares://LiquidGlassAvaloniaUI/Assets/Shaders/LiquidGlassGamma.sksl");
-            s_interactiveHighlightEffect = LoadRuntimeEffect("avares://LiquidGlassAvaloniaUI/Assets/Shaders/LiquidGlassInteractiveHighlight.sksl");
-            s_progressiveMaskEffect = LoadRuntimeEffect("avares://LiquidGlassAvaloniaUI/Assets/Shaders/LiquidGlassProgressiveMask.sksl");
-            s_backdropTransformEffect = LoadRuntimeEffect("avares://LiquidGlassAvaloniaUI/Assets/Shaders/LiquidGlassBackdropTransform.sksl");
-        }
-
-        private static SKRuntimeEffect? LoadRuntimeEffect(string assetUriString)
-        {
-            try
-            {
-                Uri assetUri = new(assetUriString);
-                using Stream stream = AssetLoader.Open(assetUri);
-                using StreamReader reader = new(stream);
-                string shaderCode = reader.ReadToEnd();
-
-                SKRuntimeEffect? effect = SKRuntimeEffect.CreateShader(shaderCode, out string? errorText);
-                if (effect == null)
-                    Console.WriteLine($"[LiquidGlass] Failed to create SKRuntimeEffect ({assetUriString}): {errorText}");
-
-                return effect;
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"[LiquidGlass] Exception while loading shader ({assetUriString}): {ex.Message}");
-                return null;
-            }
-        }
-
-        private void RenderLens(SKCanvas canvas, GRContext? grContext)
-        {
-            if (s_lensEffect is null)
-            {
-                DrawErrorHint(canvas);
-                return;
-            }
-
-            if (_backdropSnapshot is null)
-            {
-                DrawBackdropNotReady(canvas);
-                return;
-            }
-
-            SKMatrix currentTransform = canvas.TotalMatrix;
-            if (!currentTransform.TryInvert(out SKMatrix currentInvertedTransform))
-                return;
-
-            SKSize size = new((float)_bounds.Width, (float)_bounds.Height);
-            if (size.Width <= 0 || size.Height <= 0)
-                return;
-
-            float maxRadius = Math.Min(size.Width, size.Height) * 0.5f;
-            float[] cornerRadii = GetCornerRadii(_parameters.CornerRadius, maxRadius);
-
-            // Pipeline order:
-            //   color controls (brightness/contrast/vibrancy) -> blur -> lens -> (optional gamma)
-            //
-            // In Avalonia we approximate the RenderEffect chain by applying an SKImageFilter pipeline to the
-            // captured backdrop snapshot, then sampling the filtered image in the lens runtime shader.
-            LiquidGlassBackdropSnapshot.FilteredResult filtered = GetOrCreateFilteredBackdrop(
-                _backdropSnapshot,
-                _parameters,
-                grContext,
-                currentTransform,
-                size);
-
-            using SKShader? backdropShader = SKShader.CreateImage(
-                filtered.Image,
-                SKShaderTileMode.Clamp,
-                SKShaderTileMode.Clamp,
-                WithPixelOrigin(currentInvertedTransform, filtered.OriginInPixels));
-
-            SKShader? lensInput = (SKShader)backdropShader;
-
-            SKShader? backdropTransformShader = null;
-            try
-            {
-                double zoomValue = _parameters.BackdropZoom;
-                if (zoomValue <= 0.0005 || double.IsNaN(zoomValue) || double.IsInfinity(zoomValue))
-                    zoomValue = 1.0;
-
-                float zoom = (float)Clamp(zoomValue, 0.1, 10.0);
-                Vector offset = _parameters.BackdropOffset;
-                bool needsTransform =
-                    Math.Abs(zoom - 1.0f) > 0.0005f
-                    || Math.Abs(offset.X) > 0.0005
-                    || Math.Abs(offset.Y) > 0.0005;
-
-                if (needsTransform && s_backdropTransformEffect is not null)
-                {
-                    using SKRuntimeEffectUniforms uniforms = new(s_backdropTransformEffect);
-                    uniforms["size"] = new[]
-                    {
-                        size.Width, size.Height
-                    };
-                    uniforms["zoom"] = zoom;
-                    uniforms["offset"] = new[]
-                    {
-                        (float)offset.X, (float)offset.Y
-                    };
-
-                    using SKRuntimeEffectChildren children = new(s_backdropTransformEffect);
-                    children["content"] = lensInput;
-
-                    backdropTransformShader = s_backdropTransformEffect.ToShader(uniforms, children);
-                    if (backdropTransformShader is not null)
-                        lensInput = backdropTransformShader;
-                }
-
-                float refractionHeight = (float)Clamp(_parameters.RefractionHeight, 0.0, Math.Min(size.Width, size.Height) * 0.5);
-                float refractionAmount = (float)_parameters.RefractionAmount;
-                bool applyLens = refractionHeight > 0.001f && Math.Abs(refractionAmount) > 0.001f;
-
-                SKShader? lensShader = null;
-                if (applyLens)
-                {
-                    using SKRuntimeEffectUniforms lensUniforms = new(s_lensEffect);
-                    lensUniforms["size"] = new[]
-                    {
-                        size.Width, size.Height
-                    };
-                    lensUniforms["cornerRadii"] = cornerRadii;
-                    lensUniforms["refractionHeight"] = refractionHeight;
-                    // The lens shader expects a negative refraction amount.
-                    lensUniforms["refractionAmount"] = -refractionAmount;
-                    lensUniforms["depthEffect"] = _parameters.DepthEffect ? 1.0f : 0.0f;
-                    lensUniforms["chromaticAberration"] = _parameters.ChromaticAberration ? 1.0f : 0.0f;
-
-                    using SKRuntimeEffectChildren lensChildren = new(s_lensEffect);
-                    lensChildren["content"] = lensInput;
-
-                    lensShader = s_lensEffect.ToShader(lensUniforms, lensChildren);
-                }
-
-                SKShader? baseShader = lensShader ?? lensInput;
-
-                SKShader? progressiveMaskShader = null;
-                try
-                {
-                    if (_parameters.ProgressiveBlurEnabled
-                        && s_progressiveMaskEffect is not null)
-                    {
-                        using SKRuntimeEffectUniforms uniforms = new(s_progressiveMaskEffect);
-                        uniforms["size"] = new[]
-                        {
-                            size.Width, size.Height
-                        };
-                        uniforms["start"] = (float)Clamp(_parameters.ProgressiveBlurStart, 0.0, 1.0);
-                        uniforms["end"] = (float)Clamp(_parameters.ProgressiveBlurEnd, 0.0, 1.0);
-
-                        Color tint = _parameters.ProgressiveTintColor;
-                        uniforms["tint"] = new[]
-                        {
-                            tint.R / 255f, tint.G / 255f, tint.B / 255f, tint.A / 255f
-                        };
-
-                        float tintIntensity = tint.A > 0
-                            ? (float)Clamp(_parameters.ProgressiveTintIntensity, 0.0, 1.0)
-                            : 0.0f;
-                        uniforms["tintIntensity"] = tintIntensity;
-
-                        using SKRuntimeEffectChildren children = new(s_progressiveMaskEffect);
-                        children["content"] = baseShader;
-
-                        progressiveMaskShader = s_progressiveMaskEffect.ToShader(uniforms, children);
-                        if (progressiveMaskShader is not null)
-                            baseShader = progressiveMaskShader;
-                    }
-
-                    SKShader? gammaShader = null;
-                    try
-                    {
-                        float gammaPower = (float)Clamp(_parameters.GammaPower, 0.0, 10.0);
-                        if (s_gammaEffect is not null && Math.Abs(gammaPower - 1.0f) > 0.0005f)
-                        {
-                            using SKRuntimeEffectUniforms uniforms = new(s_gammaEffect);
-                            uniforms["power"] = gammaPower;
-                            using SKRuntimeEffectChildren children = new(s_gammaEffect);
-                            children["content"] = baseShader;
-                            gammaShader = s_gammaEffect.ToShader(uniforms, children);
-                        }
-
-                        using SKPaint paint = new()
-                        {
-                            Shader = gammaShader ?? baseShader,
-                            IsAntialias = true
-                        };
-
-                        SKRect rect = SKRect.Create(0, 0, size.Width, size.Height);
-                        using SKPath clipPath = CreateRoundRectPath(rect, cornerRadii);
-
-                        canvas.Save();
-                        canvas.ClipPath(clipPath, SKClipOperation.Intersect, true);
-                        canvas.DrawRect(rect, paint);
-
-                        DrawSurfaceOverlay(canvas, rect);
-
-                        canvas.Restore();
-                    }
-                    finally
-                    {
-                        gammaShader?.Dispose();
-                    }
-                }
-                finally
-                {
-                    progressiveMaskShader?.Dispose();
-                    lensShader?.Dispose();
-                }
-            }
-            finally
-            {
-                backdropTransformShader?.Dispose();
-            }
-
-        }
-
-        private static LiquidGlassBackdropSnapshot.FilteredResult GetOrCreateFilteredBackdrop(
-            LiquidGlassBackdropSnapshot snapshot,
-            LiquidGlassDrawParameters parameters,
-            GRContext? grContext,
-            SKMatrix currentTransform,
-            SKSize localSize)
-        {
-            float brightness = (float)Clamp(parameters.Brightness, -1.0, 1.0);
-            float contrast = (float)Clamp(parameters.Contrast, 0.0, 4.0);
-            float saturation = (float)Clamp(parameters.Vibrancy, 0.0, 4.0);
-            float exposureEv = (float)Clamp(parameters.ExposureEv, -8.0, 8.0);
-            float opacity = (float)Clamp(parameters.BackdropOpacity, 0.0, 1.0);
-
-            float blurSigmaPx = (float)(Clamp(parameters.BlurRadius, 0.0, 256.0) * snapshot.Scaling);
-
-            bool isIdentity =
-                Math.Abs(brightness) < 0.0005f
-                && Math.Abs(contrast - 1.0f) < 0.0005f
-                && Math.Abs(saturation - 1.0f) < 0.0005f
-                && Math.Abs(exposureEv) < 0.0005f
-                && Math.Abs(opacity - 1.0f) < 0.0005f
-                && blurSigmaPx <= 0.0005f;
-
-            if (isIdentity)
-            {
-                LiquidGlassDiagnostics.RecordFilterIdentityHit();
-                return new LiquidGlassBackdropSnapshot.FilteredResult(snapshot.Image, snapshot.OriginInPixels);
-            }
-
-            SKRectI cropRect = CalculateFilterCrop(snapshot, parameters, currentTransform, localSize);
-
-            // Quantize to keep the cache size stable during slider drags.
-            const float q = 1000.0f;
-            LiquidGlassBackdropSnapshot.FilteredKey key = new(
-                (int)Math.Round(brightness * q),
-                (int)Math.Round(contrast * q),
-                (int)Math.Round(saturation * q),
-                (int)Math.Round(exposureEv * q),
-                (int)Math.Round(opacity * q),
-                (int)Math.Round(blurSigmaPx * q),
-                cropRect.Left,
-                cropRect.Top,
-                cropRect.Width,
-                cropRect.Height,
-                GetRenderContextId(grContext));
-
-            if (snapshot.TryGetFiltered(key, out LiquidGlassBackdropSnapshot.FilteredResult cached))
-            {
-                LiquidGlassDiagnostics.RecordFilterCacheHit();
-                return cached;
-            }
-
-            LiquidGlassDiagnostics.RecordFilterCacheMiss();
-
-            LiquidGlassBackdropSnapshot.FilteredResult filtered = CreateFilteredBackdrop(snapshot, cropRect, brightness, contrast, saturation, exposureEv, opacity, blurSigmaPx, grContext)
-                                                                  ?? new LiquidGlassBackdropSnapshot.FilteredResult(snapshot.Image, snapshot.OriginInPixels);
-
-            // Never cache the unfiltered snapshot image (it is owned/disposed separately).
-            if (!ReferenceEquals(filtered.Image, snapshot.Image))
-                snapshot.StoreFiltered(key, filtered);
-
-            return filtered;
-        }
-
-        private static LiquidGlassBackdropSnapshot.FilteredResult? CreateFilteredBackdrop(
-            LiquidGlassBackdropSnapshot snapshot,
-            SKRectI cropRect,
-            float brightness,
-            float contrast,
-            float saturation,
-            float exposureEv,
-            float opacity,
-            float blurSigmaPx,
-            GRContext? grContext)
-        {
-            SKImage source = snapshot.Image;
-            bool isFullCrop =
-                cropRect.Left == 0
-                && cropRect.Top == 0
-                && cropRect.Width == source.Width
-                && cropRect.Height == source.Height;
-
-            using SKImage? croppedSource = isFullCrop ? null : source.Subset(cropRect);
-            SKImage filterSource = croppedSource ?? source;
-            PixelPoint filteredOrigin = isFullCrop
-                ? snapshot.OriginInPixels
-                : new PixelPoint(snapshot.OriginInPixels.X + cropRect.Left, snapshot.OriginInPixels.Y + cropRect.Top);
-
-            SKImageFilter? filter = null;
-
-            bool needsColorControls =
-                Math.Abs(brightness) > 0.0005f
-                || Math.Abs(contrast - 1.0f) > 0.0005f
-                || Math.Abs(saturation - 1.0f) > 0.0005f;
-
-            if (needsColorControls)
-            {
-                using SKColorFilter? colorFilter = SKColorFilter.CreateColorMatrix(CreateColorControlsColorMatrix(brightness, contrast, saturation));
-                filter = SKImageFilter.CreateColorFilter(colorFilter, filter);
-            }
-
-            if (Math.Abs(exposureEv) > 0.0005f)
-            {
-                using SKColorFilter? colorFilter = SKColorFilter.CreateColorMatrix(CreateExposureColorMatrix(exposureEv));
-                filter = SKImageFilter.CreateColorFilter(colorFilter, filter);
-            }
-
-            if (Math.Abs(opacity - 1.0f) > 0.0005f)
-            {
-                using SKColorFilter? colorFilter = SKColorFilter.CreateColorMatrix(CreateOpacityColorMatrix(opacity));
-                filter = SKImageFilter.CreateColorFilter(colorFilter, filter);
-            }
-
-            if (blurSigmaPx > 0.0005f)
-            {
-                // Use TileMode.Clamp: Skia's default tile mode can introduce alpha falloff near image edges (kDecal),
-                // which shows up as darkened borders when the snapshot is clipped by the window bounds.
-                SKRect filterCropRect = new(0, 0, filterSource.Width, filterSource.Height);
-                filter = SKImageFilter.CreateBlur(blurSigmaPx, blurSigmaPx, SKShaderTileMode.Clamp, filter, filterCropRect);
-            }
-
-            if (filter is null)
-                return null;
-
-            using (filter)
-            {
-                // ApplyImageFilter() can return a varying offset/subset for blur radii, which can cause the
-                // sampled backdrop to appear to "drift" while dragging the blur slider. Instead, render the
-                // filtered snapshot into an explicit same-size surface at (0,0) so the origin remains stable.
-                SKImageInfo info = new(filterSource.Width, filterSource.Height, filterSource.ColorType, filterSource.AlphaType, filterSource.ColorSpace);
-                using SKSurface? surface = CreateFilterSurface(info, grContext);
-                if (surface is null)
-                {
-                    LiquidGlassDiagnostics.RecordFilterSurfaceFailure();
-                    return null;
-                }
-
-                SKCanvas? canvas = surface.Canvas;
-                canvas.Clear(SKColors.Transparent);
-
-                using SKPaint paint = new()
-                {
-                    ImageFilter = filter,
-                    BlendMode = SKBlendMode.Src
-                };
-
-                canvas.DrawImage(filterSource, 0, 0, paint);
-                canvas.Flush();
-
-                SKImage? filteredImage = surface.Snapshot();
-                return new LiquidGlassBackdropSnapshot.FilteredResult(filteredImage, filteredOrigin);
-            }
-        }
-
-        private static SKRectI CalculateFilterCrop(
-            LiquidGlassBackdropSnapshot snapshot,
-            LiquidGlassDrawParameters parameters,
-            SKMatrix currentTransform,
-            SKSize localSize)
-        {
-            SKImage source = snapshot.Image;
-            SKRectI full = new(0, 0, source.Width, source.Height);
-
-            if (localSize.Width <= 0 || localSize.Height <= 0)
-                return full;
-
-            if (Math.Abs(currentTransform.Persp0) > 0.000001f
-                || Math.Abs(currentTransform.Persp1) > 0.000001f
-                || Math.Abs(currentTransform.Persp2 - 1.0f) > 0.000001f)
-            {
-                return full;
-            }
-
-            SKRect deviceBounds = MapRect(currentTransform, SKRect.Create(0, 0, localSize.Width, localSize.Height));
-            if (deviceBounds.Width <= 0 || deviceBounds.Height <= 0)
-                return full;
-
-            double margin = CalculateFilterMarginPx(parameters, localSize, snapshot.Scaling);
-
-            int left = (int)Math.Floor(deviceBounds.Left - snapshot.OriginInPixels.X - margin);
-            int top = (int)Math.Floor(deviceBounds.Top - snapshot.OriginInPixels.Y - margin);
-            int right = (int)Math.Ceiling(deviceBounds.Right - snapshot.OriginInPixels.X + margin);
-            int bottom = (int)Math.Ceiling(deviceBounds.Bottom - snapshot.OriginInPixels.Y + margin);
-
-            left = Math.Clamp(left, 0, source.Width);
-            top = Math.Clamp(top, 0, source.Height);
-            right = Math.Clamp(right, left, source.Width);
-            bottom = Math.Clamp(bottom, top, source.Height);
-
-            if (right <= left || bottom <= top)
-                return full;
-
-            return new SKRectI(left, top, right, bottom);
-        }
-
-        private static double CalculateFilterMarginPx(LiquidGlassDrawParameters parameters, SKSize localSize, double scaling)
-        {
-            double zoomValue = parameters.BackdropZoom;
-            if (zoomValue <= 0.0005 || double.IsNaN(zoomValue) || double.IsInfinity(zoomValue))
-                zoomValue = 1.0;
-
-            double zoom = Clamp(zoomValue, 0.1, 10.0);
-            Vector offset = parameters.BackdropOffset;
-            double offsetMargin = Math.Max(Math.Abs(offset.X), Math.Abs(offset.Y)) / zoom;
-
-            double zoomOutMargin = 0.0;
-            if (zoom < 1.0)
-            {
-                double halfMaxSize = Math.Max(localSize.Width, localSize.Height) * 0.5;
-                zoomOutMargin = (1.0 / zoom - 1.0) * halfMaxSize;
-            }
-
-            double refractionMargin = Math.Abs(parameters.RefractionAmount) * (parameters.ChromaticAberration ? 2.0 : 1.0);
-            double blurMargin = parameters.BlurRadius * 3.0;
-
-            return Math.Max(8.0, refractionMargin + blurMargin + offsetMargin + zoomOutMargin + 8.0) * scaling;
-        }
-
-        private static SKRect MapRect(SKMatrix matrix, SKRect rect)
-        {
-            float x0 = matrix.ScaleX * rect.Left + matrix.SkewX * rect.Top + matrix.TransX;
-            float y0 = matrix.SkewY * rect.Left + matrix.ScaleY * rect.Top + matrix.TransY;
-            float x1 = matrix.ScaleX * rect.Right + matrix.SkewX * rect.Top + matrix.TransX;
-            float y1 = matrix.SkewY * rect.Right + matrix.ScaleY * rect.Top + matrix.TransY;
-            float x2 = matrix.ScaleX * rect.Right + matrix.SkewX * rect.Bottom + matrix.TransX;
-            float y2 = matrix.SkewY * rect.Right + matrix.ScaleY * rect.Bottom + matrix.TransY;
-            float x3 = matrix.ScaleX * rect.Left + matrix.SkewX * rect.Bottom + matrix.TransX;
-            float y3 = matrix.SkewY * rect.Left + matrix.ScaleY * rect.Bottom + matrix.TransY;
-
-            float left = Math.Min(Math.Min(x0, x1), Math.Min(x2, x3));
-            float top = Math.Min(Math.Min(y0, y1), Math.Min(y2, y3));
-            float right = Math.Max(Math.Max(x0, x1), Math.Max(x2, x3));
-            float bottom = Math.Max(Math.Max(y0, y1), Math.Max(y2, y3));
-
-            return new SKRect(left, top, right, bottom);
-        }
-
-        private static SKSurface? CreateFilterSurface(SKImageInfo info, GRContext? grContext)
-        {
-            if (grContext is not null)
-            {
-                SKSurface? gpuSurface = SKSurface.Create(grContext, false, info);
-                if (gpuSurface is not null)
-                {
-                    LiquidGlassDiagnostics.RecordFilterGpuSurface();
-                    return gpuSurface;
-                }
-            }
-
-            SKSurface? cpuSurface = SKSurface.Create(info);
-            if (cpuSurface is not null)
-                LiquidGlassDiagnostics.RecordFilterCpuSurface();
-
-            return cpuSurface;
-        }
-
-        private static int GetRenderContextId(GRContext? grContext)
-        {
-            return grContext is null ? 0 : RuntimeHelpers.GetHashCode(grContext);
-        }
-
-        private static float[] CreateColorControlsColorMatrix(float brightness, float contrast, float saturation)
-        {
-            // Color-controls matrix (brightness/contrast/saturation).
-            // Note: Skia's color matrix operates on normalized (0..1) colors.
-            float invSat = 1f - saturation;
-            float r = 0.213f * invSat;
-            float g = 0.715f * invSat;
-            float b = 0.072f * invSat;
-
-            float c = contrast;
-            // Translation terms must also be normalized.
-            float t = 0.5f - c * 0.5f + brightness;
-            float s = saturation;
-
-            float cr = c * r;
-            float cg = c * g;
-            float cb = c * b;
-            float cs = c * s;
-
-            return new[]
-            {
-                cr + cs, cg, cb, 0f, t, cr, cg + cs, cb, 0f, t, cr, cg, cb + cs, 0f, t, 0f, 0f, 0f, 1f, 0f
-            };
-        }
-
-        private static float[] CreateExposureColorMatrix(float ev)
-        {
-            float scale = (float)Math.Pow(2.0, ev / 2.2);
-            return new[]
-            {
-                scale, 0f, 0f, 0f, 0f, 0f, scale, 0f, 0f, 0f, 0f, 0f, scale, 0f, 0f, 0f, 0f, 0f, 1f, 0f
-            };
-        }
-
-        private static float[] CreateOpacityColorMatrix(float alpha)
-        {
-            return new[]
-            {
-                1f, 0f, 0f, 0f, 0f, 0f, 1f, 0f, 0f, 0f, 0f, 0f, 1f, 0f, 0f, 0f, 0f, 0f, alpha, 0f
-            };
-        }
-
-        private void RenderInteractiveHighlight(SKCanvas canvas)
-        {
-            if (s_interactiveHighlightEffect is null)
-                return;
-
-            float progress = (float)Clamp(_parameters.InteractiveProgress, 0.0, 1.0);
-            if (progress <= 0.001f)
-                return;
-
-            SKSize size = new((float)_bounds.Width, (float)_bounds.Height);
-            if (size.Width <= 0 || size.Height <= 0)
-                return;
-
-            float maxRadius = Math.Min(size.Width, size.Height) * 0.5f;
-            float[] cornerRadii = GetCornerRadii(_parameters.CornerRadius, maxRadius);
-
-            SKRect rect = SKRect.Create(0, 0, size.Width, size.Height);
-            using SKPath clipPath = CreateRoundRectPath(rect, cornerRadii);
-
-            canvas.Save();
-            canvas.ClipPath(clipPath, SKClipOperation.Intersect, true);
-
-            using (SKPaint basePaint = new()
-                {
-                    Color = new SKColor(255, 255, 255, (byte)Clamp(0.08f * progress * 255f, 0f, 255f)),
-                    BlendMode = SKBlendMode.Plus,
-                    IsAntialias = true
-                })
-            {
-                canvas.DrawRect(rect, basePaint);
-            }
-
-            using SKRuntimeEffectUniforms uniforms = new(s_interactiveHighlightEffect);
-            uniforms["size"] = new[]
-            {
-                size.Width, size.Height
-            };
-            uniforms["color"] = new[]
-            {
-                1.0f, 1.0f, 1.0f, (float)Clamp(0.15 * progress, 0.0, 1.0)
-            };
-            uniforms["radius"] = Math.Min(size.Width, size.Height) * 1.5f;
-            uniforms["position"] = new[]
-            {
-                (float)Clamp(_parameters.InteractivePosition.X, 0.0, size.Width), (float)Clamp(_parameters.InteractivePosition.Y, 0.0, size.Height)
-            };
-
-            using SKRuntimeEffectChildren children = new(s_interactiveHighlightEffect);
-            using SKShader? shader = s_interactiveHighlightEffect.ToShader(uniforms, children);
-
-            if (shader is not null)
-            {
-                using SKPaint paint = new()
-                {
-                    Shader = shader,
-                    BlendMode = SKBlendMode.Plus,
-                    IsAntialias = true
-                };
-                canvas.DrawRect(rect, paint);
-            }
-
-            canvas.Restore();
-        }
-
-        private void RenderHighlight(SKCanvas canvas)
-        {
-            if (s_highlightEffect is null)
-                return;
-
-            if (_parameters.HighlightOpacity <= 0.001 || _parameters.HighlightWidth <= 0.001)
-                return;
-
-            SKSize size = new((float)_bounds.Width, (float)_bounds.Height);
-            if (size.Width <= 0 || size.Height <= 0)
-                return;
-
-            float maxRadius = Math.Min(size.Width, size.Height) * 0.5f;
-            float[] cornerRadii = GetCornerRadii(_parameters.CornerRadius, maxRadius);
-
-            using SKRuntimeEffectUniforms uniforms = new(s_highlightEffect);
-            uniforms["size"] = new[]
-            {
-                size.Width, size.Height
-            };
-            uniforms["cornerRadii"] = cornerRadii;
-
-            float alpha = (float)Clamp(_parameters.HighlightOpacity, 0.0, 1.0);
-            uniforms["color"] = new[]
-            {
-                1.0f, 1.0f, 1.0f, alpha
-            };
-
-            float angleRad = (float)(_parameters.HighlightAngleDegrees * (Math.PI / 180.0));
-            uniforms["angle"] = angleRad;
-            uniforms["falloff"] = (float)Clamp(_parameters.HighlightFalloff, 0.0, 8.0);
-
-            using SKRuntimeEffectChildren children = new(s_highlightEffect);
-            using SKShader? shader = s_highlightEffect.ToShader(uniforms, children);
-            if (shader is null)
-                return;
-
-            float blurRadius = (float)Clamp(_parameters.HighlightBlurRadius, 0.0, 20.0);
-            using SKMaskFilter? maskFilter = blurRadius > 0.001f
-                ? SKMaskFilter.CreateBlur(SKBlurStyle.Normal, blurRadius)
-                : null;
-
-            float strokeWidth = (float)(Math.Ceiling(Clamp(_parameters.HighlightWidth, 0.0, 100.0)) * 2.0);
-
-            using SKPaint paint = new()
-            {
-                Shader = shader,
-                IsAntialias = true,
-                BlendMode = SKBlendMode.Plus,
-                Style = SKPaintStyle.Stroke,
-                StrokeJoin = SKStrokeJoin.Round,
-                StrokeCap = SKStrokeCap.Round,
-                StrokeWidth = Math.Max(0.5f, strokeWidth),
-                MaskFilter = maskFilter
-            };
-
-            SKRect rect = SKRect.Create(0, 0, size.Width, size.Height);
-            using SKPath path = CreateRoundRectPath(rect, cornerRadii);
-
-            // Pad the highlight layer to avoid edge artifacts when transformed and/or rasterized into an intermediate surface.
-            const float safePad = 1.0f;
-
-            canvas.Save();
-            canvas.Translate(-safePad, -safePad);
-            SKRect layerBounds = SKRect.Create(0, 0, size.Width + safePad * 2.0f, size.Height + safePad * 2.0f);
-            canvas.SaveLayer(layerBounds, null);
-
-            canvas.Translate(safePad, safePad);
-            canvas.ClipPath(path, SKClipOperation.Intersect, true);
-            canvas.DrawPath(path, paint);
-
-            canvas.Restore();
-            canvas.Restore();
-        }
-
-        private void DrawSurfaceOverlay(SKCanvas canvas, SKRect rect)
-        {
-            // Optional tint/surface overlays. If TintColor is specified, it draws it twice: Hue blend + alpha fill.
-            if (_parameters.TintColor.A > 0)
-            {
-                Color tint = _parameters.TintColor;
-                using SKPaint huePaint = new()
-                {
-                    Color = new SKColor(tint.R, tint.G, tint.B, 255),
-                    IsAntialias = true,
-                    BlendMode = SKBlendMode.Hue
-                };
-                canvas.DrawRect(rect, huePaint);
-
-                using SKPaint fillPaint = new()
-                {
-                    Color = new SKColor(tint.R, tint.G, tint.B, (byte)Clamp(tint.A * 0.75, 0.0, 255.0)),
-                    IsAntialias = true,
-                    BlendMode = SKBlendMode.SrcOver
-                };
-                canvas.DrawRect(rect, fillPaint);
-            }
-
-            if (_parameters.SurfaceColor.A > 0)
-            {
-                Color surface = _parameters.SurfaceColor;
-                using SKPaint paint = new()
-                {
-                    Color = new SKColor(surface.R, surface.G, surface.B, surface.A),
-                    IsAntialias = true,
-                    BlendMode = SKBlendMode.SrcOver
-                };
-                canvas.DrawRect(rect, paint);
-            }
-        }
-
-        private static float[] GetCornerRadii(CornerRadius cornerRadius, float maxRadius)
-        {
-            float tl = (float)Clamp(cornerRadius.TopLeft, 0.0, maxRadius);
-            float tr = (float)Clamp(cornerRadius.TopRight, 0.0, maxRadius);
-            float br = (float)Clamp(cornerRadius.BottomRight, 0.0, maxRadius);
-            float bl = (float)Clamp(cornerRadius.BottomLeft, 0.0, maxRadius);
-            return new[]
-            {
-                tl, tr, br, bl
-            };
-        }
-
-        private static SKPath CreateRoundRectPath(SKRect rect, float[] cornerRadii)
-        {
-            using SKRoundRect rr = new();
-            rr.SetRectRadii(rect, new[]
-            {
-                new SKPoint(cornerRadii[0], cornerRadii[0]), new SKPoint(cornerRadii[1], cornerRadii[1]), new SKPoint(cornerRadii[2], cornerRadii[2]), new SKPoint(cornerRadii[3], cornerRadii[3])
-            });
-
-            SKPath path = new();
-            path.AddRoundRect(rr, SKPathDirection.Clockwise);
-            return path;
-        }
-
-        private void DrawErrorHint(SKCanvas canvas)
-        {
-            using SKPaint errorPaint = new()
-            {
-                Color = new SKColor(255, 0, 0, 120),
-                Style = SKPaintStyle.Fill
-            };
-
-            canvas.DrawRect(SKRect.Create(0, 0, (float)_bounds.Width, (float)_bounds.Height), errorPaint);
-        }
-
-        private void DrawBackdropNotReady(SKCanvas canvas)
-        {
-            SKSize size = new((float)_bounds.Width, (float)_bounds.Height);
-            SKRect rect = SKRect.Create(0, 0, size.Width, size.Height);
-
-            float maxRadius = Math.Min(size.Width, size.Height) * 0.5f;
-            float[] cornerRadii = GetCornerRadii(_parameters.CornerRadius, maxRadius);
-            using SKPath path = CreateRoundRectPath(rect, cornerRadii);
-
-            using SKPaint paint = new()
-            {
-                Color = new SKColor(255, 255, 255, 32),
-                IsAntialias = true
-            };
-
-            canvas.Save();
-            canvas.ClipPath(path, SKClipOperation.Intersect, true);
-            canvas.DrawRect(rect, paint);
-            canvas.Restore();
-        }
-
-        private static double Clamp(double value, double min, double max)
-        {
-            if (value < min) return min;
-            if (value > max) return max;
-            return value;
-        }
-
-        private static SKMatrix WithPixelOrigin(SKMatrix invertedTransform, PixelPoint originInPixels)
-        {
-            // localMatrix = invertedTransform * Translate(+originInPixels)
-            //
-            // We first cancel the current canvas transform (so shader coordinates become device pixels),
-            // then shift into the clipped snapshot's coordinate system.
-            float ox = (float)originInPixels.X;
-            float oy = (float)originInPixels.Y;
-            invertedTransform.TransX = invertedTransform.TransX + invertedTransform.ScaleX * ox + invertedTransform.SkewX * oy;
-            invertedTransform.TransY = invertedTransform.TransY + invertedTransform.SkewY * ox + invertedTransform.ScaleY * oy;
-            return invertedTransform;
-        }
-    }
-}
-```
-
-### `MainSrc\LiquidGlassAvaloniaUI\LiquidGlassDrawParameters.cs`
-
-<!-- 65 行 / 2.2 KB -->
-
-```csharp
-using Avalonia;
-using Avalonia.Media;
-
-namespace LiquidGlassAvaloniaUI
-{
-    internal enum LiquidGlassDrawPass
-    {
-        Lens,
-        InteractiveHighlight,
-        Highlight
-    }
-
-    internal struct LiquidGlassDrawParameters
-    {
-        public CornerRadius CornerRadius { get; set; }
-
-        public double BackdropZoom { get; set; }
-        public Vector BackdropOffset { get; set; }
-
-        public double RefractionHeight { get; set; }
-        public double RefractionAmount { get; set; }
-        public bool DepthEffect { get; set; }
-        public bool ChromaticAberration { get; set; }
-
-        public double BlurRadius { get; set; }
-        public double Vibrancy { get; set; }
-        public double Brightness { get; set; }
-        public double Contrast { get; set; }
-        public double ExposureEv { get; set; }
-        public double GammaPower { get; set; }
-        public double BackdropOpacity { get; set; }
-
-        public Color TintColor { get; set; }
-        public Color SurfaceColor { get; set; }
-
-        public bool ProgressiveBlurEnabled { get; set; }
-        public double ProgressiveBlurStart { get; set; }
-        public double ProgressiveBlurEnd { get; set; }
-        public Color ProgressiveTintColor { get; set; }
-        public double ProgressiveTintIntensity { get; set; }
-
-        public bool HighlightEnabled { get; set; }
-        public double HighlightWidth { get; set; }
-        public double HighlightBlurRadius { get; set; }
-        public double HighlightOpacity { get; set; }
-        public double HighlightAngleDegrees { get; set; }
-        public double HighlightFalloff { get; set; }
-
-        public double InteractiveProgress { get; set; }
-        public Point InteractivePosition { get; set; }
-
-        public bool ShadowEnabled { get; set; }
-        public double ShadowRadius { get; set; }
-        public Vector ShadowOffset { get; set; }
-        public Color ShadowColor { get; set; }
-        public double ShadowOpacity { get; set; }
-
-        public bool InnerShadowEnabled { get; set; }
-        public double InnerShadowRadius { get; set; }
-        public Vector InnerShadowOffset { get; set; }
-        public Color InnerShadowColor { get; set; }
-        public double InnerShadowOpacity { get; set; }
-    }
-}
-```
-
-### `MainSrc\LiquidGlassAvaloniaUI\LiquidGlassVisualRenderer.cs`
-
-<!-- 154 行 / 5.4 KB -->
+### `MainSrc\Tools\LiquidGlassAvaloniaUI\LiquidGlassVisualRenderer.cs`
 
 ```csharp
 using System;
@@ -12140,1034 +14911,169 @@ namespace LiquidGlassAvaloniaUI
 }
 ```
 
-### `MainSrc\LiquidGlassAvaloniaUI\LiquidGlassBackdrop.cs`
+### `MainSrc\Tools\LiquidGlassAvaloniaUI\Assets\Shaders\LiquidGlassBackdropTransform.sksl`
 
-<!-- 35 行 / 0.9 KB -->
+```glsl
+// Backdrop transform stage (zoom + offset)
+// Used for magnifier-style sampling.
 
-```csharp
-using System;
-using Avalonia;
-using Avalonia.VisualTree;
+uniform shader content;
 
-namespace LiquidGlassAvaloniaUI
-{
-    public sealed class LiquidGlassBackdrop
-    {
-        private LiquidGlassBackdrop()
-        {
-        }
+uniform float2 size;
+uniform float zoom;      // 0+ (1 = identity)
+uniform float2 offset;   // DIPs, applied in the same coordinate space as `coord`
 
-        public static readonly AttachedProperty<bool> IsExcludedFromCaptureProperty =
-            AvaloniaProperty.RegisterAttached<LiquidGlassBackdrop, Visual, bool>(
-                "IsExcludedFromCapture",
-                false);
+half4 main(float2 coord) {
+    float z = max(zoom, 1e-3);
+    float2 center = size * 0.5;
 
-        public static bool GetIsExcludedFromCapture(Visual visual)
-        {
-            if (visual is null)
-                throw new ArgumentNullException(nameof(visual));
-
-            return visual.GetValue(IsExcludedFromCaptureProperty);
-        }
-
-        public static void SetIsExcludedFromCapture(Visual visual, bool value)
-        {
-            if (visual is null)
-                throw new ArgumentNullException(nameof(visual));
-
-            visual.SetValue(IsExcludedFromCaptureProperty, value);
-        }
-    }
+    // Inverse transform: sample from a smaller region to magnify (z > 1),
+    // and subtract offset so positive offset moves the drawn backdrop right/down.
+    float2 sampleCoord = center + (coord - center - offset) / z;
+    return content.eval(sampleCoord);
 }
 ```
 
-### `MainSrc\LiquidGlassAvaloniaUI\LiquidGlassInteractiveSurface.cs`
-
-<!-- 388 行 / 12.7 KB -->
-
-```csharp
-using System;
-using Avalonia;
-using Avalonia.Controls;
-using Avalonia.Input;
-using Avalonia.Interactivity;
-using Avalonia.Media;
-using Avalonia.Threading;
-
-namespace LiquidGlassAvaloniaUI
-{
-    /// <summary>
-    /// An interactive variant of <see cref="LiquidGlassSurface"/> that adds press/drag deformation and
-    /// an interactive highlight overlay.
-    /// </summary>
-    public class LiquidGlassInteractiveSurface : LiquidGlassSurface
-    {
-        public static readonly StyledProperty<bool> IsInteractiveProperty =
-            AvaloniaProperty.Register<LiquidGlassInteractiveSurface, bool>(nameof(IsInteractive), true);
-
-        public static readonly StyledProperty<bool> InteractiveHighlightEnabledProperty =
-            AvaloniaProperty.Register<LiquidGlassInteractiveSurface, bool>(nameof(InteractiveHighlightEnabled), true);
-
-        public static readonly StyledProperty<double> InteractiveMaxScaleDipProperty =
-            AvaloniaProperty.Register<LiquidGlassInteractiveSurface, double>(nameof(InteractiveMaxScaleDip), 4.0);
-
-        static LiquidGlassInteractiveSurface()
-        {
-            AffectsRender<LiquidGlassInteractiveSurface>(
-                IsInteractiveProperty,
-                InteractiveHighlightEnabledProperty,
-                InteractiveMaxScaleDipProperty);
-        }
-
-        private const double SpringDampingRatio = 0.5;
-        private const double SpringStiffness = 300.0;
-        private const double SpringProgressThreshold = 0.001;
-        private const double InitialDerivative = 0.05;
-
-        private readonly DispatcherTimer _animationTimer;
-        private DateTime _lastAnimationTickUtc;
-
-        private int? _activePointerId;
-        private TopLevel? _hookedTopLevel;
-
-        private Point _startPosition;
-        private SpringDouble _pressProgress = new(SpringStiffness, SpringDampingRatio, SpringProgressThreshold);
-        private SpringPoint _position = new(SpringStiffness, SpringDampingRatio, 0.5);
-
-        public LiquidGlassInteractiveSurface()
-        {
-            RenderTransformOrigin = RelativePoint.Center;
-
-            _animationTimer = new DispatcherTimer(DispatcherPriority.Render)
-            {
-                Interval = TimeSpan.FromMilliseconds(16)
-            };
-
-            _animationTimer.Tick += (_, _) =>
-            {
-                DateTime now = DateTime.UtcNow;
-                double dt = (now - _lastAnimationTickUtc).TotalSeconds;
-                _lastAnimationTickUtc = now;
-
-                // Clamp dt to avoid huge steps on debugger stops / tab switches.
-                dt = Math.Max(0.0, Math.Min(0.05, dt));
-
-                bool any = false;
-                any |= _pressProgress.Step(dt);
-                any |= _activePointerId is null && _position.Step(dt);
-
-                ApplyDeformation();
-                InvalidateSubscriberVisual();
-                InteractiveOverlay?.InvalidateVisual();
-
-                if (!any)
-                    _animationTimer.Stop();
-            };
-
-            AddHandler(PointerPressedEvent, OnSelfPointerPressed, RoutingStrategies.Tunnel, true);
-        }
-
-        public bool IsInteractive
-        {
-            get => GetValue(IsInteractiveProperty);
-            set => SetValue(IsInteractiveProperty, value);
-        }
-
-        public bool InteractiveHighlightEnabled
-        {
-            get => GetValue(InteractiveHighlightEnabledProperty);
-            set => SetValue(InteractiveHighlightEnabledProperty, value);
-        }
-
-        public double InteractiveMaxScaleDip
-        {
-            get => GetValue(InteractiveMaxScaleDipProperty);
-            set => SetValue(InteractiveMaxScaleDipProperty, value);
-        }
-
-        protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
-        {
-            base.OnDetachedFromVisualTree(e);
-            UnhookTopLevel();
-            _activePointerId = null;
-            _animationTimer.Stop();
-        }
-
-        private void OnSelfPointerPressed(object? sender, PointerPressedEventArgs e)
-        {
-            if (!IsInteractive)
-                return;
-
-            if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
-                return;
-
-            if (_activePointerId is not null)
-                return;
-
-            _activePointerId = e.Pointer.Id;
-            _startPosition = e.GetPosition(this);
-            _position.SnapTo(_startPosition);
-
-            _pressProgress.Target = 1.0;
-            _position.Target = _startPosition;
-
-            HookTopLevel();
-            ApplyDeformation();
-            InvalidateSubscriberVisual();
-            InteractiveOverlay?.InvalidateVisual();
-            StartAnimation();
-        }
-
-        private void OnTopLevelPointerMoved(object? sender, PointerEventArgs e)
-        {
-            if (_activePointerId is null || e.Pointer.Id != _activePointerId.Value)
-                return;
-
-            Point p = e.GetPosition(this);
-            _position.SnapTo(p);
-            ApplyDeformation();
-            InvalidateSubscriberVisual();
-            InteractiveOverlay?.InvalidateVisual();
-            StartAnimation();
-        }
-
-        private void OnTopLevelPointerReleased(object? sender, PointerReleasedEventArgs e)
-        {
-            if (_activePointerId is null || e.Pointer.Id != _activePointerId.Value)
-                return;
-
-            EndInteraction();
-        }
-
-        private void OnTopLevelPointerCaptureLost(object? sender, PointerCaptureLostEventArgs e)
-        {
-            // Treat capture loss as cancellation.
-            if (_activePointerId is null)
-                return;
-
-            EndInteraction();
-        }
-
-        private void EndInteraction()
-        {
-            _activePointerId = null;
-            UnhookTopLevel();
-
-            _pressProgress.Target = 0.0;
-            _position.Target = _startPosition;
-            ApplyDeformation();
-            InvalidateSubscriberVisual();
-            InteractiveOverlay?.InvalidateVisual();
-            StartAnimation();
-        }
-
-        private void HookTopLevel()
-        {
-            TopLevel? topLevel = TopLevel.GetTopLevel(this);
-            if (topLevel is null || ReferenceEquals(topLevel, _hookedTopLevel))
-                return;
-
-            UnhookTopLevel();
-
-            _hookedTopLevel = topLevel;
-            topLevel.AddHandler(PointerMovedEvent, OnTopLevelPointerMoved, RoutingStrategies.Tunnel, true);
-            topLevel.AddHandler(PointerReleasedEvent, OnTopLevelPointerReleased, RoutingStrategies.Tunnel, true);
-            topLevel.AddHandler(PointerCaptureLostEvent, OnTopLevelPointerCaptureLost, RoutingStrategies.Tunnel, true);
-        }
-
-        private void UnhookTopLevel()
-        {
-            if (_hookedTopLevel is null)
-                return;
-
-            _hookedTopLevel.RemoveHandler(PointerMovedEvent, OnTopLevelPointerMoved);
-            _hookedTopLevel.RemoveHandler(PointerReleasedEvent, OnTopLevelPointerReleased);
-            _hookedTopLevel.RemoveHandler(PointerCaptureLostEvent, OnTopLevelPointerCaptureLost);
-            _hookedTopLevel = null;
-        }
-
-        private void StartAnimation()
-        {
-            if (_animationTimer.IsEnabled)
-                return;
-
-            _lastAnimationTickUtc = DateTime.UtcNow;
-            _animationTimer.Start();
-        }
-
-        private void InvalidateSubscriberVisual()
-        {
-            LiquidGlassBackdropProvider.NotifySubscriberOnlyInvalidation(this);
-            InvalidateVisual();
-        }
-
-        private void ApplyDeformation()
-        {
-            if (!IsInteractive || Bounds.Width <= 0 || Bounds.Height <= 0)
-            {
-                RenderTransform = null;
-                return;
-            }
-
-            double width = Bounds.Width;
-            double height = Bounds.Height;
-
-            double progress = Clamp(_pressProgress.Value, 0.0, 1.0);
-            double maxScale = Math.Max(0.0, InteractiveMaxScaleDip);
-
-            // Matches LiquidButton.kt layerBlock math (dp converted to px there; DIPs here).
-            double scale = Lerp(1.0, 1.0 + maxScale / height, progress);
-
-            Point offset = _position.Value - _startPosition;
-
-            double minDim = Math.Min(width, height);
-            double maxDim = Math.Max(width, height);
-
-            double tx = minDim * Math.Tanh(InitialDerivative * offset.X / minDim);
-            double ty = minDim * Math.Tanh(InitialDerivative * offset.Y / minDim);
-
-            double maxDragScale = maxScale / height;
-            double angle = Math.Atan2(offset.Y, offset.X);
-
-            double aspectX = Math.Min(width / height, 1.0);
-            double aspectY = Math.Min(height / width, 1.0);
-
-            double sx =
-                scale +
-                maxDragScale * Math.Abs(Math.Cos(angle) * offset.X / maxDim) * aspectX;
-
-            double sy =
-                scale +
-                maxDragScale * Math.Abs(Math.Sin(angle) * offset.Y / maxDim) * aspectY;
-
-            if (Math.Abs(tx) < 0.01 && Math.Abs(ty) < 0.01 && Math.Abs(sx - 1.0) < 0.0005 && Math.Abs(sy - 1.0) < 0.0005)
-                RenderTransform = null;
-            else
-                RenderTransform = new MatrixTransform(Matrix.CreateScale(sx, sy) * Matrix.CreateTranslation(tx, ty));
-        }
-
-        internal double GetInteractiveHighlightProgress()
-        {
-            if (!IsInteractive || !InteractiveHighlightEnabled)
-                return 0.0;
-
-            return Clamp(_pressProgress.Value, 0.0, 1.0);
-        }
-
-        internal Point GetInteractiveHighlightPosition()
-        {
-            return _position.Value;
-        }
-
-        protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
-        {
-            base.OnPropertyChanged(change);
-
-            if (change.Property == IsInteractiveProperty
-                || change.Property == InteractiveHighlightEnabledProperty
-                || change.Property == InteractiveMaxScaleDipProperty)
-            {
-                LiquidGlassBackdropProvider.NotifySubscriberOnlyInvalidation(this);
-                InteractiveOverlay?.InvalidateVisual();
-            }
-        }
-
-        private static double Lerp(double a, double b, double t)
-        {
-            return a + (b - a) * t;
-        }
-
-        private static double Clamp(double value, double min, double max)
-        {
-            if (value < min) return min;
-            if (value > max) return max;
-            return value;
-        }
-
-        private sealed class SpringDouble
-        {
-            private readonly double _stiffness;
-            private readonly double _dampingRatio;
-            private readonly double _threshold;
-
-            public SpringDouble(double stiffness, double dampingRatio, double threshold)
-            {
-                _stiffness = stiffness;
-                _dampingRatio = dampingRatio;
-                _threshold = threshold;
-            }
-
-            public double Value { get; private set; }
-            public double Velocity { get; private set; }
-            public double Target { get; set; }
-
-            public void SnapTo(double value)
-            {
-                Value = value;
-                Velocity = 0.0;
-            }
-
-            public bool Step(double dt)
-            {
-                double x = Value;
-                double v = Velocity;
-                double target = Target;
-
-                double k = _stiffness;
-                double c = 2.0 * _dampingRatio * Math.Sqrt(k);
-
-                double a = -k * (x - target) - c * v;
-                v += a * dt;
-                x += v * dt;
-
-                Value = x;
-                Velocity = v;
-
-                bool done = Math.Abs(x - target) <= _threshold && Math.Abs(v) <= _threshold;
-                if (done)
-                {
-                    Value = target;
-                    Velocity = 0.0;
-                }
-
-                return !done;
-            }
-        }
-
-        private sealed class SpringPoint
-        {
-            private readonly SpringDouble _x;
-            private readonly SpringDouble _y;
-
-            public SpringPoint(double stiffness, double dampingRatio, double positionThreshold)
-            {
-                _x = new SpringDouble(stiffness, dampingRatio, positionThreshold);
-                _y = new SpringDouble(stiffness, dampingRatio, positionThreshold);
-            }
-
-            public Point Value
-            {
-                get => new(_x.Value, _y.Value);
-            }
-
-            public Point Target
-            {
-                get => new(_x.Target, _y.Target);
-                set
-                {
-                    _x.Target = value.X;
-                    _y.Target = value.Y;
-                }
-            }
-
-            public void SnapTo(Point value)
-            {
-                _x.SnapTo(value.X);
-                _y.SnapTo(value.Y);
-            }
-
-            public bool Step(double dt)
-            {
-                return _x.Step(dt) | _y.Step(dt);
-            }
-        }
-    }
+### `MainSrc\Tools\LiquidGlassAvaloniaUI\Assets\Shaders\LiquidGlassGamma.sksl`
+
+```glsl
+// Liquid Glass Gamma Adjustment Shader
+// Adapted for SKRuntimeEffect.
+
+uniform shader content;
+uniform float power;
+
+half4 main(float2 coord) {
+    half4 color = content.eval(coord);
+    float p = max(power, 0.000001);
+    color.r = pow(color.r, p);
+    color.g = pow(color.g, p);
+    color.b = pow(color.b, p);
+    return color;
 }
 ```
 
-### `MainSrc\LiquidGlassAvaloniaUI\LiquidGlassOverlays.cs`
+### `MainSrc\Tools\LiquidGlassAvaloniaUI\Assets\Shaders\LiquidGlassHighlight.sksl`
 
-<!-- 54 行 / 1.9 KB -->
+```glsl
+// Liquid Glass Highlight Shader
+// Adapted for SKRuntimeEffect.
 
-```csharp
-using Avalonia;
-using Avalonia.Controls;
-using Avalonia.Media;
+uniform float2 size;
+uniform float4 cornerRadii; // [topLeft, topRight, bottomRight, bottomLeft]
+uniform float4 color;       // RGBA (0..1)
+uniform float angle;        // radians
+uniform float falloff;      // >= 0
 
-namespace LiquidGlassAvaloniaUI
-{
-    internal sealed class LiquidGlassInteractiveOverlay : Control
-    {
-        public override void Render(DrawingContext context)
-        {
-            if (LiquidGlassBackdropProvider.IsCapturing)
-                return;
-
-            if (TemplatedParent is not LiquidGlassInteractiveSurface surface)
-                return;
-
-            if (!surface.InteractiveHighlightEnabled)
-                return;
-
-            double progress = surface.GetInteractiveHighlightProgress();
-            if (progress <= 0.001)
-                return;
-
-            Rect bounds = new(0, 0, Bounds.Width, Bounds.Height);
-            LiquidGlassDrawParameters parameters = surface.CreateDrawParameters();
-            parameters.InteractiveProgress = progress;
-            parameters.InteractivePosition = surface.GetInteractiveHighlightPosition();
-
-            context.Custom(new LiquidGlassDrawOperation(bounds, parameters, null, LiquidGlassDrawPass.InteractiveHighlight));
-        }
+float radiusAt(float2 centeredCoord, float4 radii) {
+    if (centeredCoord.x >= 0.0) {
+        if (centeredCoord.y < 0.0) return radii.y;
+        else return radii.z;
+    } else {
+        if (centeredCoord.y < 0.0) return radii.x;
+        else return radii.w;
     }
+}
 
-    internal sealed class LiquidGlassFrontOverlay : Control
-    {
-        public override void Render(DrawingContext context)
-        {
-            if (LiquidGlassBackdropProvider.IsCapturing)
-                return;
+float sdRoundedRect(float2 coord, float2 halfSize, float radius) {
+    float2 cornerCoord = abs(coord) - (halfSize - float2(radius));
+    float outside = length(max(cornerCoord, 0.0)) - radius;
+    float inside = min(max(cornerCoord.x, cornerCoord.y), 0.0);
+    return outside + inside;
+}
 
-            if (TemplatedParent is not LiquidGlassSurface surface)
-                return;
-
-            Rect bounds = new(0, 0, Bounds.Width, Bounds.Height);
-            LiquidGlassDrawParameters parameters = surface.CreateDrawParameters();
-
-            if (surface.HighlightEnabled)
-                context.Custom(new LiquidGlassDrawOperation(bounds, parameters, null, LiquidGlassDrawPass.Highlight));
-
-            if (surface.InnerShadowEnabled && parameters.InnerShadowOpacity > 0.001 && parameters.InnerShadowColor.A > 0)
-                context.Custom(new LiquidGlassInnerShadowDrawOperation(bounds, parameters));
-        }
+float2 gradSdRoundedRect(float2 coord, float2 halfSize, float radius) {
+    float2 cornerCoord = abs(coord) - (halfSize - float2(radius));
+    if (cornerCoord.x >= 0.0 || cornerCoord.y >= 0.0) {
+        return sign(coord) * normalize(max(cornerCoord, 0.0));
+    } else {
+        float gradX = step(cornerCoord.y, cornerCoord.x);
+        return sign(coord) * float2(gradX, 1.0 - gradX);
     }
+}
+
+half4 main(float2 coord) {
+    float2 halfSize = size * 0.5;
+    float2 centeredCoord = coord - halfSize;
+    float radius = radiusAt(centeredCoord, cornerRadii);
+
+    // Compute the "surface normal" using SDF gradient.
+    float gradRadius = min(radius * 1.5, min(halfSize.x, halfSize.y));
+    float2 grad = gradSdRoundedRect(centeredCoord, halfSize, gradRadius);
+    float2 normal = float2(cos(angle), sin(angle));
+
+    float d = dot(grad, normal);
+    float intensity = pow(abs(d), max(falloff, 0.0));
+    // Skia expects premultiplied output colors.
+    half a = half(color.a * intensity);
+    half3 rgb = half3(color.rgb) * a;
+    return half4(rgb, a);
 }
 ```
 
-### `MainSrc\LiquidGlassAvaloniaUI\LiquidGlassShadowDrawOperations.cs`
+### `MainSrc\Tools\LiquidGlassAvaloniaUI\Assets\Shaders\LiquidGlassInteractiveHighlight.sksl`
 
-<!-- 227 行 / 7.2 KB -->
+```glsl
+// Liquid Glass Interactive Highlight Shader
+// Radial highlight used for interactive press feedback.
 
-```csharp
-using System;
-using Avalonia;
-using Avalonia.Media;
-using Avalonia.Platform;
-using Avalonia.Rendering.SceneGraph;
-using Avalonia.Skia;
-using SkiaSharp;
+uniform float2 size;
+uniform float4 color;   // RGBA (0..1)
+uniform float radius;
+uniform float2 position;
 
-namespace LiquidGlassAvaloniaUI
-{
-    internal sealed class LiquidGlassShadowDrawOperation : ICustomDrawOperation
-    {
-        private readonly Rect _controlBounds;
-        private readonly Rect _operationBounds;
-        private readonly LiquidGlassDrawParameters _parameters;
-
-        public LiquidGlassShadowDrawOperation(Rect controlBounds, LiquidGlassDrawParameters parameters)
-        {
-            _controlBounds = controlBounds;
-            _parameters = parameters;
-
-            double radius = Math.Max(0.0, parameters.ShadowRadius);
-            Vector offset = parameters.ShadowOffset;
-            double pad = radius * 2.0;
-
-            double leftPad = pad + Math.Max(0.0, -offset.X);
-            double topPad = pad + Math.Max(0.0, -offset.Y);
-            double rightPad = pad + Math.Max(0.0, offset.X);
-            double bottomPad = pad + Math.Max(0.0, offset.Y);
-
-            _operationBounds = new Rect(
-                -leftPad,
-                -topPad,
-                controlBounds.Width + leftPad + rightPad,
-                controlBounds.Height + topPad + bottomPad);
-        }
-
-        public void Dispose()
-        {
-        }
-
-        public bool HitTest(Point p)
-        {
-            return false;
-        }
-
-        public Rect Bounds
-        {
-            get => _operationBounds;
-        }
-
-        public bool Equals(ICustomDrawOperation? other)
-        {
-            return false;
-        }
-
-        public void Render(ImmediateDrawingContext context)
-        {
-            ISkiaSharpApiLeaseFeature? leaseFeature = context.TryGetFeature<ISkiaSharpApiLeaseFeature>();
-            if (leaseFeature is null)
-                return;
-
-            using ISkiaSharpApiLease lease = leaseFeature.Lease();
-            SKCanvas canvas = lease.SkCanvas;
-
-            SKSize size = new((float)_controlBounds.Width, (float)_controlBounds.Height);
-            if (size.Width <= 0 || size.Height <= 0)
-                return;
-
-            float radius = (float)Clamp(_parameters.ShadowRadius, 0.0, 512.0);
-            if (radius <= 0.001f)
-                return;
-
-            float opacity = (float)Clamp(_parameters.ShadowOpacity, 0.0, 1.0);
-            Color color = _parameters.ShadowColor;
-            byte alpha = (byte)Clamp(color.A * opacity, 0.0, 255.0);
-            if (alpha <= 0)
-                return;
-
-            float offsetX = (float)_parameters.ShadowOffset.X;
-            float offsetY = (float)_parameters.ShadowOffset.Y;
-
-            float maxRadius = Math.Min(size.Width, size.Height) * 0.5f;
-            float[] cornerRadii = LiquidGlassPathUtils.GetCornerRadii(_parameters.CornerRadius, maxRadius);
-            SKRect rect = SKRect.Create(0, 0, size.Width, size.Height);
-
-            using SKPath path = LiquidGlassPathUtils.CreateRoundRectPath(rect, cornerRadii);
-            using SKMaskFilter? blur = SKMaskFilter.CreateBlur(SKBlurStyle.Normal, radius);
-
-            using SKPaint shadowPaint = new()
-            {
-                Color = new SKColor(color.R, color.G, color.B, alpha),
-                MaskFilter = blur,
-                IsAntialias = true
-            };
-
-            using SKPaint clearPaint = new()
-            {
-                BlendMode = SKBlendMode.Clear,
-                IsAntialias = true
-            };
-
-            float pad = radius * 2.0f;
-            SKRect layerBounds = SKRect.Create(-pad, -pad, size.Width + pad * 2.0f, size.Height + pad * 2.0f);
-
-            canvas.SaveLayer(layerBounds, null);
-
-            canvas.Save();
-            canvas.Translate(offsetX, offsetY);
-            canvas.DrawPath(path, shadowPaint);
-            canvas.Restore();
-
-            canvas.DrawPath(path, clearPaint);
-
-            canvas.Restore();
-        }
-
-        private static double Clamp(double value, double min, double max)
-        {
-            if (value < min) return min;
-            if (value > max) return max;
-            return value;
-        }
-    }
-
-    internal sealed class LiquidGlassInnerShadowDrawOperation : ICustomDrawOperation
-    {
-        private readonly Rect _bounds;
-        private readonly LiquidGlassDrawParameters _parameters;
-
-        public LiquidGlassInnerShadowDrawOperation(Rect bounds, LiquidGlassDrawParameters parameters)
-        {
-            _bounds = bounds;
-            _parameters = parameters;
-        }
-
-        public void Dispose()
-        {
-        }
-
-        public bool HitTest(Point p)
-        {
-            return false;
-        }
-
-        public Rect Bounds
-        {
-            get => _bounds;
-        }
-
-        public bool Equals(ICustomDrawOperation? other)
-        {
-            return false;
-        }
-
-        public void Render(ImmediateDrawingContext context)
-        {
-            ISkiaSharpApiLeaseFeature? leaseFeature = context.TryGetFeature<ISkiaSharpApiLeaseFeature>();
-            if (leaseFeature is null)
-                return;
-
-            using ISkiaSharpApiLease lease = leaseFeature.Lease();
-            SKCanvas canvas = lease.SkCanvas;
-
-            SKSize size = new((float)_bounds.Width, (float)_bounds.Height);
-            if (size.Width <= 0 || size.Height <= 0)
-                return;
-
-            float radius = (float)Clamp(_parameters.InnerShadowRadius, 0.0, 512.0);
-            if (radius <= 0.001f)
-                return;
-
-            float opacity = (float)Clamp(_parameters.InnerShadowOpacity, 0.0, 1.0);
-            Color color = _parameters.InnerShadowColor;
-            byte alpha = (byte)Clamp(color.A * opacity, 0.0, 255.0);
-            if (alpha <= 0)
-                return;
-
-            float offsetX = (float)_parameters.InnerShadowOffset.X;
-            float offsetY = (float)_parameters.InnerShadowOffset.Y;
-
-            float maxRadius = Math.Min(size.Width, size.Height) * 0.5f;
-            float[] cornerRadii = LiquidGlassPathUtils.GetCornerRadii(_parameters.CornerRadius, maxRadius);
-            SKRect rect = SKRect.Create(0, 0, size.Width, size.Height);
-
-            using SKPath path = LiquidGlassPathUtils.CreateRoundRectPath(rect, cornerRadii);
-
-            using SKImageFilter blur = SKImageFilter.CreateBlur(radius, radius, SKShaderTileMode.Decal, null, rect);
-            using SKPaint layerPaint = new()
-            {
-                ImageFilter = blur
-            };
-
-            using SKPaint fillPaint = new()
-            {
-                Color = new SKColor(color.R, color.G, color.B, alpha),
-                IsAntialias = true
-            };
-
-            using SKPaint clearPaint = new()
-            {
-                BlendMode = SKBlendMode.Clear,
-                IsAntialias = true
-            };
-
-            canvas.Save();
-            canvas.ClipPath(path, SKClipOperation.Intersect, true);
-
-            canvas.SaveLayer(rect, layerPaint);
-            canvas.DrawPath(path, fillPaint);
-            canvas.Translate(offsetX, offsetY);
-            canvas.DrawPath(path, clearPaint);
-            canvas.Translate(-offsetX, -offsetY);
-            canvas.Restore();
-
-            canvas.Restore();
-        }
-
-        private static double Clamp(double value, double min, double max)
-        {
-            if (value < min) return min;
-            if (value > max) return max;
-            return value;
-        }
-    }
+half4 main(float2 coord) {
+    float dist = distance(coord, position);
+    float intensity = smoothstep(radius, radius * 0.5, dist);
+    // Skia expects premultiplied output colors.
+    half a = half(color.a * intensity);
+    half3 rgb = half3(color.rgb) * a;
+    return half4(rgb, a);
 }
 ```
 
-### `MainSrc\LiquidGlassAvaloniaUI\LiquidGlassAppBuilderExtensions.cs`
+### `MainSrc\Tools\LiquidGlassAvaloniaUI\Assets\Shaders\LiquidGlassProgressiveMask.sksl`
 
-<!-- 26 行 / 0.7 KB -->
+```glsl
+// Progressive alpha-mask + tint stage
+// Adapted for SKRuntimeEffect and premultiplied output.
 
-```csharp
-using Avalonia;
-using Avalonia.Rendering.Composition;
+uniform shader content;
 
-namespace LiquidGlassAvaloniaUI
-{
-    public static class LiquidGlassAppBuilderExtensions
-    {
-        public static AppBuilder UseLiquidGlassPerformanceDefaults(
-            this AppBuilder builder,
-            long skiaMaxGpuResourceSizeBytes = 256L * 1024L * 1024L,
-            int maxDirtyRects = 8)
-        {
-            return builder
-                .With(new CompositionOptions
-                {
-                    UseRegionDirtyRectClipping = true,
-                    MaxDirtyRects = maxDirtyRects
-                })
-                .With(new SkiaOptions
-                {
-                    MaxGpuResourceSizeBytes = skiaMaxGpuResourceSizeBytes
-                });
-        }
+uniform float2 size;
+uniform float start;          // 0..1 (fraction of height where blur starts fading)
+uniform float end;            // 0..1 (fraction of height where blur fades to transparent)
+uniform float4 tint;          // RGBA (0..1, unpremultiplied)
+uniform float tintIntensity;  // 0..1
+
+float smoothstepSafe(float edge0, float edge1, float x) {
+    float denom = edge1 - edge0;
+    if (abs(denom) < 1e-6) {
+        return step(edge0, x);
     }
+    float t = clamp((x - edge0) / denom, 0.0, 1.0);
+    return t * t * (3.0 - 2.0 * t);
+}
+
+half4 main(float2 coord) {
+    float edge0 = size.y * end;
+    float edge1 = size.y * start;
+
+    // Keep the top region fully visible and fade towards the bottom.
+    float alpha = smoothstepSafe(edge0, edge1, coord.y);
+
+    half4 base = content.eval(coord) * half(alpha);
+
+    half tintA = half(tint.a) * half(alpha);
+    half3 tintRgb = half3(tint.rgb) * tintA;
+    half4 tintPremul = half4(tintRgb, tintA);
+
+    half t = half(clamp(tintIntensity, 0.0, 1.0));
+    return base * (half(1.0) - t) + tintPremul * t;
 }
 ```
 
-### `MainSrc\LiquidGlassAvaloniaUI\LiquidGlassDiagnostics.cs`
-
-<!-- 210 行 / 11 KB -->
-
-```csharp
-using System.Threading;
-
-namespace LiquidGlassAvaloniaUI
-{
-    public readonly struct LiquidGlassDiagnosticsSnapshot
-    {
-        internal LiquidGlassDiagnosticsSnapshot(
-            long captureQueueRequests,
-            long captureQueueCoalesced,
-            long capturesStarted,
-            long capturesSkippedReentrant,
-            long capturesSkippedNoSubscribers,
-            long capturesSkippedEmptyClip,
-            long capturesSkippedByCadence,
-            long capturesSkippedByDirtyRect,
-            long capturesSkippedByHash,
-            long capturesPublished,
-            long scratchBitmapRecreated,
-            long rendererInvalidations,
-            long dirtyRectAvailable,
-            long dirtyRectUnavailable,
-            long subscriberInvalidations,
-            long sampledHashChecks,
-            long sampledHashBytes,
-            long fullBitmapCopies,
-            long fullBitmapCopyBytes,
-            long filterIdentityHits,
-            long filterCacheHits,
-            long filterCacheMisses,
-            long filterGpuSurfaces,
-            long filterCpuSurfaces,
-            long filterSurfaceFailures)
-        {
-            CaptureQueueRequests = captureQueueRequests;
-            CaptureQueueCoalesced = captureQueueCoalesced;
-            CapturesStarted = capturesStarted;
-            CapturesSkippedReentrant = capturesSkippedReentrant;
-            CapturesSkippedNoSubscribers = capturesSkippedNoSubscribers;
-            CapturesSkippedEmptyClip = capturesSkippedEmptyClip;
-            CapturesSkippedByCadence = capturesSkippedByCadence;
-            CapturesSkippedByDirtyRect = capturesSkippedByDirtyRect;
-            CapturesSkippedByHash = capturesSkippedByHash;
-            CapturesPublished = capturesPublished;
-            ScratchBitmapRecreated = scratchBitmapRecreated;
-            RendererInvalidations = rendererInvalidations;
-            DirtyRectAvailable = dirtyRectAvailable;
-            DirtyRectUnavailable = dirtyRectUnavailable;
-            SubscriberInvalidations = subscriberInvalidations;
-            SampledHashChecks = sampledHashChecks;
-            SampledHashBytes = sampledHashBytes;
-            FullBitmapCopies = fullBitmapCopies;
-            FullBitmapCopyBytes = fullBitmapCopyBytes;
-            FilterIdentityHits = filterIdentityHits;
-            FilterCacheHits = filterCacheHits;
-            FilterCacheMisses = filterCacheMisses;
-            FilterGpuSurfaces = filterGpuSurfaces;
-            FilterCpuSurfaces = filterCpuSurfaces;
-            FilterSurfaceFailures = filterSurfaceFailures;
-        }
-
-        public long CaptureQueueRequests { get; }
-        public long CaptureQueueCoalesced { get; }
-        public long CapturesStarted { get; }
-        public long CapturesSkippedReentrant { get; }
-        public long CapturesSkippedNoSubscribers { get; }
-        public long CapturesSkippedEmptyClip { get; }
-        public long CapturesSkippedByCadence { get; }
-        public long CapturesSkippedByDirtyRect { get; }
-        public long CapturesSkippedByHash { get; }
-        public long CapturesPublished { get; }
-        public long ScratchBitmapRecreated { get; }
-        public long RendererInvalidations { get; }
-        public long DirtyRectAvailable { get; }
-        public long DirtyRectUnavailable { get; }
-        public long SubscriberInvalidations { get; }
-        public long SampledHashChecks { get; }
-        public long SampledHashBytes { get; }
-        public long FullBitmapCopies { get; }
-        public long FullBitmapCopyBytes { get; }
-        public long FilterIdentityHits { get; }
-        public long FilterCacheHits { get; }
-        public long FilterCacheMisses { get; }
-        public long FilterGpuSurfaces { get; }
-        public long FilterCpuSurfaces { get; }
-        public long FilterSurfaceFailures { get; }
-    }
-
-    public static class LiquidGlassDiagnostics
-    {
-        private static long s_captureQueueRequests;
-        private static long s_captureQueueCoalesced;
-        private static long s_capturesStarted;
-        private static long s_capturesSkippedReentrant;
-        private static long s_capturesSkippedNoSubscribers;
-        private static long s_capturesSkippedEmptyClip;
-        private static long s_capturesSkippedByCadence;
-        private static long s_capturesSkippedByDirtyRect;
-        private static long s_capturesSkippedByHash;
-        private static long s_capturesPublished;
-        private static long s_scratchBitmapRecreated;
-        private static long s_rendererInvalidations;
-        private static long s_dirtyRectAvailable;
-        private static long s_dirtyRectUnavailable;
-        private static long s_subscriberInvalidations;
-        private static long s_sampledHashChecks;
-        private static long s_sampledHashBytes;
-        private static long s_fullBitmapCopies;
-        private static long s_fullBitmapCopyBytes;
-        private static long s_filterIdentityHits;
-        private static long s_filterCacheHits;
-        private static long s_filterCacheMisses;
-        private static long s_filterGpuSurfaces;
-        private static long s_filterCpuSurfaces;
-        private static long s_filterSurfaceFailures;
-
-        public static LiquidGlassDiagnosticsSnapshot Snapshot
-        {
-            get => new(
-                Volatile.Read(ref s_captureQueueRequests),
-                Volatile.Read(ref s_captureQueueCoalesced),
-                Volatile.Read(ref s_capturesStarted),
-                Volatile.Read(ref s_capturesSkippedReentrant),
-                Volatile.Read(ref s_capturesSkippedNoSubscribers),
-                Volatile.Read(ref s_capturesSkippedEmptyClip),
-                Volatile.Read(ref s_capturesSkippedByCadence),
-                Volatile.Read(ref s_capturesSkippedByDirtyRect),
-                Volatile.Read(ref s_capturesSkippedByHash),
-                Volatile.Read(ref s_capturesPublished),
-                Volatile.Read(ref s_scratchBitmapRecreated),
-                Volatile.Read(ref s_rendererInvalidations),
-                Volatile.Read(ref s_dirtyRectAvailable),
-                Volatile.Read(ref s_dirtyRectUnavailable),
-                Volatile.Read(ref s_subscriberInvalidations),
-                Volatile.Read(ref s_sampledHashChecks),
-                Volatile.Read(ref s_sampledHashBytes),
-                Volatile.Read(ref s_fullBitmapCopies),
-                Volatile.Read(ref s_fullBitmapCopyBytes),
-                Volatile.Read(ref s_filterIdentityHits),
-                Volatile.Read(ref s_filterCacheHits),
-                Volatile.Read(ref s_filterCacheMisses),
-                Volatile.Read(ref s_filterGpuSurfaces),
-                Volatile.Read(ref s_filterCpuSurfaces),
-                Volatile.Read(ref s_filterSurfaceFailures));
-        }
-
-        public static void Reset()
-        {
-            Interlocked.Exchange(ref s_captureQueueRequests, 0);
-            Interlocked.Exchange(ref s_captureQueueCoalesced, 0);
-            Interlocked.Exchange(ref s_capturesStarted, 0);
-            Interlocked.Exchange(ref s_capturesSkippedReentrant, 0);
-            Interlocked.Exchange(ref s_capturesSkippedNoSubscribers, 0);
-            Interlocked.Exchange(ref s_capturesSkippedEmptyClip, 0);
-            Interlocked.Exchange(ref s_capturesSkippedByCadence, 0);
-            Interlocked.Exchange(ref s_capturesSkippedByDirtyRect, 0);
-            Interlocked.Exchange(ref s_capturesSkippedByHash, 0);
-            Interlocked.Exchange(ref s_capturesPublished, 0);
-            Interlocked.Exchange(ref s_scratchBitmapRecreated, 0);
-            Interlocked.Exchange(ref s_rendererInvalidations, 0);
-            Interlocked.Exchange(ref s_dirtyRectAvailable, 0);
-            Interlocked.Exchange(ref s_dirtyRectUnavailable, 0);
-            Interlocked.Exchange(ref s_subscriberInvalidations, 0);
-            Interlocked.Exchange(ref s_sampledHashChecks, 0);
-            Interlocked.Exchange(ref s_sampledHashBytes, 0);
-            Interlocked.Exchange(ref s_fullBitmapCopies, 0);
-            Interlocked.Exchange(ref s_fullBitmapCopyBytes, 0);
-            Interlocked.Exchange(ref s_filterIdentityHits, 0);
-            Interlocked.Exchange(ref s_filterCacheHits, 0);
-            Interlocked.Exchange(ref s_filterCacheMisses, 0);
-            Interlocked.Exchange(ref s_filterGpuSurfaces, 0);
-            Interlocked.Exchange(ref s_filterCpuSurfaces, 0);
-            Interlocked.Exchange(ref s_filterSurfaceFailures, 0);
-        }
-
-        internal static void RecordCaptureQueueRequest() => Interlocked.Increment(ref s_captureQueueRequests);
-        internal static void RecordCaptureQueueCoalesced() => Interlocked.Increment(ref s_captureQueueCoalesced);
-        internal static void RecordCaptureStarted() => Interlocked.Increment(ref s_capturesStarted);
-        internal static void RecordCaptureSkippedReentrant() => Interlocked.Increment(ref s_capturesSkippedReentrant);
-        internal static void RecordCaptureSkippedNoSubscribers() => Interlocked.Increment(ref s_capturesSkippedNoSubscribers);
-        internal static void RecordCaptureSkippedEmptyClip() => Interlocked.Increment(ref s_capturesSkippedEmptyClip);
-        internal static void RecordCaptureSkippedByCadence() => Interlocked.Increment(ref s_capturesSkippedByCadence);
-        internal static void RecordCaptureSkippedByDirtyRect() => Interlocked.Increment(ref s_capturesSkippedByDirtyRect);
-        internal static void RecordCaptureSkippedByHash() => Interlocked.Increment(ref s_capturesSkippedByHash);
-        internal static void RecordCapturePublished() => Interlocked.Increment(ref s_capturesPublished);
-        internal static void RecordScratchBitmapRecreated() => Interlocked.Increment(ref s_scratchBitmapRecreated);
-        internal static void RecordRendererInvalidation() => Interlocked.Increment(ref s_rendererInvalidations);
-        internal static void RecordDirtyRectAvailable() => Interlocked.Increment(ref s_dirtyRectAvailable);
-        internal static void RecordDirtyRectUnavailable() => Interlocked.Increment(ref s_dirtyRectUnavailable);
-        internal static void RecordSubscriberInvalidation() => Interlocked.Increment(ref s_subscriberInvalidations);
-        internal static void RecordSampledHash(long bytesCopied)
-        {
-            Interlocked.Increment(ref s_sampledHashChecks);
-            Interlocked.Add(ref s_sampledHashBytes, bytesCopied);
-        }
-
-        internal static void RecordFullBitmapCopy(long bytesCopied)
-        {
-            Interlocked.Increment(ref s_fullBitmapCopies);
-            Interlocked.Add(ref s_fullBitmapCopyBytes, bytesCopied);
-        }
-
-        internal static void RecordFilterIdentityHit() => Interlocked.Increment(ref s_filterIdentityHits);
-        internal static void RecordFilterCacheHit() => Interlocked.Increment(ref s_filterCacheHits);
-        internal static void RecordFilterCacheMiss() => Interlocked.Increment(ref s_filterCacheMisses);
-        internal static void RecordFilterGpuSurface() => Interlocked.Increment(ref s_filterGpuSurfaces);
-        internal static void RecordFilterCpuSurface() => Interlocked.Increment(ref s_filterCpuSurfaces);
-        internal static void RecordFilterSurfaceFailure() => Interlocked.Increment(ref s_filterSurfaceFailures);
-    }
-}
-```
-
-### `MainSrc\LiquidGlassAvaloniaUI\LiquidGlassPathUtils.cs`
-
-<!-- 43 行 / 1.4 KB -->
-
-```csharp
-using System;
-using Avalonia;
-using Avalonia.Media;
-using SkiaSharp;
-
-namespace LiquidGlassAvaloniaUI
-{
-    internal static class LiquidGlassPathUtils
-    {
-        public static float[] GetCornerRadii(CornerRadius cornerRadius, float maxRadius)
-        {
-            float tl = (float)Clamp(cornerRadius.TopLeft, 0.0, maxRadius);
-            float tr = (float)Clamp(cornerRadius.TopRight, 0.0, maxRadius);
-            float br = (float)Clamp(cornerRadius.BottomRight, 0.0, maxRadius);
-            float bl = (float)Clamp(cornerRadius.BottomLeft, 0.0, maxRadius);
-            return new[]
-            {
-                tl, tr, br, bl
-            };
-        }
-
-        public static SKPath CreateRoundRectPath(SKRect rect, float[] cornerRadii)
-        {
-            using SKRoundRect rr = new();
-            rr.SetRectRadii(rect, new[]
-            {
-                new SKPoint(cornerRadii[0], cornerRadii[0]), new SKPoint(cornerRadii[1], cornerRadii[1]), new SKPoint(cornerRadii[2], cornerRadii[2]), new SKPoint(cornerRadii[3], cornerRadii[3])
-            });
-
-            SKPath path = new();
-            path.AddRoundRect(rr, SKPathDirection.Clockwise);
-            return path;
-        }
-
-        private static double Clamp(double value, double min, double max)
-        {
-            if (value < min) return min;
-            if (value > max) return max;
-            return value;
-        }
-    }
-}
-```
-
-### `MainSrc\LiquidGlassAvaloniaUI\Assets\Shaders\LiquidGlassShader.sksl`
-
-<!-- 117 行 / 3.9 KB -->
+### `MainSrc\Tools\LiquidGlassAvaloniaUI\Assets\Shaders\LiquidGlassShader.sksl`
 
 ```glsl
 // Liquid Glass SKSL Shader (Lens refraction + dispersion)
@@ -13288,385 +15194,106 @@ half4 main(float2 coord) {
 }
 ```
 
-### `MainSrc\LiquidGlassAvaloniaUI\Assets\Shaders\LiquidGlassHighlight.sksl`
 
-<!-- 54 行 / 1.9 KB -->
+## 6.9 MainSrc\Codes
 
-```glsl
-// Liquid Glass Highlight Shader
-// Adapted for SKRuntimeEffect.
+### `MainSrc\Codes\read.md`
 
-uniform float2 size;
-uniform float4 cornerRadii; // [topLeft, topRight, bottomRight, bottomLeft]
-uniform float4 color;       // RGBA (0..1)
-uniform float angle;        // radians
-uniform float falloff;      // >= 0
+```markdown
+--By Erics  九条开源
+内核级别 主程序代码
 
-float radiusAt(float2 centeredCoord, float4 radii) {
-    if (centeredCoord.x >= 0.0) {
-        if (centeredCoord.y < 0.0) return radii.y;
-        else return radii.z;
-    } else {
-        if (centeredCoord.y < 0.0) return radii.x;
-        else return radii.w;
-    }
-}
-
-float sdRoundedRect(float2 coord, float2 halfSize, float radius) {
-    float2 cornerCoord = abs(coord) - (halfSize - float2(radius));
-    float outside = length(max(cornerCoord, 0.0)) - radius;
-    float inside = min(max(cornerCoord.x, cornerCoord.y), 0.0);
-    return outside + inside;
-}
-
-float2 gradSdRoundedRect(float2 coord, float2 halfSize, float radius) {
-    float2 cornerCoord = abs(coord) - (halfSize - float2(radius));
-    if (cornerCoord.x >= 0.0 || cornerCoord.y >= 0.0) {
-        return sign(coord) * normalize(max(cornerCoord, 0.0));
-    } else {
-        float gradX = step(cornerCoord.y, cornerCoord.x);
-        return sign(coord) * float2(gradX, 1.0 - gradX);
-    }
-}
-
-half4 main(float2 coord) {
-    float2 halfSize = size * 0.5;
-    float2 centeredCoord = coord - halfSize;
-    float radius = radiusAt(centeredCoord, cornerRadii);
-
-    // Compute the "surface normal" using SDF gradient.
-    float gradRadius = min(radius * 1.5, min(halfSize.x, halfSize.y));
-    float2 grad = gradSdRoundedRect(centeredCoord, halfSize, gradRadius);
-    float2 normal = float2(cos(angle), sin(angle));
-
-    float d = dot(grad, normal);
-    float intensity = pow(abs(d), max(falloff, 0.0));
-    // Skia expects premultiplied output colors.
-    half a = half(color.a * intensity);
-    half3 rgb = half3(color.rgb) * a;
-    return half4(rgb, a);
-}
+Kernel level：Main codes
 ```
 
-### `MainSrc\LiquidGlassAvaloniaUI\Assets\Shaders\LiquidGlassInteractiveHighlight.sksl`
 
-<!-- 17 行 / 0.5 KB -->
+## 6.10 二进制资源清单（不嵌入内容）
 
-```glsl
-// Liquid Glass Interactive Highlight Shader
-// Radial highlight used for interactive press feedback.
+| 目录 | 文件数 | 体积 | 样本 |
+|---|---|---|---|
+| `MainSrc\Views\imgs\Main\images\Buttons` | 15 | 21.3 KB | black-.png、blackx.png、button-Start1.png、button-Start2.png、button-Start3.png、button-Start4.png |
+| `MainSrc\Views\imgs\Main\images\Launcher` | 7 | 716.3 KB | a7d21-in3zc.png、cyan_glazed_terracotta.png、Erics.jpg、MainLogo.ico、show-64x.png、show.png |
+| `MainSrc\Views\imgs\Main\images\Blocks` | 16 | 186.4 KB | Anvil.png、april_fools.png、chest.png、CobbleStone.png、command.png、CommandBlock.png |
+| `MainSrc\Views\imgs\Main\images\Loaders` | 15 | 171.6 KB | 8mi-tech.png、chicken.png、cleanroom.png、Egg.png、Fabric.png、fabric2.png |
+| `MainSrc\Views\imgs\Main\images\Support` | 7 | 107.2 KB | discord.png、github.png、ic_curseforge.png、ic_modrinth.png、ic_mouse_pointer.png、kookapp.png |
+| `MainSrc\Views\imgs\Main\images\BackGrounds` | 3 | 925.5 KB | banb_img.png、bg.jpg、ic_setting_sign_in_background.webp |
+| `MainSrc\Views\imgs\Main\images\svgs` | 15 | 242.9 KB | clucker.svg、creeper.svg、enderpearl.svg、flame.svg、ftb-glow.svg、ftb-logo.svg |
+| `MainSrc\Views\imgs\Main\images\xmls` | 43 | 43.6 KB | background_card.xml、background_control_editor.xml、background_icon_edit.xml、background_line.xml、background_line_selected.xml、background_line_unselected.xml |
+| `MainSrc\Views\imgs\skin` | 15 | 32.5 KB | Alex.png、Steve.png、_-酔った东京空_3.png、【搬运】◇苦力怕娘（作者：钻茜）.png、史蒂夫【卡兰兹大眼】.png、史蒂夫，但是byd脸.png |
+| `MainSrc\Sound` | 6 | 1201.3 KB | BigError.wav、DownloadDone.wav、Errors.wav、Messages.wav、Messages2.wav、Open.wav |
 
-uniform float2 size;
-uniform float4 color;   // RGBA (0..1)
-uniform float radius;
-uniform float2 position;
+> 全部通过 `<AvaloniaResource Include="MainSrc\Views\imgs\**" />` / `MainSrc\Sound\**` 打包进程序集，
+> 运行时以 `avares://Project.Launch/MainSrc/...` 读取。
 
-half4 main(float2 coord) {
-    float dist = distance(coord, position);
-    float intensity = smoothstep(radius, radius * 0.5, dist);
-    // Skia expects premultiplied output colors.
-    half a = half(color.a * intensity);
-    half3 rgb = half3(color.rgb) * a;
-    return half4(rgb, a);
-}
-```
-
-### `MainSrc\LiquidGlassAvaloniaUI\Assets\Shaders\LiquidGlassGamma.sksl`
-
-<!-- 15 行 / 0.3 KB -->
-
-```glsl
-// Liquid Glass Gamma Adjustment Shader
-// Adapted for SKRuntimeEffect.
-
-uniform shader content;
-uniform float power;
-
-half4 main(float2 coord) {
-    half4 color = content.eval(coord);
-    float p = max(power, 0.000001);
-    color.r = pow(color.r, p);
-    color.g = pow(color.g, p);
-    color.b = pow(color.b, p);
-    return color;
-}
-```
-
-### `MainSrc\LiquidGlassAvaloniaUI\Assets\Shaders\LiquidGlassProgressiveMask.sksl`
-
-<!-- 37 行 / 1.2 KB -->
-
-```glsl
-// Progressive alpha-mask + tint stage
-// Adapted for SKRuntimeEffect and premultiplied output.
-
-uniform shader content;
-
-uniform float2 size;
-uniform float start;          // 0..1 (fraction of height where blur starts fading)
-uniform float end;            // 0..1 (fraction of height where blur fades to transparent)
-uniform float4 tint;          // RGBA (0..1, unpremultiplied)
-uniform float tintIntensity;  // 0..1
-
-float smoothstepSafe(float edge0, float edge1, float x) {
-    float denom = edge1 - edge0;
-    if (abs(denom) < 1e-6) {
-        return step(edge0, x);
-    }
-    float t = clamp((x - edge0) / denom, 0.0, 1.0);
-    return t * t * (3.0 - 2.0 * t);
-}
-
-half4 main(float2 coord) {
-    float edge0 = size.y * end;
-    float edge1 = size.y * start;
-
-    // Keep the top region fully visible and fade towards the bottom.
-    float alpha = smoothstepSafe(edge0, edge1, coord.y);
-
-    half4 base = content.eval(coord) * half(alpha);
-
-    half tintA = half(tint.a) * half(alpha);
-    half3 tintRgb = half3(tint.rgb) * tintA;
-    half4 tintPremul = half4(tintRgb, tintA);
-
-    half t = half(clamp(tintIntensity, 0.0, 1.0));
-    return base * (half(1.0) - t) + tintPremul * t;
-}
-```
-
-### `MainSrc\LiquidGlassAvaloniaUI\Assets\Shaders\LiquidGlassBackdropTransform.sksl`
-
-<!-- 19 行 / 0.6 KB -->
-
-```glsl
-// Backdrop transform stage (zoom + offset)
-// Used for magnifier-style sampling.
-
-uniform shader content;
-
-uniform float2 size;
-uniform float zoom;      // 0+ (1 = identity)
-uniform float2 offset;   // DIPs, applied in the same coordinate space as `coord`
-
-half4 main(float2 coord) {
-    float z = max(zoom, 1e-3);
-    float2 center = size * 0.5;
-
-    // Inverse transform: sample from a smaller region to magnify (z > 1),
-    // and subtract offset so positive offset moves the drawn backdrop right/down.
-    float2 sampleCoord = center + (coord - center - offset) / z;
-    return content.eval(sampleCoord);
-}
-```
-
-## 6.8 二进制资源清单（不嵌入内容）
-
-以下文件以 `AvaloniaResource` 打进程序集，**内容不在本文档内**。要替换它们请向用户索要源文件。
-
-**⚠️ 注意路径**：这些资源经过一次目录重构（见第一部分 1.7），代码里引用的 `avares://` 路径必须与这里的物理路径**逐字一致**，否则运行时会静默失败。
-
-| 物理路径 | 用途 |
-|---|---|
-| `MainSrc\Sound\BigError.wav` | 音效 |
-| `MainSrc\Sound\DownloadDone.wav` | 音效 |
-| `MainSrc\Sound\Errors.wav` | 音效 |
-| `MainSrc\Sound\Messages.wav` | 音效 |
-| `MainSrc\Sound\Messages2.wav` | 音效 |
-| `MainSrc\Sound\Open.wav` | 音效 |
-| `MainSrc\Views\imgs\Main\images\BackGrounds\banb_img.png` | 界面图片 |
-| `MainSrc\Views\imgs\Main\images\BackGrounds\bg.jpg` | 界面图片 |
-| `MainSrc\Views\imgs\Main\images\BackGrounds\ic_setting_sign_in_background.webp` | 界面图片 |
-| `MainSrc\Views\imgs\Main\images\Blocks\Anvil.png` | 方块图标（当前未引用） |
-| `MainSrc\Views\imgs\Main\images\Blocks\april_fools.png` | 方块图标（当前未引用） |
-| `MainSrc\Views\imgs\Main\images\Blocks\chest.png` | 方块图标（当前未引用） |
-| `MainSrc\Views\imgs\Main\images\Blocks\CobbleStone.png` | 方块图标（当前未引用） |
-| `MainSrc\Views\imgs\Main\images\Blocks\command.png` | 方块图标（当前未引用） |
-| `MainSrc\Views\imgs\Main\images\Blocks\CommandBlock.png` | 方块图标（当前未引用） |
-| `MainSrc\Views\imgs\Main\images\Blocks\craft_table.png` | 方块图标（当前未引用） |
-| `MainSrc\Views\imgs\Main\images\Blocks\furnace.png` | 方块图标（当前未引用） |
-| `MainSrc\Views\imgs\Main\images\Blocks\GoldBlock.png` | 方块图标（当前未引用） |
-| `MainSrc\Views\imgs\Main\images\Blocks\Grass.png` | 方块图标（当前未引用） |
-| `MainSrc\Views\imgs\Main\images\Blocks\grass2.png` | 方块图标（当前未引用） |
-| `MainSrc\Views\imgs\Main\images\Blocks\GrassPath.png` | 方块图标（当前未引用） |
-| `MainSrc\Views\imgs\Main\images\Blocks\hmcl.png` | 方块图标（当前未引用） |
-| `MainSrc\Views\imgs\Main\images\Blocks\RedstoneBlock.png` | 方块图标（当前未引用） |
-| `MainSrc\Views\imgs\Main\images\Blocks\RedstoneLampOff.png` | 方块图标（当前未引用） |
-| `MainSrc\Views\imgs\Main\images\Blocks\RedstoneLampOn.png` | 方块图标（当前未引用） |
-| `MainSrc\Views\imgs\Main\images\Buttons\black-.png` | 按钮 / 标题栏图标 |
-| `MainSrc\Views\imgs\Main\images\Buttons\blackx.png` | 按钮 / 标题栏图标 |
-| `MainSrc\Views\imgs\Main\images\Buttons\button-Start1.png` | 按钮 / 标题栏图标 |
-| `MainSrc\Views\imgs\Main\images\Buttons\button-Start2.png` | 按钮 / 标题栏图标 |
-| `MainSrc\Views\imgs\Main\images\Buttons\button-Start3.png` | 按钮 / 标题栏图标 |
-| `MainSrc\Views\imgs\Main\images\Buttons\button-Start4.png` | 按钮 / 标题栏图标 |
-| `MainSrc\Views\imgs\Main\images\Buttons\Download.png` | 按钮 / 标题栏图标 |
-| `MainSrc\Views\imgs\Main\images\Buttons\Home.png` | 按钮 / 标题栏图标 |
-| `MainSrc\Views\imgs\Main\images\Buttons\Launch.png` | 按钮 / 标题栏图标 |
-| `MainSrc\Views\imgs\Main\images\Buttons\ReLogin.png` | 按钮 / 标题栏图标 |
-| `MainSrc\Views\imgs\Main\images\Buttons\Setting.png` | 按钮 / 标题栏图标 |
-| `MainSrc\Views\imgs\Main\images\Buttons\Tool.png` | 按钮 / 标题栏图标 |
-| `MainSrc\Views\imgs\Main\images\Buttons\warning.png` | 按钮 / 标题栏图标 |
-| `MainSrc\Views\imgs\Main\images\Buttons\white-.png` | 按钮 / 标题栏图标 |
-| `MainSrc\Views\imgs\Main\images\Buttons\whitex.png` | 按钮 / 标题栏图标 |
-| `MainSrc\Views\imgs\Main\images\Launcher\a7d21-in3zc.png` | 启动器装饰图 / 背景图 |
-| `MainSrc\Views\imgs\Main\images\Launcher\cyan_glazed_terracotta.png` | 启动器装饰图 / 背景图 |
-| `MainSrc\Views\imgs\Main\images\Launcher\Erics.jpg` | 启动器装饰图 / 背景图 |
-| `MainSrc\Views\imgs\Main\images\Launcher\MainLogo.ico` | 程序图标 + 任务栏图标（Content 复制） 启动器装饰图 / 背景图 |
-| `MainSrc\Views\imgs\Main\images\Launcher\show.png` | 启动器装饰图 / 背景图 |
-| `MainSrc\Views\imgs\Main\images\Launcher\show-64x.png` | 启动器装饰图 / 背景图 |
-| `MainSrc\Views\imgs\Main\images\Launcher\wildflowers.png` | 启动器装饰图 / 背景图 |
-| `MainSrc\Views\imgs\Main\images\Loaders\8mi-tech.png` | 加载器图标（当前未引用，为 P5 预留） |
-| `MainSrc\Views\imgs\Main\images\Loaders\chicken.png` | 加载器图标（当前未引用，为 P5 预留） |
-| `MainSrc\Views\imgs\Main\images\Loaders\cleanroom.png` | 加载器图标（当前未引用，为 P5 预留） |
-| `MainSrc\Views\imgs\Main\images\Loaders\Egg.png` | 加载器图标（当前未引用，为 P5 预留） |
-| `MainSrc\Views\imgs\Main\images\Loaders\Fabric.png` | 加载器图标（当前未引用，为 P5 预留） |
-| `MainSrc\Views\imgs\Main\images\Loaders\fabric2.png` | 加载器图标（当前未引用，为 P5 预留） |
-| `MainSrc\Views\imgs\Main\images\Loaders\forge.png` | 加载器图标（当前未引用，为 P5 预留） |
-| `MainSrc\Views\imgs\Main\images\Loaders\ic_fabric.webp` | 加载器图标（当前未引用，为 P5 预留） |
-| `MainSrc\Views\imgs\Main\images\Loaders\ic_pojav_full.webp` | 加载器图标（当前未引用，为 P5 预留） |
-| `MainSrc\Views\imgs\Main\images\Loaders\ic_quilt.webp` | 加载器图标（当前未引用，为 P5 预留） |
-| `MainSrc\Views\imgs\Main\images\Loaders\LabyMod.png` | 加载器图标（当前未引用，为 P5 预留） |
-| `MainSrc\Views\imgs\Main\images\Loaders\NeoForge.png` | 加载器图标（当前未引用，为 P5 预留） |
-| `MainSrc\Views\imgs\Main\images\Loaders\OptiFabric.png` | 加载器图标（当前未引用，为 P5 预留） |
-| `MainSrc\Views\imgs\Main\images\Loaders\optifine.png` | 加载器图标（当前未引用，为 P5 预留） |
-| `MainSrc\Views\imgs\Main\images\Loaders\quilt.png` | 加载器图标（当前未引用，为 P5 预留） |
-| `MainSrc\Views\imgs\Main\images\Support\discord.png` | 社交链接图标 |
-| `MainSrc\Views\imgs\Main\images\Support\github.png` | 社交链接图标 |
-| `MainSrc\Views\imgs\Main\images\Support\ic_curseforge.png` | 社交链接图标 |
-| `MainSrc\Views\imgs\Main\images\Support\ic_modrinth.png` | 社交链接图标 |
-| `MainSrc\Views\imgs\Main\images\Support\ic_mouse_pointer.png` | 社交链接图标 |
-| `MainSrc\Views\imgs\Main\images\Support\kookapp.png` | 社交链接图标 |
-| `MainSrc\Views\imgs\Main\images\Support\mcmod.png` | 社交链接图标 |
-| `MainSrc\Views\imgs\skin\_-酔った东京空_3.png` | 皮肤贴图（3D 投影 / 头像裁切） |
-| `MainSrc\Views\imgs\skin\【搬运】◇苦力怕娘（作者：钻茜）.png` | 皮肤贴图（3D 投影 / 头像裁切） |
-| `MainSrc\Views\imgs\skin\Alex.png` | 皮肤贴图（3D 投影 / 头像裁切） |
-| `MainSrc\Views\imgs\skin\Steve.png` | 皮肤贴图（3D 投影 / 头像裁切） |
-| `MainSrc\Views\imgs\skin\艾利克斯-Alex 夏日款.png` | 皮肤贴图（3D 投影 / 头像裁切） |
-| `MainSrc\Views\imgs\skin\菜鸟.png` | 皮肤贴图（3D 投影 / 头像裁切） |
-| `MainSrc\Views\imgs\skin\电脑人.png` | 皮肤贴图（3D 投影 / 头像裁切） |
-| `MainSrc\Views\imgs\skin\粉嫩女装史蒂夫.png` | 皮肤贴图（3D 投影 / 头像裁切） |
-| `MainSrc\Views\imgs\skin\胡桃.png` | 皮肤贴图（3D 投影 / 头像裁切） |
-| `MainSrc\Views\imgs\skin\猎奇史蒂夫.png` | 皮肤贴图（3D 投影 / 头像裁切） |
-| `MainSrc\Views\imgs\skin\猫娘史蒂夫（白丝.png` | 皮肤贴图（3D 投影 / 头像裁切） |
-| `MainSrc\Views\imgs\skin\美西螈.png` | 皮肤贴图（3D 投影 / 头像裁切） |
-| `MainSrc\Views\imgs\skin\史蒂夫，但是byd脸.png` | 皮肤贴图（3D 投影 / 头像裁切） |
-| `MainSrc\Views\imgs\skin\史蒂夫【卡兰兹大眼】.png` | 皮肤贴图（3D 投影 / 头像裁切） |
-| `MainSrc\Views\imgs\skin\幼猫.png` | 皮肤贴图（3D 投影 / 头像裁切） |
-
-> 合计 84 个文件，约 3362 KB。
-
-
----
 
 # 第七部分：协作约定
 
-> 本项目原作者与 AI / 协作者之间形成的约定，**接手时请一并遵守**。
-
 ## 7.1 分工模式
 
-**用户负责架构与进度规划，只把一个小进度点交给协作者实现。**
+- 用户是产品与需求的唯一来源；AI 负责实现、取证与文档。
+- **大规模排查优先并行分工**：本次"下载掉速"就是按 4 个方向（代码审计 / 网络实测 / PCL 机制 / 302 机制验证）并行取证，
+  最后由 Lead 交叉验证收敛。每个方向都要求给出**可复现的数字**，不接受"可能是…"。
+- 改代码前先确认改哪个文件、影响哪些调用点；跨文件改动一次性做完再编译。
 
-1. **只改被要求的那一个功能**，不做顺手重构、不加未要求的功能
-2. 有想法**先说出来问**，不擅自拍板
-3. 改动前**先读相关文件**，改完汇报**改了哪些文件、什么位置、为什么**
-4. 遇到架构冲突或多种做法，**先问再写**
-5. 用户说"不写代码"时**绝对不碰代码**
-6. **源码就在仓库里**，任何文件都可直接读，不要向用户索要代码
-   （⚠️ **例外**：如果你手上只有这份文档而没有仓库，第六部分可能已过期 —— 见 [0.1](#01-文档一定会过期--这是设计前提)）
+## 7.2 反直觉教训（本次新增）
 
-## 7.2 五条反直觉教训
-
-### 教训一：渲染类问题，先看中间产物，再谈推理
-
-液态玻璃那个 bug 花了极长时间，因为前期排查全在**推理与调参**：DPI、采样矩阵、脏矩形抑制、变换事件、滤镜裁剪……**每一条看起来都很有道理，全部被证伪**。
-
-真正的突破点只有一步：**把库抓到的背景快照存成 PNG 看了一眼** —— 发现它是全透明的。
-
-> **所以：遇到"渲染结果不对"，第一件事是把链路中间的产物 dump 出来看，而不是读代码猜。**
-
-### 教训二：构建成功 ≠ 改动生效
-
-只改了玻璃库的 `.cs`、然后 `dotnet build` 主项目，**MSBuild 可能不重新编译玻璃库**，构建却报告"成功"。不查 DLL 时间戳、不在元数据里搜方法名，你会以为改动生效了，实际跑的还是旧代码。
-
-> **所以：特别是改 vendored 子项目时，必须验证产物**（见 [2.3 陷阱 5](#23--环境陷阱务必先读)）。
-
-### 教训三：改目录/改文件名，必须做"三层验证"
-
-本次 `src → MainSrc` 与 `imgs` 分目录共改了 **74 处路径**（51 + 23），全部是**字符串字面量**。
-这类改动 **编译期完全无法校验**，且大部分加载点还被 `try/catch` 吞掉异常。
-
-必须做三层验证：**① 零残留 ② 每条引用在磁盘上存在 ③ 资源真的进了程序集**，
-最后再**人工点一遍界面**。（完整流程见 [1.6.3](#163-修改方式可复用的流程)）
-
-> **所以：路径类改动不要"改完就交"，一定要跑完这三层验证。**
-
-### 教训四：用户的现象描述是最有价值的线索
-
-这次能定位，关键信息是用户说的"**只有移动到下载才有动画**"和"**中间一条硬竖缝**"。
-前者把范围从"玻璃不好看"缩小到"**位置相关**"，后者直接指向"**某条边界在钳制采样**"。
-
-> **所以：追问具体现象（哪个位置、哪个方向、边界在哪）比反复读代码更有价值。**
-
-### 教训五：`.gitignore` 与构建输出配置是联动的
-
-历史上因为 `publish\` 没被忽略，**132 MB 的 exe/dll/pdb 被提交进仓库**，占了仓库体积的 93%。
-最后不得不**重写全部 Git 历史**（`filter-branch`）才清掉，所有 commit SHA 都变了。
-
-> **所以：改 `<OutputPath>` / 新增输出目录时，同步检查 `.gitignore`。**
+1. **"网络慢"和"代码路径选错"必须先用数据分开。**
+   本次真相是：不是带宽问题，是**每个文件都先去撞一个坏镜像**。
+   方法：同一批文件 A/B 双源实测 + 真实下载目录对账。
+2. **`curl` 通 ≠ 启动器通。**
+   `curl` 不读 WinINET 系统代理，.NET 读。排查"启动器网络全挂"时两者表现会完全相反。
+3. **`async void` 是崩溃放大器。**
+   Avalonia 事件处理器里任何未捕获异常都会直接终止进程。必须加全局 `Dispatcher.UIThread.UnhandledException` 守卫。
+4. **"慢但返回 200"是最阴的失败。**
+   只按 HTTP 错误码判断成功/失败，会让坏源永远"看起来正常"。
+   必须有**速率判据**（失速）而不只是**状态码判据**。
+5. **代理端口"能建 TCP 但不转发"** 也要能降级，不能只判"拒绝连接"。
+6. **测速数字不能直接信。** 失败重试的字节会被重复计入，导致"速度虚高、进度不动"。
+   本次已改为失败回滚。
 
 ## 7.3 排查脚本的存放约定
 
-- **绝不在仓库根目录建临时 csproj / 脚本**（见 [2.3 陷阱 2](#23--环境陷阱务必先读)）
-- 排查用的临时工程、脚本、实验产物一律放 `%TEMP%`
-- **不要把实验产物（PNG / 日志 / 临时 md）留在仓库里**
-
-  > 本次排查中曾有协作者**越界改动** `MainSrc\Views\LoginWindow.axaml`
-  > （把 `RefractionHeight` 改成 `18` 并留下 4 个多余引号，**XAML 已损坏**），
-  > 以及把分析记录写进仓库根目录。**发现这类情况应立即还原并告知用户。**
+- 临时脚本/产物一律写 `%TEMP%\mcdiag\<方向>\`，**不要污染仓库**。
+- 排查脚本要带注释说明：目的、判据、如何复现。
+- 需要长期保留的结论写进本文档（第三部分），脚本可丢弃。
 
 ## 7.4 交付前检查清单
 
-| 检查项 | 说明 |
-|---|---|
-| **编译** | `dotnet build Project.Launch.csproj -c Debug --no-incremental`，0 错误 |
-| **产物** | 确认 DLL / exe 时间戳已更新；改过玻璃库时额外验证其 DLL |
-| **路径** | 若动过目录/文件名：跑 [1.6.3](#163-修改方式可复用的流程) 的三层验证 |
-| **运行** | 至少跑一次，确认无 `crash.log`、无异常 CPU、`app.log` 无资源加载错误 |
-| **界面** | **人工点一遍**：标题栏最小化/关闭（黑/白两态）、底部 5 个导航图标、登录/启动按钮（有/无实例）、登录窗 GitHub 图标、exe 图标 |
-| **痕迹** | 清掉调试代码、临时日志、开发期提示（如"请更换仓库不要露全部代码"、硬编码 `rc-5`） |
-| **仓库** | `git status` 确认没有把实验产物 / 运行日志 / 构建输出带进提交 |
-| **忽略规则** | 若新增了输出目录，确认 `.gitignore` 已覆盖 |
-| **汇报** | 明确列出：改了哪些文件、哪一行、为什么 |
+- [ ] `dotnet build Project.Launch.csproj -c Debug` **0 错误**
+- [ ] 新增/修改的 `avares://` 路径在磁盘上真实存在
+- [ ] 下载相关改动：至少跑一次真实版本安装，确认 `app.log` 里 `下载结束：…失败 0`
+- [ ] 涉及 UI 事件：确认异常不会终止进程（`app.log` 查"UI 线程未处理异常"）
+- [ ] 改了 `OutputPath` / 目录结构 → 同步检查 `.gitignore` 与 csproj 的 6 条排除
+- [ ] 改完 `HANDOVER.md` 时，**若源码已变，第六部分必须重新生成**（见 7.5）
 
-## 7.5 用户环境备忘
+## 7.5 如何重新生成本文档第六部分
+
+第六部分是**脚本生成**的，避免手工搬运出错。思路：
+
+1. 盘点文件：`Get-ChildItem -Recurse -Include *.cs,*.axaml,*.csproj,*.sksl,*.manifest,*.md`
+   排除 `obj\`、`bin\`、`BuiltDebugRun\`、`publish\`、`Design\`、`.git\`；
+2. 按目录分组，为每个文件输出 `### `路径`` + 对应语言围栏的完整内容；
+3. 语言映射：`.cs→csharp`、`.axaml/.csproj/.manifest→xml`、`.sksl→glsl`、`.md→markdown`、其他 `text`；
+4. 若文件内容本身含三反引号，围栏升级为四反引号；
+5. 拼接顺序：第零~五部分（人工叙述）→ 第六部分（生成）→ 第七部分（人工叙述）。
+
+## 7.6 用户环境备忘
 
 | 项 | 值 |
 |---|---|
-| 显示缩放 | **125%**（`RenderScaling = 1.25`）—— 涉及像素计算时注意 |
-| 数据目录 | `<exe 目录>\KilimLauncher\`，**不在 `%AppData%`** |
-| 当前输出目录 | `MainSrc\BuiltDebugRun\`（换目录 = 换了一套新数据目录，旧账户不会自动搬过去） |
-| 3D 皮肤 | 检测结果为 **Slim** |
-| 仓库 | 私有 `KilimMinecraftPrivateRepository`，`master`，作者 `Erics <Zhouxuanyao2333@outlook.com>` |
-| 本机限制 | 执行策略禁止直接跑 `.ps1`；`Get-Content` 默认非 UTF-8；GitHub / BMCLAPI 偶发连不上（网络环境问题，非代码问题） |
+| 工作目录 | `C:\NoiRaceing\Project.Launch\Project.Launch` |
+| 打包环境 | .NET SDK 10.0.401；`pwsh -Command` 实际是 PowerShell 5.1 |
+| 代理 | Windows 系统代理指向 `127.0.0.1:7892`（客户端可能不常开）→ 已由 `ProxyEnvironment` 处理 |
+| 测试下载目录 | `E:\MinecraftDownloadTest`（用户手工测试用） |
+| 已知偏好 | 中文交流；喜欢"先说结论 + 给证据/数字"；重效率，能并行就并行 |
 
 ---
 
-# 附：如何更新本文档
+# 文档结束
 
-本文档的**第六部分（完整源码）由脚本从仓库真实文件生成**，不要手工编辑那一部分。
-
-重新生成的方法：
-
-1. 向用户索要 `gen_code.ps1`（本次生成脚本，位于 `%TEMP%\kilim_doc2\`，**未入库**）
-2. 或自行实现等价逻辑：按 [6.1](#61-根目录) ~ [6.7](#67-mainsrcliquidglassavaloniaui--液态玻璃库vendored-第三方) 的文件清单
-   依次读取文件，包进带语言标记的代码块，拼成 markdown
-3. **第一~五、七部分（叙述部分）如需更新，请针对性重写对应小节**，
-   并更新文档开头的 `分支 / HEAD` 与 `文档生成` 日期
-
-> ⚠️ **再次强调**：只要用户又改了代码，本文档第六部分对应小节立即失效。
-> **需要查/改具体实现时，直接向用户索要该文件的最新版本，不要依赖本文档里的代码。**
-
----
-
-*文档结束。任何一节需要展开或存疑，请向用户确认，不要基于本文档的推测直接动手。*
+> 若你读到这里，说明你已经掌握了本项目的全貌。
+> 记住三件事：
+> 1. **下载慢先查源，不要先调并发**；
+> 2. **网络全挂先查系统代理**；
+> 3. **UI 事件抛异常要先兜住**，否则整个程序一起陪葬。
 
